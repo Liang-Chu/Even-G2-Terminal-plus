@@ -1,0 +1,297 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web.Script.Serialization;
+using System.Windows.Forms;
+
+[assembly: System.Reflection.AssemblyTitle("Even-Pilot")]
+[assembly: System.Reflection.AssemblyFileVersion("1.0.22.0")]
+[assembly: System.Reflection.AssemblyVersion("1.0.22.0")]
+
+// Native tray UI. The bridge and its Pi sessions have an independent lifetime.
+class PilotTray : ApplicationContext {
+    readonly string root = AppDomain.CurrentDomain.BaseDirectory;
+    readonly JavaScriptSerializer json = new JavaScriptSerializer();
+    readonly NotifyIcon icon = new NotifyIcon();
+    readonly HttpClient http = new HttpClient(new HttpClientHandler { UseProxy = false });
+    readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+    readonly StartupRegistration startup = new StartupRegistration(Application.ExecutablePath);
+    readonly Icon appIcon;
+    string token, node;
+    readonly EventWaitHandle showRequested;
+    bool checking, exiting, starting, opening;
+    Task<bool> startTask;
+    DateTime retryAt = DateTime.MinValue;
+    readonly ToolStripMenuItem status = new ToolStripMenuItem("Background: Starting…");
+    readonly ToolStripMenuItem activity = new ToolStripMenuItem("Checking monitored sessions…");
+    readonly ToolStripMenuItem startBackground = new ToolStripMenuItem("Start background");
+    readonly ToolStripMenuItem autoStart = new ToolStripMenuItem("Start with Windows");
+    readonly ToolStripMenuItem autoUpdates = new ToolStripMenuItem("Automatically check for updates");
+    readonly ToolStripMenuItem updateAction = new ToolStripMenuItem("Check for updates");
+    DateTime updatesAt = DateTime.MinValue;
+    string availableVersion, notifiedVersion;
+    bool updating;
+    static int Port() {
+        int value; string configured = Environment.GetEnvironmentVariable("EVEN_PILOT_PORT");
+        if (String.IsNullOrEmpty(configured)) return 4317;
+        if (!Int32.TryParse(configured, out value) || value < 1 || value > 65535) throw new Exception("Invalid bridge port");
+        return value;
+    }
+    PilotTray(EventWaitHandle show, bool quietLaunch) {
+        showRequested = show;
+        node = PrepareDesktop(root);
+        var config = json.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(DesktopPaths.DataDirectory(root), "bridge-config.json")));
+        token = Environment.GetEnvironmentVariable("EVEN_PILOT_TOKEN");
+        if (String.IsNullOrEmpty(token)) token = (string)config["controlToken"];
+        http.BaseAddress = new Uri("http://127.0.0.1:" + Port());
+        http.Timeout = TimeSpan.FromSeconds(30);
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var menu = new ContextMenuStrip();
+        status.Enabled = false; menu.Items.Add(status);
+        activity.Enabled = false; menu.Items.Add(activity);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Open Even-Pilot", null, async (s, e) => await OpenManager());
+        startBackground.Click += async (s, e) => await Start(true);
+        menu.Items.Add(startBackground);
+        autoStart.CheckOnClick = false;
+        autoStart.Click += (s, e) => ToggleStartup();
+        menu.Items.Add(autoStart);
+        updateAction.Click += async (s, e) => await UpdateAction(); menu.Items.Add(updateAction);
+        autoUpdates.Click += async (s, e) => {
+            if (updating) return;
+            try { await UpdateRequest("/api/updates/settings", new { automaticChecks = !autoUpdates.Checked }); await ReadUpdates(false); }
+            catch { updateAction.Text = "Update settings unavailable"; }
+        };
+        menu.Items.Add(autoUpdates);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Quit Even-Pilot", null, (s, e) => Quit());
+        menu.Opening += (s, e) => ReadStartup();
+        using (var stream = typeof(PilotTray).Assembly.GetManifestResourceStream("Even-Pilot.ico")) {
+            appIcon = new Icon(stream, SystemInformation.SmallIconSize);
+        }
+        icon.Icon = appIcon; icon.Text = "Even-Pilot";
+        icon.ContextMenuStrip = menu; icon.Visible = true;
+        icon.DoubleClick += async (s, e) => await OpenManager();
+        timer.Interval = 1000;
+        int ticks = 0;
+        timer.Tick += async (s, e) => {
+            if (exiting) return;
+            if (showRequested.WaitOne(0)) await OpenManager();
+            if (++ticks % 3 == 0 && !starting && !await Refresh() && DateTime.UtcNow >= retryAt) await Start(false);
+            if (DateTime.UtcNow >= updatesAt && !updating && !starting) await ReadUpdates(false);
+        };
+        timer.Start();
+        Application.ApplicationExit += (s, e) => { icon.Visible = false; icon.Dispose(); appIcon.Dispose(); menu.Dispose(); http.Dispose(); timer.Dispose(); };
+        Begin(quietLaunch);
+    }
+    async void Begin(bool quietLaunch) {
+        if (quietLaunch) await Start(false);
+        else await OpenManager();
+    }
+    void ReadStartup() {
+        try { autoStart.Checked = startup.IsEnabled(); autoStart.Enabled = true; }
+        catch { autoStart.Checked = false; autoStart.Enabled = false; }
+    }
+    void ToggleStartup() {
+        try { startup.SetEnabled(!startup.IsEnabled()); ReadStartup(); }
+        catch (Exception error) {
+            ReadStartup();
+            MessageBox.Show(error.Message, "Could not change Windows startup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+    async Task<Dictionary<string, object>> UpdateRequest(string path, object body = null) {
+        using (var content = body == null ? null : new StringContent(json.Serialize(body), Encoding.UTF8, "application/json"))
+        using (var response = body == null ? await http.GetAsync(path) : await http.PostAsync(path, content)) {
+            response.EnsureSuccessStatusCode();
+            return json.Deserialize<Dictionary<string, object>>(await response.Content.ReadAsStringAsync());
+        }
+    }
+    async Task ReadUpdates(bool manual) {
+        if (updating) return; updating = true; updatesAt = DateTime.UtcNow.AddSeconds(60);
+        try {
+            var data = await UpdateRequest("/api/updates");
+            bool automatic = Convert.ToBoolean(data["automaticChecks"]);
+            autoUpdates.Checked = automatic;
+            var available = data["available"] as Dictionary<string, object>;
+            availableVersion = available == null ? null : Convert.ToString(available["version"]);
+            if (!automatic && !manual) availableVersion = null;
+            bool working = Convert.ToString(data["phase"]) == "downloading" || Convert.ToString(data["phase"]) == "installing";
+            autoUpdates.Enabled = !working;
+            updateAction.Enabled = !working;
+            updateAction.Text = working ? "Updating…" : availableVersion != null && Convert.ToBoolean(data["installSupported"]) ? "Update to " + availableVersion : "Check for updates";
+            if (!working && availableVersion != null && (manual || automatic && notifiedVersion != availableVersion)) {
+                notifiedVersion = availableVersion;
+                icon.ShowBalloonTip(7000, "Even-Pilot update available", "Version " + availableVersion + ". Right-click the tray icon to update.", ToolTipIcon.Info);
+            } else if (manual && availableVersion == null) icon.ShowBalloonTip(5000, "Even-Pilot updates", data["error"] == null ? "No newer release available." : Convert.ToString(data["error"]), ToolTipIcon.Info);
+        } catch { updateAction.Text = "Check for updates"; }
+        finally { updating = false; }
+    }
+    async Task UpdateAction() {
+        if (updating) return;
+        try {
+            if (availableVersion != null && updateAction.Text.StartsWith("Update to ")) {
+                await UpdateRequest("/api/updates/install", new { version = availableVersion });
+            } else await UpdateRequest("/api/updates/check", new { });
+            await ReadUpdates(true);
+        } catch { icon.ShowBalloonTip(5000, "Even-Pilot updates", "Could not check or start the update. Open Updates in the manager for details.", ToolTipIcon.Warning); }
+    }
+    async Task<bool> Refresh() {
+        if (checking || exiting) return false;
+        checking = true;
+        try {
+            using (var timeout = new CancellationTokenSource(2000))
+            using (var response = await http.GetAsync("/api/monitoring", timeout.Token)) {
+                response.EnsureSuccessStatusCode();
+                var data = json.Deserialize<Dictionary<string, object>>(await response.Content.ReadAsStringAsync());
+                if (exiting) return false;
+                string label = Convert.ToString(data["running"]) + " running / " + Convert.ToString(data["watched"]) + " watched";
+                status.Text = "Background: Running"; activity.Text = label;
+                string tooltip = "Even-Pilot · " + label;
+                icon.Text = tooltip.Substring(0, Math.Min(63, tooltip.Length));
+                startBackground.Enabled = false;
+                return true;
+            }
+        } catch {
+            if (!exiting) {
+                status.Text = starting ? "Background: Starting…" : "Background: Reconnecting";
+                activity.Text = "Watch settings retained";
+                icon.Text = "Even-Pilot · reconnecting";
+                startBackground.Enabled = !starting;
+            }
+            return false;
+        }
+        finally { checking = false; }
+    }
+    Task<bool> Start(bool notifyErrors) {
+        if (exiting) return Task.FromResult(false);
+        if (startTask == null || startTask.IsCompleted) startTask = StartCore(notifyErrors);
+        return startTask;
+    }
+    async Task<bool> StartCore(bool notifyErrors) {
+        starting = true;
+        startBackground.Enabled = false;
+        try {
+            LogStartup("background.check");
+            while (checking) await Task.Delay(50);
+            if (exiting) return false;
+            if (await Refresh()) { LogStartup("background.ready"); return true; }
+            // Detach stdio too: quitting the UI cannot break a backend pipe.
+            // The backend's exclusive lock prevents duplicate session owners.
+            using (var launcher = Process.Start(new ProcessStartInfo(node, "--import tsx apps/windows/src/desktop-launch.ts --port " + Port()) {
+                WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true
+            })) {
+                await Task.Run(() => launcher.WaitForExit(5000));
+                if (launcher.HasExited && launcher.ExitCode != 0) throw new Exception("The background launcher could not start.");
+            }
+            status.Text = "Background: Starting…";
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            do {
+                if (exiting) return false;
+                if (await Refresh()) { LogStartup("background.ready"); return true; }
+                await Task.Delay(300);
+            } while (DateTime.UtcNow < deadline);
+            throw new Exception("The bridge is not ready on port " + Port() + ". Existing sessions have not been stopped.");
+        } catch (Exception error) {
+            LogStartup("background.failed", error);
+            if (!exiting) {
+                status.Text = "Background: Unavailable";
+                activity.Text = "Watch settings retained";
+                icon.Text = "Even-Pilot · background unavailable";
+                startBackground.Enabled = true;
+                if (notifyErrors) MessageBox.Show(error.Message, "Even-Pilot could not start", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return false;
+        } finally { retryAt = DateTime.UtcNow.AddSeconds(30); starting = false; }
+    }
+    async Task OpenManager() {
+        if (opening || exiting) return;
+        opening = true;
+        try {
+            if (!await Start(true) || exiting) return;
+            using (var content = new StringContent(json.Serialize(new { openId = Guid.NewGuid().ToString() }), Encoding.UTF8, "application/json"))
+            using (var response = await http.PostAsync("/api/desktop/open", content)) {
+                if (!response.IsSuccessStatusCode) throw new Exception("Could not apply the last 24 hours watch defaults. Restart the Even-Pilot backend, then open the manager again. Existing terminals remain running.");
+            }
+            Process.Start(new ProcessStartInfo(http.BaseAddress + "?desktop=1#pilot-token=" + Uri.EscapeDataString(token)) { UseShellExecute = true });
+        } catch (Exception error) { if (!exiting) MessageBox.Show(error.Message, "Even-Pilot", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        finally { opening = false; }
+    }
+    void Quit() {
+        if (exiting) return; exiting = true; timer.Stop();
+        // Quit only the tray. No shutdown request, process kill, or watch changes.
+        icon.Visible = false; ExitThread();
+    }
+    static string PrepareDesktop(string root) {
+        LogStartup("prepare.files");
+        if (!File.Exists(Path.Combine(root, "node_modules", "tsx", "package.json")) || !File.Exists(Path.Combine(root, "apps", "evenhub", "dist", "index.html")))
+            throw new Exception("Reinstall Even-Pilot to restore its application files. Source checkouts should run Setup.cmd first.");
+        string nodePath = DesktopPaths.Node(root);
+        LogStartup("prepare.config");
+        Environment.SetEnvironmentVariable("EVEN_PILOT_DATA_DIR", DesktopPaths.DataDirectory(root));
+        using (var setup = Process.Start(new ProcessStartInfo(nodePath, "--import tsx apps/windows/src/setup.ts") {
+            WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true
+        })) {
+            var output = setup.StandardOutput.ReadToEndAsync();
+            var errors = setup.StandardError.ReadToEndAsync();
+            if (!setup.WaitForExit(15000)) { setup.Kill(); throw new Exception("Local setup timed out. Existing terminals were not stopped."); }
+            if (setup.ExitCode != 0) throw new Exception("Local setup failed. Run Setup.cmd in this folder to see the error.");
+        }
+        return nodePath;
+    }
+    static void LogStartup(string stage, Exception error = null) {
+        try {
+            string directory = DesktopPaths.DataDirectory(AppDomain.CurrentDomain.BaseDirectory);
+            Directory.CreateDirectory(directory);
+            string path = Path.Combine(directory, "desktop-startup.log");
+            if (File.Exists(path) && new FileInfo(path).Length > 65536) File.WriteAllText(path, "");
+            // Fixed stage + exception type only: never serialize config, tokens or HTTP bodies.
+            File.AppendAllText(path, DateTime.UtcNow.ToString("o") + " " + stage +
+                (error == null ? "" : " " + error.GetType().Name + " (" + error.HResult + ")") + Environment.NewLine);
+        } catch { }
+    }
+    [STAThread]
+    static void Main(string[] args) {
+        string installed = DesktopPaths.InstalledExecutable(AppDomain.CurrentDomain.BaseDirectory);
+        if (installed != null) {
+            var forwarded = new List<string>();
+            foreach (string arg in args) if (arg == "--autostart" || arg == "--prepare" || arg == "--check") forwarded.Add(arg);
+            Process.Start(new ProcessStartInfo(installed, String.Join(" ", forwarded.ToArray())) { WorkingDirectory = Path.GetDirectoryName(installed), UseShellExecute = false, CreateNoWindow = true });
+            return;
+        }
+        if (args.Length > 0 && args[0] == "--prepare") {
+            try { PrepareDesktop(AppDomain.CurrentDomain.BaseDirectory); }
+            catch (Exception error) { LogStartup("prepare.failed", error); Environment.Exit(1); }
+            return;
+        }
+        if (args.Length > 0 && args[0] == "--check") {
+            var root = AppDomain.CurrentDomain.BaseDirectory;
+            if (!File.Exists(Path.Combine(DesktopPaths.DataDirectory(root), "bridge-config.json"))
+                || !File.Exists(Path.Combine(root, "node_modules", "tsx", "package.json"))) Environment.Exit(1);
+            return;
+        }
+        bool quietLaunch = Array.IndexOf(args, "--autostart") >= 0;
+        bool first;
+        string instance = Port() == 4317 ? "" : "-" + Port();
+        using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\Even-PIlot-Show" + instance))
+        using (var mutex = new Mutex(true, "Local\\Even-PIlot-Tray" + instance, out first)) {
+            if (!first) { if (!quietLaunch) show.Set(); return; }
+            Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+            for (int attempt = 0; ; attempt++) {
+                try { LogStartup(quietLaunch ? "tray.autostart" : "tray.open"); Application.Run(new PilotTray(show, quietLaunch)); break; }
+                catch (Exception error) {
+                    LogStartup("tray.failed", error);
+                    if (quietLaunch && attempt < 2) { Thread.Sleep(3000); continue; }
+                    if (!quietLaunch) MessageBox.Show(error.Message, "Even-Pilot", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    break;
+                }
+            }
+        }
+    }
+}

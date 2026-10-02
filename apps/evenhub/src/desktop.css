@@ -1,0 +1,60 @@
+.desktop-mode .workspace { display: block; }
+.desktop-mode .page-heading { display: none; }
+.desktop-mode .masthead { height: 66px; }
+.desktop-mode .brand { font-size: 18px; }
+.desktop-mode .brand small { display: none; }
+.desktop-mode main { padding-top: 20px; }
+.desktop-mode .page-footer { margin-top: 20px; }
+.desktop-mode .workspace > aside, .desktop-mode #transcript { display: none; }
+.desktop-mode .terminal-panel { margin-top: 24px; box-shadow: none; }
+.desktop-mode textarea { min-height: 45px; }
+.desktop-session-panel { border: var(--line); }
+.desktop-session-panel .desktop-session-title { display: block; }
+.desktop-session-title h1 { font-size: 24px; letter-spacing: 0; margin: 0 0 10px; }
+.desktop-session-summary { margin: 0; font-size: 12px; }
+.desktop-session-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px 10px; }
+.desktop-session-tabs { display: flex; gap: 8px; }
+.desktop-session-tabs button[aria-pressed="true"] { background: #111; color: #fff; }
+.desktop-session-toolbar input { padding: 10px; width: min(40%,360px); min-width: 0; border: 1px solid #111; font-size: 12px; }
+.desktop-session-panel > .caption { margin: 0 18px 14px; font-size: 11px; }
+.desktop-session-list { min-height: 220px; max-height: 56vh; overflow-y: auto; }
+.desktop-session-row { display: grid; grid-template-columns: 66px minmax(160px,1fr) minmax(150px,auto) 142px; gap: 18px; align-items: center; padding: 16px 18px; border-top: 1px solid #ccc; }
+.desktop-session-row.selected { border-left: 5px solid #111; padding-left: 11px; background: #f7f7f7; }
+.desktop-watch { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; }
+.desktop-watch input { width: 22px; height: 22px; margin: 0; accent-color: #111; cursor: pointer; }
+.desktop-session-row .session-badge { margin-right: 6px; }
+.desktop-session-row .session-badge.running { background: #111; color: #fff; }
+.desktop-session-empty { padding: 32px 18px; text-align: center; }
+.desktop-session-row strong, .desktop-session-row small { display: block; overflow-wrap: anywhere; line-height: 1.6; }
+.desktop-session-row strong { max-height: 3.2em; overflow: hidden; }
+.desktop-session-row small { color: #666; font-size: 10px; margin-top: 5px; }
+.desktop-row-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.pairing-dialog { width: min(94vw, 680px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+.pairing-dialog .dialog-heading h2 { margin: 0; }
+.pairing-dialog > p { margin: 12px 0 20px; }
+.pairing-content { display: grid; grid-template-columns: minmax(0, 1fr) 184px; align-items: start; gap: 24px; }
+.pairing-details { min-width: 0; }
+.pairing-fields { display: grid; gap: 16px; }
+.pairing-field { display: grid; gap: 6px; }
+.pairing-field label { margin: 0; }
+.pairing-control { display: flex; align-items: stretch; border: 1px solid #111; }
+.pairing-control input { flex: 1; min-width: 0; height: 38px; margin: 0; padding: 8px 10px; border: 0; }
+.pairing-control input:focus { outline-offset: -3px; }
+.pairing-copy-button { display: grid; place-items: center; flex: 0 0 38px; padding: 0; border: 0; border-left: 1px solid #111; background: #fff; color: #111; }
+.pairing-copy-button:focus-visible { outline: 2px solid currentColor; outline-offset: -4px; }
+.pairing-copy-button:active:enabled { transform: none; }
+.pairing-dialog #pairing-copy-status { min-height: 18px; margin: 8px 0 0; }
+.pairing-dialog img { display: block; width: 184px; height: 184px; margin: 0; image-rendering: pixelated; }
+@media (max-width: 600px) {
+  .pairing-content { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .pairing-dialog img { width: 176px; height: 176px; margin: 0 auto; }
+}
+@media (max-width: 800px) {
+  .desktop-session-row { grid-template-columns: 44px minmax(0,1fr) auto; gap: 8px 14px; }
+  .desktop-session-detail { grid-column: 2; }
+  .desktop-row-actions { grid-column: 3; grid-row: 1 / 3; }
+  .desktop-watch { grid-row: 1 / 3; }
+  .desktop-session-toolbar { flex-wrap: wrap; }
+  .desktop-session-toolbar input { width: 100%; }
+  .desktop-mode .header-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+}

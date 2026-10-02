@@ -1,0 +1,46 @@
+# G2 prompt and reply contract
+
+The authenticated bridge adds a durable source tag and summary instructions when `POST /api/prompt` receives `source: "g2"`. G2 voice and its phone confirmation send this field. Ordinary desktop/Hub text prompts remain unchanged. `sessionKey` still protects against sending to a session selected after recording started.
+
+```json
+{ "text": "检查测试结果", "source": "g2", "sessionKey": "<current session key>" }
+```
+
+Pi receives a normal user message beginning with:
+
+```text
+[even-pilot:source=g2]
+```
+
+The rest of the wrapper asks Pi to complete the task normally, keep its full answer in the terminal, and append this section to the final answer, outside a code fence:
+
+```text
+<g2-summary>
+测试通过。修改已完成。
+下一步：上传新的 Even Hub 包。
+</g2-summary>
+```
+
+Use the user's language, aim for 1–4 short lines and at most 300 characters, and preserve important commands, blockers or decisions. These are model instructions, not a truncation rule; longer summaries remain readable by swiping. Do not include the markers in intermediate progress or tool output. You can add more specific style rules to Pi's project instructions by matching the source tag; no extra extension is required.
+
+The full response and summary remain in Pi's original transcript. G2 extracts only the summary for a tagged turn, including while the section streams. Before the section arrives, the current question remains visible with the live running status, without a summary-pending placeholder; previous questions and summaries remain readable as separate history turns. It never substitutes an older summary as the current answer. If the model settles without the section, G2 shows “No G2 summary returned. Read the full reply in Terminal.” Existing untagged terminal turns show their ordinary responses; any explicit summary section takes precedence within its own turn. Routing instructions and tool output are omitted from the glasses conversation.
+
+The source marker is routing metadata, not authentication or a trusted system instruction. The API still requires the normal connection key. The 32,000-character prompt limit includes the added instructions.
+
+## Display and sub-agents
+
+The conversation overview uses one native single-column list. The selected top row is **+ New prompt**, followed by at most ten visible messages, newest first. Each user or assistant message counts separately. Every message occupies one row with its arrow on the left: ← for agent text, → for user text. Both the list and its item width are explicitly 560 px, with 544 px reserved for text. Text that exceeds this width or the documented 64-character label limit is truncated with three dots. Firmware font metrics determine width; labels never include line breaks. Compact 63-byte labels are used only if shortening them is accepted on the same layout. If that retry fails too, basic native view tries the full pixel/character budget again. Confirmed compact mode can leave unused width with Chinese text. Tap opens the full message, preserving its contents, or opens the input editor. Ordinary user prompts never include generated running/waiting notices; running status belongs in the footer.
+
+The firmware controls scrolling and focus highlighting; the app does not draw a cursor or depend on intermediate selection callbacks. Taps resolve against the mounted row snapshot. Before a session connects, the page shows a connection notice. An input-only empty snapshot automatically loads the first history that arrives; no Refresh is needed. The public list API cannot replace individual rows or restore scroll position, so updates must avoid active navigation. The phone batches new SSE messages at most once every two seconds while the native input row is selected. Browsing rows, expanded reading and editing hold the displayed snapshot to preserve focus; returning loads the newest messages. An index-free firmware scroll also holds the snapshot until returning or a known input-row selection. A **+new** hint marks deferred content. Unchanged labels do not rebuild the list. The app declares Terminate task before Sessions. Firmware adds its own system rows; the SDK cannot assign an absolute screen row (see [contextual-menu slots](https://hub.evenrealities.com/docs/build/contextual-menu#slots)).
+
+The 576×288 page retains 16 px header/footer images, with a single separator above the footer. The conversation list also has one static non-capturing native text region behind the header, preserving the mixed native-page structure. Only four small strips are transmitted: two 288×34 at the top, two 288×26 at the bottom. They do not overlap the native list/text viewport and are serialized, cached and deduplicated. PNG encoding happens before page replacement. Each two-tile bar reserves one queue turn, so settings reads cannot split its halves; microphone and other pending requests run between bars. Same-page body updates do not abort a half-sent bar, while page/session changes and exit stop obsolete sends. Small-font image updates remain non-atomic: the SDK requires separate, serial image calls, so some visible assembly is still possible. Scrolling sends no image updates or page rebuilds. The phone preview approximates native rows; firmware focus can move without a callback and therefore without a matching phone highlight.
+
+Expanded messages use native text scrolling with 12 px of uniform native padding to keep glyphs clear of the right-edge scrollbar. This applies to both normal and basic view; list and header widths remain unchanged. Incoming replies never replace the text being read. Long text is split losslessly into parts of at most 900 UTF-8 bytes, each included in the page request instead of awaiting a second update. The OS menu exposes **Next part / Previous part**. Double tap returns to the list; double tap in the list requests exit confirmation. **Terminate task** is the first app action and requests interruption, while exit leaves the task running. Editor double tap returns directly when the draft is empty; text, recorded audio or pending transcription instead opens a native confirmation list: Send & exit (default) or Exit only. A tap confirms; a second double tap returns to editing. Confirmation stops recording without sending, and Exit only revokes pending transcription.
+
+The header is `<computer> · agents: x | <tunnel> · <model> | <session title>`. This count belongs to the selected session, independently of other watched sessions. The count has no trailing animation or extra dots; the footer identifies running/idle. The header is fitted to available pixels, with an ellipsis only when content exceeds that width, including in basic view. Offline shows `?`. Codex/Claude include the running main agent plus reported active children. Pi's official subagent integration counts outstanding delegated tasks while its parent waits: a parallel batch of three displays `3`; a serial chain displays `1`. Ordinary tools do not count as agents. An unknown tool named subagent without an exact count shows `1+` while the main Pi is running (a lower bound), otherwise `?`.
+
+Pi exposes main-agent lifecycle events and `ctx.isIdle()`; extension-launched children need integration-specific reporting. See [Pi extension interfaces](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/extensions/types.ts) and the [official subagent example](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/subagent/index.ts).
+
+## Rejected display pages
+
+On an explicit create/rebuild rejection with long list labels, the app first retries with compact labels only, preserving the same containers and small header/footer images. Success selects compact labels for the rest of this app run and is identified on the phone. A failed compact retry restores normal labels. Further rejection permits one image-free comparison and a basic native view, which also first attempts full-width labels: a visible message list plus heading and hint, or three text containers for expanded messages and editing. This view sends no images and uses normal-sized containers. It preserves message selection, reading, input, Sessions and exit/stop actions, with native-size header/footer text; returning from a message selects the top input row to match the recreated native list. The phone identifies basic mode and the rejection code. Failure of the final fallback or a transport exception keeps bounded retry backoff and displays the failing operation. Connection credentials and terminal sessions are unchanged. No phone-side success return is treated as proof that hardware pixels appeared.

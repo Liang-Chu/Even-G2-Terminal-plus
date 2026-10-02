@@ -1,0 +1,58 @@
+# Dependencies, compiled web assets and test/build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+/outputs/
+/release/
+/releases/
+
+# Private runtime state and local credentials (never publish these)
+.local/
+.env
+.env.*
+!.env.example
+even-glance-firebase.json
+*-firebase-adminsdk-*.json
+*service-account*.json
+*service_account*.json
+google-services.json
+credentials.json
+auth.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Generated distributables and Windows helper executables
+*.ehpk
+/Even-P[Ii]lot*.exe
+/Even-P[Ii]lot*.zip
+/Even-P[Ii]lot*.tar.gz
+/Even-P[Ii]lot*.run
+/apps/windows/desktop/*.exe
+/apps/windows/desktop/*.pdb
+
+# Local diagnostics/editor/OS state
+*.log
+*.tmp
+*.bak
+.cache/
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+
+# Hub-only production assets
+dist-hub/
+
+# Installer-managed payloads beside a source checkout
+/versions/
+/runtime/
+/install.json
+/install.json.bak
+/installed.json
+/Uninstall.exe

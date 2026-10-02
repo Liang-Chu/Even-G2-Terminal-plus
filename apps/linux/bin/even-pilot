@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+payload=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")/.." && pwd)
+exec "$payload/runtime/node" --import "$payload/node_modules/tsx/dist/loader.mjs" "$payload/apps/linux/src/desktop.ts" "$@"

@@ -1,0 +1,99 @@
+/* Phone Hub: session discovery first; conversation and G2 have their own pages. */
+.hub-mode { background: #f6f6f6; }
+.hub-mode .masthead { height: 64px; padding: 0 16px; background: #fff; }
+.hub-mode .brand { font-size: 16px; gap: 9px; }
+.hub-mode .brand-icon { width: 27px; height: 27px; }
+.hub-mode .brand small, .hub-mode .section-number, .hub-mode .panel-footer { display: none; }
+.hub-mode .header-right { gap: 8px; }
+.hub-mode .header-right .connection { display: none; }
+.hub-mode .header-right button { min-height: 40px; padding: 8px 10px; font-size: 12px; }
+.hub-mode .header-right button span { display: none; }
+.hub-mode main { max-width: 900px; padding: 0 16px; }
+.hub-nav { position: sticky; top: 34px; z-index: 15; display: flex; gap: 0; background: #fff; border-bottom: 1px solid #aaa; margin: 0 -16px 20px; }
+.hub-nav button { flex: 1; min-width: 0; min-height: 48px; padding: 12px 4px; background: #fff; border: 0; border-bottom: 3px solid transparent; font-size: 13px; }
+.hub-nav button[aria-pressed="true"] { border-bottom-color: #111; font-weight: bold; }
+.hub-mode .live-status { padding: 0 16px; }
+.hub-mode .live-status-inner { height: 34px; font-size: 10px; gap: 12px; }
+.hub-mode .page-footer { margin-top: 24px; padding: 16px 0; font-size: 9px; }
+.hub-mode .page-footer > span:last-child { display: none; }
+.hub-mode #notice { margin: 0 0 12px; font-size: 12px; padding: 10px; }
+.hub-sessions-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.hub-sessions-heading h1 { font-size: 23px; letter-spacing: 0; margin: 0; }
+.hub-sessions-heading p { margin: 4px 0 0; }
+.hub-sessions-heading button { min-height: 42px; white-space: nowrap; padding: 8px 14px; }
+.hub-session-manager .session-filters { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-bottom: 12px; }
+.hub-session-manager .session-filters label:first-child { grid-column: 1 / -1; }
+.hub-session-manager .session-filters label { font-size: 0; }
+.hub-session-manager .session-filters input, .hub-session-manager .session-filters select { width: 100%; min-height: 42px; margin-top: 0; font: 13px/1.4 "Cascadia Mono", Consolas, monospace; padding: 10px; background: #fff; }
+.hub-session-manager .session-filters button { min-height: 42px; padding: 10px; font-size: 12px; }
+.session-scopes { display: flex; gap: 8px; margin: 0 0 18px; }
+.session-scopes button { min-height: 36px; padding: 7px 12px; font-size: 12px; }
+.session-scopes button[aria-pressed="true"] { background: #111; color: #fff; }
+.hub-session-manager .session-columns { display: block; }
+.hub-session-manager .session-list { overflow: visible; min-height: 0; max-height: none; padding: 0; }
+.hub-session-manager .sessions-notice { font-size: 12px; margin: 0 0 12px; padding: 10px; }
+.session-device { margin-bottom: 16px; border: 1px solid #bbb; background: #fff; }
+.session-device > summary { display: flex; gap: 8px; align-items: center; padding: 13px 12px; cursor: pointer; list-style: none; }
+.session-device > summary::-webkit-details-marker { display: none; }
+.session-device > summary::before { content: "+"; font-size: 16px; width: 12px; flex-shrink: 0; }
+.session-device[open] > summary::before { content: "−"; }
+.session-device > summary strong { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.session-device > summary .caption { margin: 0 0 0 auto; font-size: 10px; white-space: nowrap; }
+.session-device-items > .caption { padding: 0 12px 12px; margin: 0; }
+.session-device .session-entry { border-top: 1px solid #ddd; margin: 0; }
+.session-device .session-row { border: 0; padding: 12px; margin: 0; }
+.session-device .session-row[aria-pressed="true"] { border: 0; padding: 12px; box-shadow: none; background: #f0f0f0; }
+.session-device .session-row strong { font: 600 14px/1.45 system-ui, sans-serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.session-device .session-row small { font-size: 11px; line-height: 1.6; }
+.session-device .session-meta { margin-top: 6px; }
+.session-device .session-project-path { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #666; }
+.session-current { font-weight: bold; }
+.session-device .session-entry-actions { padding: 0 12px 10px; gap: 12px; }
+.session-device .session-watch { min-height: 36px; border: 1px solid #bbb; padding: 6px 9px; font-size: 11px; margin: 0; }
+.session-device .session-watch[aria-pressed="true"] { border-color: #111; color: #111; font-weight: bold; }
+.session-device .session-watch[aria-pressed="true"]::before { content: "✓ "; }
+.session-device .session-watch[aria-pressed="true"]:hover:enabled { color: #fff; }
+.session-more { margin: 10px 12px 14px; min-height: 36px; }
+.hub-session-manager .session-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.hub-session-manager .session-entry-actions { padding: 0 10px 0 0; }
+.hub-session-manager .session-row { min-width: 0; }
+.hub-selected-session { display: flex; align-items: center; gap: 16px; margin: 0 0 12px; }
+.hub-selected-session #session-label { min-width: 0; flex: 1; font-size: 13px; overflow-wrap: anywhere; font-weight: bold; }
+.hub-selected-session button { min-height: 40px; }
+.hub-mode .terminal-panel, .hub-mode .glasses-card, .hub-mode .details-card { border: 1px solid #bbb; box-shadow: none; }
+.hub-mode .panel-heading { min-height: 48px; padding: 10px 12px; border-bottom: 1px solid #bbb; }
+.hub-mode .panel-heading h2 { font-size: 13px; }
+.hub-mode .transcript { height: min(49dvh, 480px); min-height: 220px; padding: 14px; }
+.hub-mode .message { grid-template-columns: 1fr; gap: 4px; margin-bottom: 18px; }
+.hub-mode .message-content { font-size: 13px; line-height: 1.65; }
+.hub-mode .tool-group { margin: 0 0 16px; border-block: 1px solid #ddd; }
+.hub-mode .tool-group > summary { cursor: pointer; padding: 10px 0; font-size: 12px; color: #555; }
+.hub-mode .tool-group .message { padding: 8px 10px; margin: 0; border-top: 1px dotted #ddd; }
+.hub-mode .tool-group .message-content { font-size: 12px; }
+.hub-mode .composer { padding: 12px; }
+.hub-mode #prompt { font-size: 14px; min-height: 80px; }
+.hub-mode .composer-bottom { gap: 12px; }
+.hub-mode .composer-bottom > span { font-size: 11px; }
+.hub-mode .composer-bottom button { min-height: 40px; padding: 8px 12px; font-size: 12px; }
+.hub-runtime { margin-top: 16px; background: #fff; border: 1px solid #bbb; }
+.hub-runtime > summary, .hub-glance > summary { padding: 14px 12px; cursor: pointer; font-size: 12px; }
+.hub-runtime .details-card { border: 0; }
+.hub-runtime .panel-heading, .hub-runtime .session-actions, .hub-runtime #monitor-summary { display: none; }
+.hub-runtime dl { padding: 0 12px 12px; }
+.hub-mode .g2-screen { margin: 12px; padding: 12px; }
+.hub-mode .display-label { font-size: 9px; padding-bottom: 10px; }
+.hub-mode .glasses-footer { padding: 0 12px 12px; font-size: 11px; flex-wrap: wrap; }
+.hub-mode .g2-controls { padding: 0 12px 12px; }
+.hub-mode .g2-controls button { min-height: 40px; min-width: 40px; }
+.hub-mode .g2-diagnostics { margin: 0 12px 12px; }
+.hub-mode .glance-details h3 { display: none; }
+.hub-glance { border-top: 1px solid #bbb; margin-top: 18px; }
+.hub-glance .glance-details { border: 0; margin: 0; padding-top: 0; }
+@media (max-width: 380px) {
+  .hub-mode main { padding: 0 10px; }
+  .hub-nav { margin-left: -10px; margin-right: -10px; }
+  .hub-mode .masthead { padding: 0 10px; }
+  .hub-mode .brand-icon { display: none; }
+  .hub-mode .header-right { gap: 5px; }
+  .session-device > summary .caption { font-size: 9px; }
+}
