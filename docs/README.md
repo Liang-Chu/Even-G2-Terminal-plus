@@ -13,9 +13,11 @@ Start with the [step-by-step setup guide](../README.md).
 | Backend integration | [API](api.md) |
 | Model output for glasses | [G2 summaries](g2-output-contract.md) |
 | Updates, source builds and packaging | [Development](development.md) |
+| Daily checks and verified installation | [Application updates](updates.md) |
+| GitHub/Even Hub publication and device validation | [Publishing](publishing.md) |
 | Runtime design | [Architecture](architecture.md) |
 | Tested platforms and remaining limits | [Release status](release-status.md) |
 
-[1.0.22 candidate notes](../RELEASE_NOTES.md)
+[1.1.0 release notes](../RELEASE_NOTES.md)
 
 [Independent and centralized notification routing](notification-routing.md)

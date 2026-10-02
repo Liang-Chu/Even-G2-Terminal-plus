@@ -7,13 +7,13 @@ import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { ensureLocalConfig, dataDirectory } from "../../windows/src/config.js";
-import { installMonitorExtension } from "../../windows/src/install-extension.js";
+import { installMonitorExtension, prepareMonitorExtensions } from "../../windows/src/install-extension.js";
 import { preferredPairOrigin, printPairingQr } from "../../windows/src/pairing.js";
 import { processAlive, readLocalJson } from "../../../packages/pi-runtime/native-protocol.js";
-import { resolvePi } from "../../../packages/pi-runtime/resolve-pi.js";
 import { executable } from "./platform.js";
 import { runSessionCommand, sessionCommands, sessionHelp } from "./session-cli.js";
 import { monitorRunning } from "./monitor-health.js";
+import { runSettingsCommand, settingsHelp } from "./settings-cli.js";
 
 const run = promisify(execFile);
 const payload = fileURLToPath(new URL("../../../", import.meta.url));
@@ -27,6 +27,8 @@ const port = Number(process.env.EVEN_PILOT_PORT || 4317);
 if (process.platform !== "linux") throw new Error("This launcher is for Linux");
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid EVEN_PILOT_PORT");
 const origin = "http://127.0.0.1:" + port;
+const firebaseOverrides = { GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  EVEN_PILOT_FCM_PROJECT_ID: process.env.EVEN_PILOT_FCM_PROJECT_ID };
 const config = ensureLocalConfig();
 const token = process.env.EVEN_PILOT_TOKEN || config.controlToken!;
 const [command = "open", ...args] = process.argv.slice(2);
@@ -105,6 +107,15 @@ async function nativeAlive() {
 }
 try {
   if (sessionCommands.has(command)) { await runSessionCommand(command, args, { request, write: console.log }); }
+  else if (command === "settings") {
+    if (!args.includes("--help") && !args.includes("-h")) await start();
+    await runSettingsCommand(args, { request, write: console.log, directory: data, env: firebaseOverrides,
+      restart: async () => {
+        await stop();
+        if (!firebaseOverrides.GOOGLE_APPLICATION_CREDENTIALS) delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        ensureLocalConfig(); await start();
+      } });
+  }
   else if (command === "start") { await start(); console.log("Even-Pilot background is running."); }
   else if (command === "stop") { await stop(); console.log("Monitoring stopped. Native terminals remain running."); }
   else if (command === "restart") { await stop(); await start(); console.log("Monitoring restarted. Native terminals remain running."); }
@@ -134,7 +145,7 @@ try {
   } else if (command === "autostart") {
     if (!["on", "off"].includes(args[0])) throw new Error("Usage: even-pilot autostart on|off");
     await autostart(args[0] === "on"); console.log("Autostart " + args[0]);
-  } else if (command === "prepare") { installMonitorExtension(); }
+  } else if (command === "prepare") { prepareMonitorExtensions(); }
   else if (command === "uninstall-check") { if (await nativeAlive()) throw new Error("Close connected CLI terminals before uninstalling. No terminal was stopped."); }
   else if (command === "remove-service") {
     await stop();
@@ -160,20 +171,10 @@ try {
   } else if (command === "enable-pi-subagents") {
     const child = spawn(process.execPath, ["--import", loader, join(payload, "scripts/enable-pi-subagents.mjs")], { stdio: "inherit", shell: false });
     process.exitCode = await new Promise<number>((done, fail) => { child.once("error", fail); child.once("exit", code => done(code || 0)); });
-  } else if (command === "terminal") {
-    const [tunnel, ...rest] = args;
-    if (!["pi", "codex", "claude"].includes(tunnel)) throw new Error("Usage: even-pilot terminal pi|codex|claude [options]");
-    await start();
-    installMonitorExtension();
-    const child = tunnel === "pi" ? (() => { const pi = resolvePi(); return spawn(pi.command, [...pi.args, ...rest], { stdio: "inherit", shell: false }); })()
-      : ["codex", "claude"].includes(tunnel) ? spawn(process.execPath, ["--import", loader,
-        fileURLToPath(new URL("../../windows/src/connectors/terminal.ts", import.meta.url)), "--tunnel", tunnel, ...rest], { stdio: "inherit", shell: false }) : undefined;
-    if (!child) throw new Error("Usage: even-pilot terminal pi|codex|claude [options]");
-    process.exitCode = await new Promise<number>((done, fail) => { child.once("error", fail); child.once("exit", code => done(code || 0)); });
   } else if (command === "uninstall") {
     const child = spawn(process.execPath, [join(payload, "apps/linux/install.mjs"), "--uninstall", ...args], { stdio: "inherit", shell: false });
     process.exitCode = await new Promise<number>((done, fail) => { child.once("error", fail); child.once("exit", code => done(code || 0)); });
   } else if (["help", "--help", "-h"].includes(command)) {
-    console.log("even-pilot — Linux session monitor\n\nBackground: start | stop | restart | status | autostart on|off\nUpdates: update (install latest) | update check|on|off|status\nConnection: pair (prints URL/key/QR) | open (optional browser)\nNative CLI in this terminal: terminal pi|codex|claude [CLI options]\nOptional Pi agents: enable-pi-subagents\nRemove application: uninstall\n\n" + sessionHelp);
+    console.log("even-pilot — Linux session watcher\n\nBackground: start | stop | restart | status | autostart on|off\nUpdates: update (install latest) | update check|on|off|status\nConnection: pair (prints URL/key/QR) | open (optional browser)\nSettings: settings (push routing / Firebase; settings --help)\nOptional Pi setup: enable-pi-subagents\nRemove application: uninstall\n\n" + sessionHelp + "\n\n" + settingsHelp);
   } else throw new Error("Unknown command. Run `even-pilot --help`.");
 } catch (error) { console.error("[Even-Pilot] " + (error instanceof Error ? error.message : String(error))); process.exitCode = 1; }

@@ -508,12 +508,6 @@ aside {
   margin: 16px 0 5px;
   min-height: 140px;
 }
-.display-crosshair {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  font-size: 15px;
-}
 .glasses-footer {
   padding: 0 13px 13px;
   display: flex;

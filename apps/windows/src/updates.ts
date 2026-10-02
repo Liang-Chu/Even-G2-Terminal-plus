@@ -1,9 +1,10 @@
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { open, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { processAlive, readLocalJson, uuidPattern } from "../../../packages/pi-runtime/native-protocol.js";
 
 export const updateRepository = "Liang-Chu/Even-Pilot";
 const day = 24 * 60 * 60_000;
@@ -11,6 +12,7 @@ const maxAsset = 200 * 1024 * 1024;
 export class UpdateError extends Error { constructor(message: string, readonly status = 400) { super(message); } }
 export interface UpdateRelease { version: string; page: string; url: string; sha256: string; size: number }
 interface Settings { automaticChecks: boolean; checkedAt?: number; latest?: UpdateRelease; error?: string }
+interface InstallJob { id: string; version: string; startedAt: number; workerPid?: number; installer: string; root: string; directory: string }
 export function versionParts(value: unknown): number[] | undefined {
   if (typeof value !== "string" || !/^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(value)) return;
   return value.split(".").map(Number);
@@ -55,12 +57,13 @@ export class UpdateService {
   private generation = 0;
   private phase: "idle" | "checking" | "downloading" | "installing" = "idle";
   private progress = 0;
-  private installStartedAt = 0;
+  private installJob?: InstallJob;
   private readonly path: string;
   constructor(private options: {
     directory: string; version: string; platform?: string; arch?: string; installRoot: string; payloadRoot: string;
     port: number; supported?: boolean; automatic?: boolean; now?: () => number; fetch?: typeof fetch;
     install?: (path: string, release: UpdateRelease) => Promise<void>;
+    workerAlive?: (pid: number) => boolean;
   }) {
     this.path = join(options.directory, "update-settings.json");
     if (existsSync(this.path)) {
@@ -74,7 +77,15 @@ export class UpdateService {
           this.settings.latest = saved.latest;
       } catch { this.settings = { automaticChecks: false, error: "Update settings could not be read. Save the preference again." }; }
     }
-    this.schedule();
+    try {
+      const job = readLocalJson(join(options.directory, "updates/job.json"));
+      if (uuidPattern.test(job.id) && versionParts(job.version) && Number.isFinite(job.startedAt) && job.startedAt > 0 &&
+          job.startedAt <= this.now() && resolve(job.directory) === resolve(options.directory) && resolve(job.root) === resolve(options.installRoot) &&
+          dirname(resolve(job.installer)) === resolve(options.directory, "updates")) {
+        this.installJob = job; this.phase = "installing";
+      }
+    } catch { }
+    this.recoverInstallation(); this.schedule();
   }
   private now() { return (this.options.now || Date.now)(); }
   private save() {
@@ -87,14 +98,39 @@ export class UpdateService {
     const wait = Math.max(10_000, (this.settings.checkedAt || 0) + day - this.now());
     this.timer = setTimeout(() => { void this.check().catch(() => {}); }, wait); this.timer.unref();
   }
+  private recoverInstallation() {
+    if (this.phase !== "installing" || !this.installJob) return;
+    const job = this.installJob;
+    let result: any, state: any;
+    try { result = readLocalJson(join(this.options.directory, "update-result.json")); } catch { }
+    if (result?.id === job.id && result?.at >= job.startedAt && ["installed", "failed"].includes(result.status)) {
+      this.phase = "idle"; this.installJob = undefined;
+      if (result.status === "failed") this.settings.error = "Update failed. The previous version was restored when possible; check the installed version before retrying.";
+      try { if (readLocalJson(join(this.options.directory, "updates/job.json"))?.id === job.id) unlinkSync(join(this.options.directory, "updates/job.json")); } catch { }
+      this.schedule(); return;
+    }
+    // A restarting backend is not evidence that installation stopped. Give the
+    // detached helper time to start and keep the lock while either process lives.
+    if (this.now() - job.startedAt < 15_000) return;
+    try { state = readLocalJson(join(this.options.directory, "updates/worker-state.json")); } catch { }
+    const alive = (pid: unknown) => Number.isSafeInteger(pid) && Number(pid) > 0 && (this.options.workerAlive || processAlive)(Number(pid));
+    const matching = state?.id === job.id && state?.version === job.version;
+    if (alive(job.workerPid) || matching && (alive(state.pid) || alive(state.installerPid))) return;
+    const interrupted = { id: job.id, status: "failed", version: job.version, at: this.now() };
+    this.phase = "idle"; this.installJob = undefined;
+    this.settings.error = "The update helper stopped before reporting a result. Check the installed version, then check updates again to retry. Monitoring and native terminals were not stopped by recovery.";
+    try {
+      const path = join(this.options.directory, "update-result.json"), pending = path + ".recovery-" + job.id;
+      writeFileSync(pending, JSON.stringify(interrupted), { mode: 0o600 }); renameSync(pending, path);
+      if (readLocalJson(join(this.options.directory, "updates/job.json"))?.id === job.id) unlinkSync(join(this.options.directory, "updates/job.json"));
+      this.save();
+    } catch { }
+    this.schedule();
+  }
   status() {
+    this.recoverInstallation();
     let result: any;
     try { result = JSON.parse(readFileSync(join(this.options.directory, "update-result.json"), "utf8")); } catch {}
-    if (this.phase === "installing" && result?.at >= this.installStartedAt && ["installed", "failed"].includes(result.status)) {
-      this.phase = "idle";
-      if (result.status === "failed") this.settings.error = "Update failed. The previous version was restored when possible; check the installed version before retrying.";
-      this.schedule();
-    }
     return { currentVersion: this.options.version, repository: updateRepository, automaticChecks: this.settings.automaticChecks,
       checkedAt: this.settings.checkedAt || null, available: this.settings.latest ? { version: this.settings.latest.version,
         page: `https://github.com/${updateRepository}/releases/tag/v${this.settings.latest.version}` } : null,
@@ -103,12 +139,14 @@ export class UpdateService {
       lastResult: result && ["installed", "failed"].includes(result.status) ? { status: result.status, version: result.version } : null };
   }
   configure(value: unknown) {
+    this.recoverInstallation();
     if (typeof value !== "boolean") throw new UpdateError("automaticChecks must be true or false");
     if (["downloading", "installing"].includes(this.phase)) throw new UpdateError("Wait for the current update to finish", 409);
     this.generation++; this.abort?.abort(); this.phase = "idle";
     this.settings.automaticChecks = value; this.settings.error = undefined; this.save(); this.schedule(); return this.status();
   }
   check() {
+    this.recoverInstallation();
     if (this.task) return this.task as Promise<ReturnType<UpdateService["status"]>>;
     this.task = this.performCheck().finally(() => { this.task = undefined; this.schedule(); });
     return this.task as Promise<ReturnType<UpdateService["status"]>>;
@@ -138,6 +176,7 @@ export class UpdateService {
     return this.status();
   }
   install(version: unknown) {
+    this.recoverInstallation();
     if (this.phase !== "idle" || this.task) throw new UpdateError("An update is already in progress", 409);
     if (!this.status().installSupported) throw new UpdateError("Install the desktop package first; source checkouts are not replaced automatically", 409);
     if (!versionParts(version) || version !== this.settings.latest?.version) throw new UpdateError("Check updates and select the displayed version first", 409);
@@ -171,21 +210,32 @@ export class UpdateService {
       } finally { await file.close(); }
       if (bytes !== release.size || hash.digest("hex") !== release.sha256) throw new UpdateError("Installer checksum mismatch. Nothing was installed.");
       if (this.closed) return;
-      renameSync(path + ".part", path); this.installStartedAt = this.now(); this.phase = "installing";
-      if (this.options.install) await this.options.install(path, release);
+      renameSync(path + ".part", path); this.phase = "installing";
+      if (this.options.install) { await this.options.install(path, release); this.phase = "idle"; }
       else await this.launch(path, release);
     } catch (error) {
       this.phase = "idle"; this.settings.error = error instanceof UpdateError ? error.message : "Update failed. The current installation was retained.";
+      if (this.installJob && !this.installJob.workerPid) {
+        try { if (readLocalJson(join(directory, "job.json"))?.id === this.installJob.id) unlinkSync(join(directory, "job.json")); } catch { }
+        this.installJob = undefined;
+      }
       this.save();
     } finally { await rm(path + ".part", { force: true }).catch(() => {}); }
   }
   private async launch(path: string, release: UpdateRelease) {
     const worker = fileURLToPath(new URL("./update-worker.mjs", import.meta.url));
     const job = join(this.options.directory, "updates", "job.json");
-    writeFileSync(job, JSON.stringify({ installer: path, sha256: release.sha256, version: release.version,
-      root: this.options.installRoot, directory: this.options.directory, port: this.options.port }), { mode: 0o600 });
+    const value = { id: randomUUID(), startedAt: this.now(), installer: path, sha256: release.sha256, version: release.version,
+      root: this.options.installRoot, directory: this.options.directory, port: this.options.port, workerPid: undefined as number | undefined };
+    this.installJob = value;
+    writeFileSync(job, JSON.stringify(value), { mode: 0o600 });
     const child = spawn(process.execPath, [worker, job], { cwd: this.options.payloadRoot, detached: true, stdio: "ignore", windowsHide: true, shell: false });
     await new Promise<void>((done, fail) => { child.once("spawn", done); child.once("error", fail); }); child.unref();
+    value.workerPid = child.pid;
+    const pending = job + ".pending-" + value.id;
+    // The worker also persists its identity. Once spawned, an optional PID
+    // bookkeeping failure must not unlock a still-running installation.
+    try { writeFileSync(pending, JSON.stringify(value), { mode: 0o600 }); renameSync(pending, job); } catch { }
   }
   async close() { this.closed = true; clearTimeout(this.timer); this.abort?.abort(); await this.task?.catch(() => {}); }
 }

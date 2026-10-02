@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { UpdateService, parseUpdateRelease, newerVersion, updateRepository } from "../apps/windows/src/updates.js";
 import { createBridgeServer } from "../apps/windows/src/server.js";
@@ -108,6 +110,77 @@ test("network failure reports unknown freshness instead of claiming up-to-date",
   const { service } = fixture(t, { fetch: async () => { throw new Error("secret proxy detail"); } });
   await service.check(); assert.match(service.status().error!, /Cannot reach GitHub/);
   assert.equal(JSON.stringify(service.status()).includes("secret proxy"), false);
+});
+
+function pendingJob(directory: string, startedAt: number, workerPid = 900001) {
+  mkdirSync(join(directory, "updates"), { recursive: true });
+  const job = { id: randomUUID(), version: "2.0.0", startedAt, workerPid, installer: join(directory, "updates/installer-2.0.0.run"), root: directory, directory };
+  writeFileSync(join(directory, "updates/job.json"), JSON.stringify(job)); return job;
+}
+
+test("a dead update helper recovers after startup grace and permits an explicit retry after backend restart", async t => {
+  let now = 1_800_000_000_000, installed = 0;
+  const { service, directory, options } = fixture(t, { now: () => now, workerAlive: () => false,
+    fetch: async input => String(input).includes("api.github.com") ? Response.json(metadata()) : new Response(bytes),
+    install: async () => { installed++; } });
+  await service.check(); await service.close();
+  const job = pendingJob(directory, now - 5000);
+  const restored = new UpdateService(options); t.after(() => restored.close());
+  assert.equal(restored.status().phase, "installing", "Startup grace prevents a false failure before the worker starts");
+  assert.throws(() => restored.configure(false), /Wait for/);
+  now += 11_000;
+  const recovered = restored.status();
+  assert.equal(recovered.phase, "idle"); assert.match(recovered.error!, /helper stopped/);
+  assert.deepEqual(recovered.lastResult, { status: "failed", version: "2.0.0" });
+  assert.equal(JSON.parse(readFileSync(join(directory, "update-result.json"), "utf8")).id, job.id);
+  assert.equal(existsSync(join(directory, "updates/job.json")), false);
+  await restored.check(); restored.install("2.0.0"); await until(() => installed === 1);
+  assert.equal(restored.status().phase, "idle", "An explicit retry is available after recovery");
+});
+
+test("a live update worker or installer retains the installation lock, even with a stale heartbeat or an unrelated result", async t => {
+  for (const running of ["worker", "installer"]) {
+    const now = 1_800_000_000_000;
+    const { service, directory, options } = fixture(t, { now: () => now,
+      workerAlive: pid => running === "worker" ? pid === 900001 : pid === 900002,
+      fetch: async () => Response.json(metadata()) });
+    await service.check(); await service.close();
+    const job = pendingJob(directory, now - 120_000);
+    writeFileSync(join(directory, "updates/worker-state.json"), JSON.stringify({ id: job.id, version: job.version, pid: job.workerPid, installerPid: 900002, at: now - 120_000 }));
+    writeFileSync(join(directory, "update-result.json"), JSON.stringify({ id: randomUUID(), status: "installed", version: job.version, at: now }));
+    const restored = new UpdateService(options); t.after(() => restored.close());
+    assert.equal(restored.status().phase, "installing", running + " continues independently of the backend connection");
+    assert.throws(() => restored.install("2.0.0"), /already in progress/);
+    assert.throws(() => restored.configure(false), /Wait for/);
+    await assert.rejects(restored.check(), /already in progress/);
+    assert.equal(existsSync(join(directory, "updates/job.json")), true);
+  }
+});
+
+test("only a matching update generation can report installation completion", async t => {
+  const now = 1_800_000_000_000;
+  const { service, directory, options } = fixture(t, { now: () => now, workerAlive: () => true });
+  await service.close(); const job = pendingJob(directory, now - 1000);
+  writeFileSync(join(directory, "update-result.json"), JSON.stringify({ id: randomUUID(), status: "failed", version: job.version, at: now }));
+  const restored = new UpdateService(options); t.after(() => restored.close());
+  assert.equal(restored.status().phase, "installing"); assert.equal(restored.status().error, null);
+  writeFileSync(join(directory, "update-result.json"), JSON.stringify({ id: job.id, status: "installed", version: job.version, at: now }));
+  assert.equal(restored.status().phase, "idle");
+});
+
+test("detached update helper records its generation and failure without executing a corrupt installer", async t => {
+  const { directory, service } = fixture(t); await service.close();
+  const job = { ...pendingJob(directory, Date.now()), sha256: "0".repeat(64), port: 4317 };
+  writeFileSync(job.installer, bytes); writeFileSync(join(directory, "updates/job.json"), JSON.stringify(job));
+  const worker = fileURLToPath(new URL("../apps/windows/src/update-worker.mjs", import.meta.url));
+  const child = spawn(process.execPath, [worker, join(directory, "updates/job.json")], { stdio: "ignore", windowsHide: true, shell: false });
+  const code = await new Promise<number | null>((done, fail) => { child.once("error", fail); child.once("exit", done); });
+  assert.equal(code, 0);
+  const result = JSON.parse(readFileSync(join(directory, "update-result.json"), "utf8"));
+  const state = JSON.parse(readFileSync(join(directory, "updates/worker-state.json"), "utf8"));
+  assert.equal(result.id, job.id); assert.equal(result.status, "failed"); assert.equal(state.id, job.id);
+  assert.equal(state.pid, child.pid); assert.equal(state.installerPid, undefined);
+  assert.equal(existsSync(join(directory, "updates/job.json")), false);
 });
 
 test("update preferences and installation require control auth; notification key cannot update", async t => {

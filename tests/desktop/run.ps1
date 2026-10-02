@@ -12,5 +12,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed.' }
 $pilotInstallerTests = Join-Path $pilotTestDirectory 'installer-tests.exe'
 & $pilotCompiler /nologo /target:exe "/out:$pilotInstallerTests" /reference:System.Core.dll /reference:Microsoft.CSharp.dll /reference:System.Net.Http.dll /reference:System.Web.Extensions.dll (Join-Path $PSScriptRoot 'InstallerSupportTests.cs') (Join-Path $pilotRoot 'apps/windows/desktop/InstallerSupport.cs') (Join-Path $pilotRoot 'apps/windows/desktop/DesktopPaths.cs') (Join-Path $pilotRoot 'apps/windows/desktop/StartupRegistration.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Installer support tests failed to compile.' }
-& $pilotInstallerTests
+& $pilotInstallerTests (Join-Path $pilotRoot 'Even-Pilot.updated.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Installer support tests failed.' }

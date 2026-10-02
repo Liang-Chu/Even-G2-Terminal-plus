@@ -75,6 +75,7 @@ try {
   releaseLock = await acquireBackendLock(dataDirectory());
   runtime = new NativeHost({ cwd, sessions, directory: resolve(dataDirectory(), "native"),
     catalog: new ConnectorCatalog({ data: dataDirectory(), pi: sessions }), codexObservation: {},
+    claudeObservation: { directory: resolve(dataDirectory(), "claude-events") },
     preferencesPath: resolve(dataDirectory(), "monitoring.json"), launch: openNativeTerminal, unregistered: hasUnregisteredTerminal });
   const localConfig = ensureLocalConfig();
   const token =

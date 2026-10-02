@@ -28,12 +28,12 @@ const destination = mkdtempSync(join(releases, pkg.version + '-'));
 const stage = join(destination, 'Even-Pilot');
 mkdirSync(stage);
 const allowlist = [
-  'README.md', 'RELEASE_NOTES.md', 'Setup.cmd', 'apps/windows/src', 'apps/linux/src/platform.ts',
+  'README.md', 'README.zh-CN.md', 'RELEASE_NOTES.md', 'Setup.cmd', 'apps/windows/src', 'apps/linux/src/platform.ts',
   'apps/windows/desktop/Even-Pilot.TerminalInterrupt.exe',
   'apps/evenhub/dist', 'apps/evenhub/app.json', 'apps/evenhub/THIRD_PARTY_NOTICES.md', 'packages',
   'scripts/enable-pi-subagents.ps1',
   'docs/architecture.md', 'docs/connectors.md', 'docs/linux.md', 'docs/glance-push.md', 'docs/glance-qr-v1.md',
-  'docs/g2-output-contract.md', 'docs/pi-extensions.md', 'docs/voice.md', 'docs/release-status.md', 'docs/README.md', 'docs/api.md', 'docs/development.md', 'docs/notification-routing.md', 'docs/updates.md',
+  'docs/g2-output-contract.md', 'docs/pi-extensions.md', 'docs/voice.md', 'docs/release-status.md', 'docs/README.md', 'docs/api.md', 'docs/development.md', 'docs/notification-routing.md', 'docs/updates.md', 'docs/publishing.md', 'docs/even-hub-description.md',
 ];
 const secretValues = [];
 const configPath = join(root, '.local/bridge-config.json');

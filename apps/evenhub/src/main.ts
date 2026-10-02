@@ -29,25 +29,25 @@ document.body.classList.toggle("desktop-mode", desktopMode);
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <div class="live-status" aria-label="Live agent status"><div class="live-status-inner"><span id="running-count" title="Running monitored agents">? AGENTS</span><span id="runtime-status">OFFLINE</span><time id="status-time" aria-label="Time in current status">--:--</time></div></div>
   <header class="masthead"><a class="brand" href="./"><span class="brand-icon" aria-hidden="true"></span><span>Even-<b>Pilot</b><small>AGENTS, IN SIGHT.</small></span></a><div class="header-right"><span id="link-state" class="connection">Not connected</span><button id="open-settings" class="subtle">Connection <span>↗</span></button></div></header>
-  <main><div class="page-heading"><div><div class="eyebrow">[ LOCAL AGENT CONSOLE ]</div><h1>KEEP PI IN SIGHT.</h1><p>Your sessions. Desktop / phone / G2.</p></div><div class="session-indicator"><span class="dot"></span><span id="session-label">No session connected</span></div></div>
+  <main><div class="page-heading"><div><div class="eyebrow">[ LOCAL AGENT CONSOLE ]</div><h1>KEEP AGENTS IN SIGHT.</h1><p>Your sessions. Desktop / phone / G2.</p></div><div class="session-indicator"><span class="dot"></span><span id="session-label">No session connected</span></div></div>
   <div id="notice" role="status" hidden></div>
   <div class="workspace"><section class="terminal-panel"><div class="panel-heading"><div><span class="section-number">01</span><h2>Terminal</h2></div></div>
     <div id="transcript" class="transcript" role="log" aria-label="Agent conversation"></div>
     <form id="prompt-form" class="composer"><label for="prompt" class="sr-only">Message session</label><textarea id="prompt" placeholder="> Enter a prompt..." rows="3" maxlength="32000"></textarea><div class="composer-bottom"><span id="composer-hint">Connect your desktop bridge to begin</span><div><button id="stop" type="button" class="subtle" disabled>■ Stop</button><button id="send" type="submit" class="primary" disabled>Send prompt <span>↗</span></button></div></div></form>
     <div class="panel-footer"><span>Multiple sessions. Every surface in sync.</span><span>↵ Send · Shift + ↵ New line</span></div>
   </section>
-  <aside><section class="glasses-card"><div class="panel-heading"><div><span class="section-number">02</span><h2>G2 output</h2></div><span class="tiny-label">G2</span></div><div class="g2-screen"><div class="display-label"><span>LIVE DISPLAY PREVIEW</span><span id="g2-mode">STATUS</span></div><div id="g2-status" class="g2-status"></div><pre id="g2-preview"></pre><div class="display-crosshair">+</div></div><div class="glasses-footer"><span id="g2-connection">Preview · open in Even Hub for G2</span><button id="toggle-display" class="text-button">Tap / Open ↵</button></div><div class="g2-controls" aria-label="G2 preview controls"><button id="g2-sessions" class="text-button">Sessions</button><button id="g2-previous" class="text-button" aria-label="G2 previous">↑</button><button id="g2-next" class="text-button" aria-label="G2 next">↓</button><button id="g2-back" class="text-button">Back</button></div></section>
+  <aside><section class="glasses-card"><div class="panel-heading"><div><span class="section-number">02</span><h2>G2 output</h2></div><span class="tiny-label">G2</span></div><div class="g2-screen"><div class="display-label"><span>LIVE DISPLAY PREVIEW</span><span id="g2-mode">STATUS</span></div><div id="g2-status" class="g2-status"></div><pre id="g2-preview"></pre></div><div class="glasses-footer"><span id="g2-connection">Preview · open in Even Hub for G2</span><button id="toggle-display" class="text-button">Tap / Open ↵</button></div><div class="g2-controls" aria-label="G2 preview controls"><button id="g2-sessions" class="text-button">Sessions</button><button id="g2-previous" class="text-button" aria-label="G2 previous">↑</button><button id="g2-next" class="text-button" aria-label="G2 next">↓</button><button id="g2-back" class="text-button">Back</button></div></section>
   <section class="details-card"><div class="panel-heading"><div><span class="section-number">03</span><h2>Runtime</h2></div></div><dl><div><dt>Activity</dt><dd id="tools">No active tools</dd></div><div><dt>Model</dt><dd id="model">—</dd></div><div><dt>Project</dt><dd id="cwd">—</dd></div><div><dt>Session</dt><dd id="session-id">—</dd></div></dl><div class="session-actions"><button id="manage-sessions" class="outline" disabled>Switch session ↗</button><button id="new-session" class="outline" disabled>＋ New</button></div><p id="monitor-summary" class="caption">Choose a session to open it. History is available separately.</p></section>
   <section class="notification-card"><span class="notification-icon">◌</span><div><h3>JOB DONE. YOU KNOW.</h3><p>Point your Glance watcher at this bridge to get a notification when a session finishes.</p><button id="show-glance" class="text-button">Glance connection details ↗</button></div></section></aside></div>
-  <footer class="page-footer"><span>EVEN-PILOT <span class="version">/ 1.0.22</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
-  <dialog id="settings"><form id="connection-form"><div class="dialog-heading"><div><div class="eyebrow">CONNECT YOUR COCKPIT</div><h2>Desktop bridge</h2></div><button id="close-settings" type="button" class="subtle" aria-label="Close settings">✕</button></div><p>Enter the desktop bridge address and connection key below. Use the desktop LAN or Tailscale address.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste desktop Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">URL and key are saved on this phone and restored when you reopen the app. Forget connection removes them.</p><button class="primary full" type="submit">Connect to Pi ↗</button><div class="glance-details"><h3>Glance notifications</h3><p>Registration / polling URL: <code id="glance-url">http://&lt;PC-IP&gt;:4317/api/glance</code></p><p>Credential: use the <b>same connection key</b> as this app, or scan the same desktop QR in Glance. Choose a unique watcher name.</p><p class="caption">Choose PUSH in Glance, then Save and register. Each watched session returning to zero active agents triggers a push, except the session currently open on G2. POLL remains available at intervals of 15 minutes or longer.</p></div></form></dialog>`;
+  <footer class="page-footer"><span>EVEN-PILOT <span class="version">/ 1.1.0</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
+  <dialog id="settings"><form id="connection-form"><div class="dialog-heading"><div><div class="eyebrow">CONNECT YOUR COCKPIT</div><h2>Desktop bridge</h2></div><button id="close-settings" type="button" class="subtle" aria-label="Close settings">✕</button></div><p>Enter the desktop bridge address and connection key below. Use the desktop LAN or Tailscale address.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste desktop Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">URL and key are saved on this phone and restored when you reopen the app. Forget connection removes them.</p><button class="primary full" type="submit">Save computer ↗</button><div class="glance-details"><h3>Glance notifications</h3><p>Registration / polling URL: <code id="glance-url">http://&lt;PC-IP&gt;:4317/api/glance</code></p><p>Credential: use the <b>same connection key</b> as this app, or scan the same desktop QR in Glance. Choose a unique watcher name.</p><p class="caption">Choose PUSH in Glance, then Save and register. Each watched session returning to zero active agents triggers a push, except the session currently open on G2. POLL remains available at intervals of 15 minutes or longer.</p></div></form></dialog>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 const dialog = $<HTMLDialogElement>("settings");
 const updatesButton = document.createElement("button"); updatesButton.type = "button"; updatesButton.className = "subtle"; updatesButton.textContent = "Updates";
 document.querySelector(".header-right")!.append(updatesButton);
-void import("./updates/settings.js").then(({ UpdateSettings }) => { new UpdateSettings(() => client, updatesButton); });
+void import("./updates/settings.js").then(({ UpdateSettings }) => { new UpdateSettings(() => client, updatesButton, desktopMode ? location.origin : undefined); });
 const notificationSettingsButton = document.createElement("button");
 notificationSettingsButton.type = "button"; notificationSettingsButton.className = "outline"; notificationSettingsButton.textContent = "Notification routing";
 document.querySelector(".glance-details")!.append(notificationSettingsButton);
@@ -107,14 +107,13 @@ const g2Canvas = document.createElement("canvas"); g2Canvas.width = 576; g2Canva
 g2Canvas.className = "g2-canvas"; g2Canvas.setAttribute("aria-label", "G2 display preview");
 $("g2-preview").before(g2Canvas);
 $("g2-preview").hidden = true; $("g2-status").hidden = true;
-document.querySelector(".display-crosshair")?.remove();
 const inputTrace: G2InputTrace[] = [];
 const g2Diagnostics = document.createElement("details"); g2Diagnostics.className = "g2-diagnostics";
 g2Diagnostics.innerHTML = '<summary>G2 input diagnostics</summary><p class="caption">Recent gestures only. No conversation, audio or connection keys.</p><textarea readonly rows="6" aria-label="Recent G2 gestures"></textarea><button type="button" class="text-button">Copy diagnostics</button>';
 document.querySelector(".g2-controls")!.after(g2Diagnostics);
 const diagnosticText = g2Diagnostics.querySelector("textarea")!;
 function refreshInputTrace() {
-  diagnosticText.value = JSON.stringify({ version: "1.0.22", events: inputTrace }, null, 2);
+  diagnosticText.value = JSON.stringify({ version: "1.1.0", events: inputTrace }, null, 2);
 }
 g2Diagnostics.ontoggle = () => { if (g2Diagnostics.open) refreshInputTrace(); };
 g2Diagnostics.querySelector("button")!.onclick = async () => {
@@ -237,7 +236,7 @@ function renderStatus() {
   $("running-count").textContent = bar.agents;
   $("runtime-status").textContent = bar.status;
   $("status-time").textContent = bar.elapsed;
-  $("status-time").title = bar.status === "IDLE" ? "Time since Pi became idle" : "Time in current run or status";
+  $("status-time").title = bar.status === "IDLE" ? "Time since watched sessions became idle" : "Time in current run or status";
 }
 const statusClock = setInterval(renderStatus, 1000);
 let transcriptSignature = "";
@@ -267,7 +266,7 @@ function render() {
   $("monitor-summary").textContent = state.monitoring
     ? `${state.monitoring.watched} monitored · ${state.monitoring.running} running. Prompts automatically add a session; cancel monitoring in the session list.`
     : "Choose a session to open it. History is available separately.";
-  $("composer-hint").textContent = state.commandStatus || (state.capabilities?.prompt === false ? "Monitoring Codex. Continue in its original window." : !ready
+  $("composer-hint").textContent = state.commandStatus || (state.capabilities?.prompt === false ? "Monitoring this session. Continue in its original terminal." : !ready
     ? online ? "Choose a session to begin" : "Connect your desktop bridge to begin"
     : busy
       ? state.capabilities?.interrupt === false ? "Agent is working. Use Ctrl+C in its terminal to stop." : "Agent is working. You can stop this run."

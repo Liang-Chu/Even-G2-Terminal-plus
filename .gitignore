@@ -20,6 +20,7 @@ even-glance-firebase.json
 *service_account*.json
 google-services.json
 credentials.json
+npmtoken.txt
 auth.json
 *.pem
 *.key

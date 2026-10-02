@@ -37,7 +37,7 @@ interface DisplayOptions {
   input?: { open: () => void; toggleRecording: () => void; hasDraft?: () => boolean; send?: () => void; finish?: () => void; startDeleting?: () => void;
     stopDeleting?: () => void; pause?: () => void; cancel?: () => void; audio?: (pcm: Uint8Array) => void };
 }
-interface Composer { text: string; hint: string; busy?: boolean; phase?: string }
+interface Composer { text: string; hint: string; phase?: string }
 class DisplayError extends Error {
   constructor(message: string, readonly canProbe = false) { super(message); }
 }
@@ -347,7 +347,7 @@ export class G2Display {
   private openInput() {
     if (this.choiceHidden && this.state?.interactions?.length) { this.messages.selectInput(); this.choiceHidden = false; this.schedule(); return; }
     if (this.state?.capabilities?.prompt === false) {
-      this.stopNotice = { key: this.state.session.key!, text: "Continue in the original Codex window.", until: Date.now() + 5000 }; this.schedule(); return;
+      this.stopNotice = { key: this.state.session.key!, text: "Continue in the original terminal.", until: Date.now() + 5000 }; this.schedule(); return;
     }
     this.messages.selectInput(); this.options.input?.open();
   }

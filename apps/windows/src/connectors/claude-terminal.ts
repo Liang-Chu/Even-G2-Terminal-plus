@@ -31,9 +31,10 @@ export async function claudeTerminal(options: { data: string; cwd: string; id?: 
   // The flag enables only this custom channel, never bypasses tool permissions.
   const python = process.platform === "linux" ? await executable("python3") : undefined;
   if (process.platform === "linux" && !python) throw new Error("Claude's Linux terminal connector requires Python 3 (standard library only).");
+  const env = { ...process.env, EVEN_PILOT_CLAUDE_CONNECTOR: "1" };
   const child = python ? spawn(python, [fileURLToPath(new URL("../../../linux/claude-pty.py", import.meta.url)), runDirectory, command.command, ...args],
-    { cwd: options.cwd, stdio: "inherit", shell: false })
-    : spawn(command.command, args, { cwd: options.cwd, stdio: "inherit", shell: false, windowsHide: false });
+    { cwd: options.cwd, env, stdio: "inherit", shell: false })
+    : spawn(command.command, args, { cwd: options.cwd, env, stdio: "inherit", shell: false, windowsHide: false });
   const exited = new Promise<void>((done, fail) => { child.once("error", fail); child.once("exit", () => done()); });
   void exited.catch(() => {});
   if (child.pid && !python) {

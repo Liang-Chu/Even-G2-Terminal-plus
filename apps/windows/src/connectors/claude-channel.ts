@@ -26,6 +26,12 @@ const monitor = new ConnectorMonitor(join(data, "native"), { key: connectorKey("
   prompt: async text => {
     const command = slashCommand(text); if (command) unsupportedCommand(command.name);
     if (!ready) throw new Error("Enable the Even-Pilot channel in this Claude terminal first");
+    const intendedInstance = monitor.snapshot.instance, intendedId = id;
+    drainEvents();
+    if (monitor.snapshot.instance !== intendedInstance || id !== intendedId)
+      throw new Error("Claude's current session changed. Prompt was not sent.");
+    if (["running", "waiting"].includes(monitor.store.state.main.status))
+      throw new Error("Claude is working; wait before sending another prompt");
     send({ jsonrpc: "2.0", method: "notifications/claude/channel", params: {
       content: text, meta: { session_id: id, source: "even-pilot", reply_to: "g2" },
     } });
@@ -62,6 +68,9 @@ const seenEvents = new Set<string>();
 function accept(event: any) {
   if (event.eventId && seenEvents.has(event.eventId)) return;
   if (typeof event.session_id !== "string" || !/^[a-f0-9-]{16,64}$/i.test(event.session_id)) throw new Error("Invalid session");
+  // Child hooks also carry their parent's session_id. Their lifecycle cannot
+  // replace the main session, its transcript source or its approval requests.
+  if (event.agent_id && ["SessionStart", "SessionEnd", "UserPromptSubmit", "Stop", "StopFailure"].includes(event.hook_event_name)) return;
   if (event.session_id !== id) {
     if (event.hook_event_name !== "SessionStart" || typeof event.cwd !== "string") throw new Error("Session changed");
     id = event.session_id; modified = 0; transcriptPath = undefined; stopRequest = undefined;
@@ -71,8 +80,8 @@ function accept(event: any) {
     seenEvents.add(event.eventId);
     if (seenEvents.size > 1000) seenEvents.delete(seenEvents.values().next().value!);
   }
-  if (typeof event.transcript_path === "string") transcriptPath = event.transcript_path;
-  if (["PreToolUse", "Stop", "SessionEnd", "UserPromptSubmit", "SessionStart"].includes(event.hook_event_name)) monitor.interactions.clear();
+  if (!event.agent_id && typeof event.transcript_path === "string") transcriptPath = event.transcript_path;
+  if (!event.agent_id && ["PreToolUse", "Stop", "SessionEnd", "UserPromptSubmit", "SessionStart"].includes(event.hook_event_name)) monitor.interactions.clear();
   events.receive(event);
 }
 function drainEvents() {
@@ -110,11 +119,11 @@ lines.on("line", line => {
   if (!message || typeof message !== "object" || Array.isArray(message)) return;
   const respond = (result: unknown) => send({ jsonrpc: "2.0", id: message.id, result });
   if (message.method === "initialize") respond({ protocolVersion: message.params?.protocolVersion || "2024-11-05",
-    serverInfo: { name: "even-pilot", version: "1.0.22" },
+    serverInfo: { name: "even-pilot", version: "1.1.0" },
     capabilities: { experimental: { "claude/channel": {}, "claude/channel/permission": {} }, tools: {} },
     instructions: "Even-Pilot forwards the user's G2 prompts to this same session. Respond normally in the terminal. Preserve requested <g2-summary> summary markers. The reply tool may additionally send a concise glasses reply; it does not replace the full terminal response.",
   });
-  else if (message.method === "notifications/initialized") { ready = true; refreshOwner(); monitor.start(); }
+  else if (message.method === "notifications/initialized") { ready = true; drainEvents(); refreshOwner(); monitor.start(); }
   else if (message.method === "notifications/claude/channel/permission_request" && ready) {
     const p = message.params;
     if (!p || typeof p.request_id !== "string" || !/^[a-km-z]{5}$/.test(p.request_id)

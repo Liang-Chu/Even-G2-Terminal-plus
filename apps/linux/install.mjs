@@ -1,12 +1,13 @@
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
-import { homedir } from 'node:os';
+import { basename, dirname, join, resolve, sep } from 'node:path';
+import { homedir, userInfo } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const source = fileURLToPath(new URL('../../', import.meta.url));
 const args = process.argv.slice(2), removing = args.includes('--uninstall'), updating = args.includes('--update');
+if (updating && args.includes('--no-start')) throw new Error('--update requires starting the monitor for its health check; omit --no-start');
 const bin = join(process.env.EVEN_PILOT_BIN_DIR || join(homedir(), '.local/bin'), 'even-pilot');
 let detected;
 try { const link = readlinkSync(bin); if (link.endsWith('/current/bin/even-pilot')) detected = resolve(link, '../../..'); } catch {}
@@ -38,6 +39,15 @@ function invoke(payload, command) {
   const result = spawnSync(join(payload, 'runtime/node'), ['--import', pathToFileURL(join(payload, 'node_modules/tsx/dist/loader.mjs')).href, join(payload, 'apps/linux/src/desktop.ts'), ...command], { stdio: 'inherit' });
   if (result.error || result.status !== 0) throw new Error('Could not complete ' + command[0] + '; no native terminal was killed');
 }
+function removeClaudeMonitoring(payload) {
+  const monitorData = process.env.EVEN_PILOT_DATA_DIR || join(process.env.XDG_DATA_HOME || join(homedir(), '.local/share'), 'even-pilot');
+  if (!existsSync(join(monitorData, 'claude-monitor-registration.json'))) return;
+  const removeHook = join(payload, 'apps/windows/src/install-claude-monitor.ts');
+  if (!existsSync(removeHook)) throw new Error('Claude monitoring cleanup is unavailable; reinstall the current package before uninstalling');
+  const cleanup = spawnSync(join(payload, 'runtime/node'), ['--import', pathToFileURL(join(payload, 'node_modules/tsx/dist/loader.mjs')).href,
+    removeHook, '--remove', '--data', monitorData], { env: process.env, cwd: payload, stdio: 'inherit', timeout: 20000 });
+  if (cleanup.error || cleanup.status !== 0) throw new Error('Claude monitoring cleanup failed; application files and user settings were retained');
+}
 function verify(directory, manifest) {
   regularTree(directory, dirname(directory));
   for (const file of manifest.files) {
@@ -48,7 +58,67 @@ function verify(directory, manifest) {
 }
 const desktopPath = join(process.env.XDG_DATA_HOME || join(homedir(), '.local/share'), 'applications/even-pilot.desktop');
 const quoteDesktop = text => '"' + text.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('`', '\\`').replaceAll('$', '\\$').replaceAll('%', '%%') + '"';
-function writeAtomic(path, value, mode = 0o600) { const temp = path + '.new-' + randomUUID(); writeFileSync(temp, value, { flag: 'wx', mode }); renameSync(temp, path); }
+function writeAtomic(path, value, mode = 0o600) { const temp = path + '.new-' + randomUUID(); writeFileSync(temp, value, { flag: 'wx', mode }); chmodSync(temp, mode); renameSync(temp, path); }
+
+// Shell registration belongs to this installation only. Preserve all user text
+// outside our exact marker, and never replace a symlink or a shared startup file.
+const pathMarker = '# Even-Pilot PATH: ' + JSON.stringify(root);
+const pathEnd = '# End Even-Pilot PATH';
+const shellQuote = text => "'" + text.replaceAll("'", "'\\''") + "'";
+function shellPathFiles() {
+  const shell = basename(process.env.SHELL || userInfo().shell || '');
+  if (shell === 'bash') {
+    const login = ['.bash_profile', '.bash_login', '.profile'].map(name => join(homedir(), name)).find(existsSync) || join(homedir(), '.profile');
+    // Bash reads .bashrc for SSH commands too. Ubuntu's standard noninteractive
+    // return must not prevent resolving the installed command in that case.
+    return [{ path: login }, { path: join(homedir(), '.bashrc'), prepend: true }];
+  }
+  if (shell === 'zsh') {
+    const directory = process.env.ZDOTDIR || homedir();
+    return ['.zprofile', '.zshrc'].map(name => ({ path: join(directory, name) }));
+  }
+  if (['sh', 'dash', 'ksh', 'ash'].includes(shell)) return [{ path: join(homedir(), '.profile') }];
+  if (shell === 'fish') return [{ path: join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'fish/conf.d/even-pilot-path.fish'), fish: true }];
+  return [];
+}
+function registerShellPath(removing = false) {
+  const directory = dirname(bin), files = shellPathFiles();
+  let saved = false;
+  for (const file of files) {
+    try {
+      let original = '', mode = 0o600, info;
+      try { info = lstatSync(file.path); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (info) {
+        if (!info.isFile() || info.isSymbolicLink() || info.uid !== process.getuid()) throw new Error('not a regular owned file');
+        original = readFileSync(file.path, 'utf8'); mode = info.mode & 0o777;
+      } else if (removing) continue;
+      const begin = original.indexOf(pathMarker + '\n');
+      let clean = original;
+      if (begin >= 0) {
+        const end = original.indexOf(pathEnd + '\n', begin);
+        if (end < 0) throw new Error('incomplete managed block');
+        clean = original.slice(0, begin) + original.slice(end + pathEnd.length + 1);
+      }
+      if (removing) {
+        if (clean !== original) writeAtomic(file.path, clean, mode);
+        continue;
+      }
+      const value = shellQuote(directory);
+      const block = file.fish ? `if not contains -- ${value} $PATH\n    set -gx PATH ${value} $PATH\nend\n`
+        : `case ":$PATH:" in\n  *:${value}:*) ;;\n  *) export PATH=${value}:"$PATH" ;;\nesac\n`;
+      // Avoid appending our block to a fish file owned by another application.
+      if (file.fish && original && begin < 0) throw new Error('unrelated fish startup entry');
+      mkdirSync(dirname(file.path), { recursive: true });
+      const registration = pathMarker + '\n' + block + pathEnd + '\n';
+      writeAtomic(file.path, file.prepend ? registration + clean : clean + (clean && !clean.endsWith('\n') ? '\n' : '') + registration, mode);
+      saved = true;
+    } catch {
+      console.warn('Shell PATH was not changed in ' + file.path + '. Add ' + directory + ' to your PATH manually.');
+    }
+  }
+  if (!removing) console.log(saved ? 'The even-pilot command is available in new terminal windows. Current shell: add ' + directory + ' to PATH, or use the full launcher path below.'
+    : 'Add ' + directory + ' to your shell PATH to use the even-pilot command.');
+}
 
 guardRoot();
 mkdirSync(root, { recursive: true, mode: 0o700 });
@@ -72,12 +142,14 @@ try {
       if (cmd.includes(root + '/versions/') && !cmd.includes('/apps/windows/src/cli.ts')) throw new Error('A terminal still uses this installation. Close it before uninstalling');
     }
     invoke(old, ['remove-service']);
+    removeClaudeMonitoring(old);
     const pi = join(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi/agent'), 'extensions/even-pilot-monitor.ts');
     if (existsSync(pi)) {
       const text = readFileSync(pi, 'utf8');
       if (text.startsWith('// Even-PIlot native terminal monitor\n') && text.includes(root + '/versions/')) unlinkSync(pi);
     }
     try { if (readlinkSync(bin) === join(root, 'current/bin/even-pilot')) unlinkSync(bin); } catch {}
+    registerShellPath(true);
     try { if (readFileSync(desktopPath, 'utf8').includes('X-Even-PIlot-Root=' + root + '\n')) unlinkSync(desktopPath); } catch {}
     if (existsSync(join(root, 'current'))) {
       if (!lstatSync(join(root, 'current')).isSymbolicLink() || !inside(resolve(root, readlinkSync(join(root, 'current'))), join(root, 'versions'))) throw new Error('Unexpected current-version link');
@@ -125,17 +197,25 @@ try {
           headers: {Authorization: 'Bearer ' + (process.env.EVEN_PILOT_TOKEN || config.controlToken)}, signal: AbortSignal.timeout(5000) });
         if (!response.ok || (await response.json()).currentVersion !== manifest.version) throw new Error('Updated backend health check failed');
       }
+      registerShellPath();
       console.log('Installed Even-Pilot ' + manifest.version + '\nLauncher: ' + bin + '\nEnable login startup: ' + bin + ' autostart on\nShow phone connection values: ' + bin + ' pair');
     } catch (error) {
+      let cleanupError;
       if (old) {
         if (switched) {
           invoke(target, ['stop']);
           const pending = join(root, '.rollback-' + randomUUID()); symlinkSync('versions/' + previous.current, pending); renameSync(pending, join(root, 'current'));
           writeAtomic(recordPath, oldRecord);
-          invoke(old, ['prepare']);
         }
+        if (!existsSync(join(old, 'apps/windows/src/install-claude-monitor.ts'))) {
+          try { removeClaudeMonitoring(target); } catch (failure) { cleanupError = failure; }
+        }
+        invoke(old, ['prepare']);
         if (!args.includes('--no-start')) invoke(old, ['start']);
+      } else {
+        removeClaudeMonitoring(target);
       }
+      if (cleanupError) throw new Error('Previous monitor restored, but Claude monitoring settings need repair before removing the new payload', { cause: cleanupError });
       throw error;
     }
   }

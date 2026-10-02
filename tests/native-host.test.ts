@@ -24,7 +24,7 @@ function nativeSnapshot(host: NativeHost, key: string) {
   return runtime.snapshot;
 }
 
-async function fixture(t: any) {
+async function fixture(t: any, alive: (pid: number) => boolean = () => true) {
   const root = await mkdtemp(join(tmpdir(), "pilot-native-")), sessions = join(root, "sessions"), directory = join(root, "native");
   await mkdir(sessions); await mkdir(directory);
   const paths = [join(sessions, "first.jsonl"), join(sessions, "second.jsonl")];
@@ -35,7 +35,7 @@ async function fixture(t: any) {
   }
   const launched: string[] = [];
   const host = new NativeHost({ cwd: root, directory, preferencesPath: join(root, "monitoring.json"), sessions: { root: sessions },
-    launch: async path => { launched.push(path); }, alive: () => true });
+    launch: async path => { launched.push(path); }, alive });
   const journal = new NotificationJournal(host.store);
   const make = (i: number, running = false) => {
     const store = new CockpitStore(root);
@@ -206,6 +206,13 @@ test("desktop API scopes defaults and unwatch leaves a running native process al
   await once(child.stdout!, "data", { signal: AbortSignal.timeout(5000) });
   window.snapshot.at = Date.now() - 7000; window.publish(); window.snapshot.at = Date.now(); window.publish();
   assert.equal(f.host.store.state.monitoring?.watched, 0, "disconnect/reconnect preserves explicit unwatch");
+  window.snapshot.runId++;
+  window.store.dispatch({ type: "agent.started" }); window.publish();
+  window.store.dispatch({ type: "agent.settled" });
+  window.snapshot.completions.push({ id: window.snapshot.runId, at: Date.now(), outcome: "completed" }); window.publish();
+  assert.equal(f.host.store.state.monitoring?.watched, 0, "later native turns preserve explicit unwatch");
+  assert.equal(f.journal.list().length, 0);
+  assert.doesNotThrow(() => process.kill(child.pid!, 0));
 });
 
 test("backend shutdown and restart preserve a working native process and watch membership", { timeout: 10_000 }, async t => {
@@ -263,6 +270,50 @@ test("each native terminal completion notifies once; stale heartbeat never becom
   assert.equal(f.journal.list().length, 2);
 });
 
+test("dead heartbeat cleanup is bounded, consumes final completion, and retains living owners and session history", async t => {
+  const living = new Set([1000, 1001]), f = await fixture(t, pid => living.has(pid));
+  const first = f.make(0, true), second = f.make(1);
+  const history = await readFile(f.paths[0], "utf8");
+  second.snapshot.at = Date.now() - 7000; second.publish();
+  assert.ok((await readdir(f.directory)).includes("1001.json"), "a missing heartbeat with a live owner is retained");
+  first.store.dispatch({ type: "agent.settled" });
+  first.snapshot.completions.push({ id: 1, at: Date.now(), outcome: "completed" });
+  first.snapshot.at = Date.now() - 7000;
+  living.delete(1000);
+  writeLocalJson(join(f.directory, `${first.snapshot.instance}.command.json`), { expired: true });
+  writeLocalJson(join(f.directory, `${first.snapshot.instance}.reply.json`), { id: "old" });
+  first.publish();
+  assert.equal(f.journal.list().length, 1, "final completion is consumed before its dead snapshot is removed");
+  assert.equal((await readdir(f.directory)).some(name => name === "1000.json" || name.startsWith(first.snapshot.instance)), false);
+  for (let index = 0; index < 20; index++) writeLocalJson(join(f.directory, `${4000 + index}.json`), {
+    ...first.snapshot, pid: 4000 + index, instance: randomUUID(), state: first.store.state,
+  });
+  f.host.scan();
+  assert.equal((await readdir(f.directory)).filter(name => /^40\d\d\.json$/.test(name)).length, 4);
+  f.host.scan();
+  assert.equal((await readdir(f.directory)).filter(name => /^40\d\d\.json$/.test(name)).length, 0);
+  assert.equal(f.host.store.state.monitoring?.watched, 2);
+  assert.equal(f.journal.list().length, 1, "dead files never replay completion");
+  assert.equal(await readFile(f.paths[0], "utf8"), history, "the original conversation remains intact");
+});
+
+test("background watch saves keep monitoring live during a storage failure and retry after recovery", async t => {
+  const f = await fixture(t), blocked = join(f.root, "monitoring.json.tmp");
+  await mkdir(blocked);
+  const window = f.make(0, true);
+  assert.equal(f.host.store.state.connected, true);
+  assert.equal(f.host.store.state.monitoring?.watched, 1);
+  window.store.dispatch({ type: "agent.settled" });
+  window.snapshot.completions.push({ id: 1, at: Date.now(), outcome: "completed" });
+  window.publish();
+  assert.equal(f.journal.list().length, 1);
+  await rm(blocked, { recursive: true });
+  f.host.scan();
+  const preferences = JSON.parse(await readFile(join(f.root, "monitoring.json"), "utf8"));
+  assert.equal(preferences.sessions[0].key, sessionKey(f.paths[0]));
+  assert.equal(preferences.sessions[0].monitored, true);
+});
+
 test("native completions use readable session names, follow renames and preserve manual Unwatch", async t => {
   const f = await fixture(t), window = f.make(0, true), key = window.store.state.session.key!;
   window.store.dispatch({ type: "user.message", text: "Repair login and test it" }); window.publish();
@@ -276,6 +327,11 @@ test("native completions use readable session names, follow renames and preserve
   window.store.dispatch({ type: "agent.started" }); window.snapshot.runId = 2; window.publish();
   window.store.dispatch({ type: "agent.settled" });
   window.snapshot.completions.push({ id: 2, at: Date.now(), outcome: "completed" }); window.publish();
+  assert.equal(f.journal.list().length, 1, "later native turns preserve manual Unwatch");
+  await f.host.setMonitored(key, true);
+  window.store.dispatch({ type: "agent.started" }); window.snapshot.runId = 3; window.publish();
+  window.store.dispatch({ type: "agent.settled" });
+  window.snapshot.completions.push({ id: 3, at: Date.now(), outcome: "completed" }); window.publish();
   assert.equal(f.journal.list()[1].session, "Login fix");
   assert.equal(f.launched.length, 0);
 });
@@ -291,7 +347,7 @@ test("an external prompt is delivered to the original terminal and acknowledged 
   await sending; assert.equal(f.launched.length, 0);
 });
 
-test("headless CLI manages real bridge watches and pins prompts despite a different selected session", async t => {
+test("headless CLI manages bridge watches and phone prompts stay pinned despite a different selected session", async t => {
   const f = await fixture(t), first = f.make(0), second = f.make(1);
   const firstKey = first.store.state.session.key!, secondKey = second.store.state.session.key!;
   await f.host.resumeSession(secondKey);
@@ -309,16 +365,18 @@ test("headless CLI manages real bridge watches and pins prompts despite a differ
   assert.equal(f.host.store.state.monitoring?.sessions.find(s => s.key === firstKey)?.monitored, true);
   assert.equal(f.launched.length, 0);
   assert.equal(f.host.store.state.session.key, secondKey);
-  const sending = runSessionCommand("send", [firstKey, "Pinned headless prompt"], context);
+  const sending = context.request(`/api/runtime/${firstKey}/prompt`, { text: "Pinned phone prompt" });
   const path = join(f.directory, `${first.snapshot.instance}.command.json`);
   let received: any;
   for (let n = 0; n < 100; n++) {
     try { received = readLocalJson(path); break; } catch { await delay(20); }
   }
   assert.ok(received, "Target terminal receives the command");
-  assert.equal(received.key, firstKey); assert.equal(received.text, "Pinned headless prompt");
+  assert.equal(received.key, firstKey); assert.equal(received.text, "Pinned phone prompt");
   writeLocalJson(join(f.directory, `${first.snapshot.instance}.reply.json`), { id: received.id });
-  await sending;
+  const response = await sending;
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), { accepted: true });
   assert.equal((await readdir(f.directory)).includes(`${second.snapshot.instance}.command.json`), false);
   await runSessionCommand("select", [firstKey], context);
   assert.equal(f.host.store.state.session.key, firstKey);
@@ -360,16 +418,46 @@ test("native session switches and reloads preserve watches without two live sess
   assert.equal(f.journal.list().length, 0);
 });
 
-test("unregistered existing Pi blocks a duplicate writer and does not create a new empty session", async t => {
+test("an unregistered existing Pi blocks resuming a saved file without modifying it", async t => {
   const f = await fixture(t);
+  const original = await readFile(f.paths[0], "utf8");
   const host = new NativeHost({ cwd: f.root, directory: f.directory, sessions: { root: f.sessions },
     preferencesPath: join(f.root, "guard.json"), alive: () => true, unregistered: async () => true,
     launch: async path => { f.launched.push(path); } });
   t.after(() => host.stop());
   await assert.rejects(host.resumeSession(sessionKey(f.paths[0])), /reload/);
-  await assert.rejects(host.newSession(), /reload/);
   assert.equal(f.launched.length, 0);
+  assert.equal(await readFile(f.paths[0], "utf8"), original);
   assert.equal((await host.listSessions()).sessions.length, 2);
+});
+
+test("a fresh Pi session opens independently of unrelated unregistered terminals and is watched once", async t => {
+  const f = await fixture(t), originals = await Promise.all(f.paths.map(path => readFile(path, "utf8")));
+  let guardChecks = 0;
+  const host = new NativeHost({ cwd: f.root, directory: f.directory, sessions: { root: f.sessions },
+    preferencesPath: join(f.root, "fresh.json"), alive: () => true,
+    unregistered: async () => { guardChecks++; return true; },
+    launch: async (path, cwd, tunnel, fresh) => {
+      assert.equal(cwd, f.root); assert.equal(tunnel, "pi"); assert.equal(fresh, true);
+      f.launched.push(path);
+    } });
+  t.after(() => host.stop());
+  await host.newSession({ cwd: f.root, name: "Separate work" });
+  assert.equal(guardChecks, 0, "Only a newly reserved identity bypasses the resume guard");
+  assert.equal(f.launched.length, 1);
+  const path = f.launched[0], key = sessionKey(path);
+  assert.ok(!f.paths.includes(path), "Fresh work uses its own session file");
+  const header = JSON.parse((await readFile(path, "utf8")).split("\n")[0]);
+  assert.match(header.id, /^[a-f0-9-]{36}$/); assert.notEqual(header.id, "source-0"); assert.notEqual(header.id, "source-1");
+  assert.deepEqual(await Promise.all(f.paths.map(path => readFile(path, "utf8"))), originals);
+  const row = (await host.listSessions()).sessions.find(session => session.key === key);
+  assert.equal(row?.name, "Separate work"); assert.equal(row?.active, true); assert.equal(row?.monitored, true);
+  assert.equal(host.store.state.session.key, key);
+  await host.openMonitoredSession(key);
+  assert.deepEqual(f.launched, [path], "Repeated opening reuses the launch already in progress");
+  await assert.rejects(host.resumeSession(sessionKey(f.paths[0])), /reload/);
+  assert.equal(guardChecks, 1, "Existing saved files still require duplicate-writer protection");
+  assert.deepEqual(await Promise.all(f.paths.map(path => readFile(path, "utf8"))), originals);
 });
 
 test("real extension callbacks update snapshots, redact hidden/tool data, and receive prompt commands", async t => {

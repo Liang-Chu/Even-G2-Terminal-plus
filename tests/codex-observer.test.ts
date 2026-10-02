@@ -108,7 +108,11 @@ test("unwatch and unreadable logs never kill, finish or rewatch a running sessio
   await s.append({ type: "task_complete", turn_id: "one" }); await f.observer.poll();
   assert.equal(f.journal.list().length, 0);
   await s.append({ type: "task_started", turn_id: "two" }); await f.observer.poll();
-  assert.equal(f.host.store.state.monitoring?.watched, 1);
+  assert.equal(f.host.store.state.monitoring?.watched, 0, "later original-window prompts preserve explicit Unwatch");
+  await s.append({ type: "task_complete", turn_id: "two" }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 0);
+  await f.host.resumeSession(s.key);
+  assert.equal(f.host.store.state.monitoring?.watched, 1, "explicit selection can re-enable Watch");
 });
 
 test("a child created between discovery passes prevents an early parent notification", async t => {
@@ -121,6 +125,46 @@ test("a child created between discovery passes prevents an early parent notifica
   assert.equal(sessionAgentCount(f.host.getRuntime(main.key).store.state, true), "1");
   await child.append({ type: "task_complete", turn_id: "child" }); await f.observer.poll();
   assert.equal(f.journal.list().length, 1);
+});
+
+test("desktop child rollouts keep their first identity despite copied parent metadata and freshly stamped history", async t => {
+  const f = await fixture(t), main = await f.session("vscode");
+  await main.append({ type: "task_started", turn_id: "current-parent" });
+  await f.observer.poll(true);
+  const child = await f.session({ subagent: { thread_spawn: { parent_thread_id: main.id } } }, main.id);
+  // Codex Desktop clones history into a child with fresh row timestamps. Its
+  // own first metadata is followed by the parent's copied session metadata.
+  await child.append({ id: main.id, cwd: f.root, source: "vscode" }, "session_meta");
+  await child.append({ type: "task_started", turn_id: "old-parent" });
+  await child.append({ type: "task_complete", turn_id: "old-parent" });
+  await child.append({ type: "task_started", turn_id: "current-parent" });
+  await child.append({ type: "task_started", turn_id: "child-work" });
+  await f.observer.poll(true);
+  assert.equal(f.host.store.state.monitoring?.sessions.length, 1);
+  assert.equal(sessionAgentCount(f.host.getRuntime(main.key).store.state, true), "2");
+  assert.equal(f.journal.list().length, 0, "cloned history is never a parent completion");
+  await child.append({ type: "task_complete", turn_id: "child-work" });
+  await f.observer.poll();
+  assert.equal(sessionAgentCount(f.host.getRuntime(main.key).store.state, true), "1");
+  assert.equal(f.journal.list().length, 0, "finishing a child does not finish its active parent");
+  await main.append({ type: "task_complete", turn_id: "current-parent" });
+  await f.observer.poll();
+  assert.equal(f.journal.list().length, 1);
+  assert.equal(f.journal.list()[0].sessionKey, main.key);
+});
+
+test("a user fork retains its own session identity when copied history includes another session_meta", async t => {
+  const f = await fixture(t), original = await f.session("vscode"), fork = await f.session("vscode");
+  await original.append({ type: "task_started", turn_id: "original-active" });
+  await fork.append({ id: original.id, cwd: f.root, source: "vscode" }, "session_meta");
+  await fork.append({ type: "task_started", turn_id: "fork-active" });
+  await f.observer.poll(true);
+  assert.equal(f.host.store.state.monitoring?.sessions.length, 2);
+  await fork.append({ type: "task_complete", turn_id: "fork-active" });
+  await f.observer.poll();
+  assert.equal(f.journal.list().length, 1);
+  assert.equal(f.journal.list()[0].sessionKey, fork.key);
+  assert.equal(f.host.getRuntime(original.key).store.state.main.status, "running");
 });
 
 test("old idle observation buffers are released while watches and unresolved work remain", async t => {

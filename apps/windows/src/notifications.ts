@@ -32,8 +32,12 @@ export class NotificationJournal {
   readonly g2 = new G2Presence();
   forwardingTarget: () => string | undefined = () => undefined;
   private data: Journal = { nextId: 1, events: [], watchers: {} };
+  private persistedEvents: Completion[] = [];
   private listeners = new Set<(event: Completion) => void>();
   private unsubscribe: () => void;
+  private pending: Completion[] = [];
+  private retry?: ReturnType<typeof setTimeout>;
+  private closed = false;
   constructor(
     store: CockpitStore,
     private path?: string,
@@ -49,6 +53,7 @@ export class NotificationJournal {
           "Invalid notification journal; move it aside before starting",
         );
     }
+    this.persistedEvents = [...this.data.events];
     this.unsubscribe = store.subscribe((_state, event) => {
       if (event.type === "monitoring.settled") {
         const completion: Completion = {
@@ -62,21 +67,42 @@ export class NotificationJournal {
           outcome: event.outcome,
         };
         this.data.events = [...this.data.events, completion].slice(-100);
-        this.persist();
-        for (const listener of this.listeners) listener(completion);
+        this.pending = [...this.pending, completion].slice(-100);
+        this.flushPending();
       }
     });
   }
   private persist() {
-    if (!this.path) return;
-    mkdirSync(dirname(this.path), { recursive: true });
-    writeFileSync(this.path + ".tmp", JSON.stringify(this.data), {
-      mode: 0o600,
-    });
-    renameSync(this.path + ".tmp", this.path);
+    if (this.path) {
+      mkdirSync(dirname(this.path), { recursive: true });
+      writeFileSync(this.path + ".tmp", JSON.stringify(this.data), {
+        mode: 0o600,
+      });
+      renameSync(this.path + ".tmp", this.path);
+    }
+    // Every delivery reader uses this committed snapshot. A scheduled push or
+    // relay pump must not see events whose save is still being retried.
+    this.persistedEvents = [...this.data.events];
+  }
+  private flushPending() {
+    if (this.closed || !this.pending.length) return;
+    try { this.persist(); }
+    catch {
+      if (!this.retry) {
+        this.retry = setTimeout(() => { this.retry = undefined; this.flushPending(); }, 1000);
+        this.retry.unref();
+      }
+      return;
+    }
+    clearTimeout(this.retry); this.retry = undefined;
+    const retained = new Set(this.data.events.map(event => event.id));
+    const events = this.pending.filter(event => retained.has(event.id)); this.pending = [];
+    for (const event of events) for (const listener of this.listeners) {
+      try { listener(event); } catch { /* The durable journal remains available for receiver recovery. */ }
+    }
   }
   list(after = 0) {
-    return this.data.events.filter((e) => e.id > after);
+    return this.persistedEvents.filter((e) => e.id > after);
   }
   subscribe(listener: (event: Completion) => void) {
     this.listeners.add(listener);
@@ -97,6 +123,7 @@ export class NotificationJournal {
     return true;
   }
   close() {
+    this.closed = true; clearTimeout(this.retry);
     this.unsubscribe();
   }
   poll(
@@ -104,10 +131,11 @@ export class NotificationJournal {
     maxLength: number,
     titleMaxLength: number,
   ): { title: string; text: string } | undefined {
-    const cursor = Object.hasOwn(this.data.watchers, watcher)
+    const existed = Object.hasOwn(this.data.watchers, watcher);
+    const cursor = existed
       ? this.data.watchers[watcher]
       : 0;
-    const remaining = this.data.events.filter(e => e.id > cursor);
+    const remaining = this.persistedEvents.filter(e => e.id > cursor);
     if (!remaining.length) return;
     const event = remaining.find(e => !e.viewedOnG2 && !e.forwardTo);
     if (
@@ -119,7 +147,14 @@ export class NotificationJournal {
       value: event?.id ?? remaining.at(-1)!.id,
       writable: true, enumerable: true, configurable: true,
     });
-    this.persist();
+    try { this.persist(); }
+    catch (error) {
+      if (existed) Object.defineProperty(this.data.watchers, watcher, {
+        value: cursor, writable: true, enumerable: true, configurable: true,
+      });
+      else delete this.data.watchers[watcher];
+      throw error;
+    }
     if (!event) return;
     const title = fit("Even-Pilot", titleMaxLength);
     const status =

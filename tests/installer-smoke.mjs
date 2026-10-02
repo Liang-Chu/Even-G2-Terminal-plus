@@ -21,6 +21,9 @@ const env = { ...process.env, PATH: join(process.env.WINDIR,'System32') + ';' + 
   PI_CODING_AGENT_DIR:join(sandbox,'pi'), PI_CODING_AGENT_SESSION_DIR:'', CODEX_HOME:join(sandbox,'codex'),
   CLAUDE_CONFIG_DIR:join(sandbox,'claude'), EVEN_PILOT_CODEX:join(sandbox,'not-installed.exe') };
 const invoke = (exe, args) => spawnSync(exe,args,{ cwd:sandbox,env,windowsHide:true,encoding:'utf8',timeout:120000 });
+const claudeSettingsPath=join(env.CLAUDE_CONFIG_DIR,'settings.json');
+const userClaudeSettings={env:{EXISTING_OPTION:'retain'},hooks:{Stop:[{hooks:[{type:'command',command:'echo keep-user-hook'}]}]}};
+mkdirSync(env.CLAUDE_CONFIG_DIR,{recursive:true}); writeFileSync(claudeSettingsPath,JSON.stringify(userClaudeSettings));
 const install = (exe = setup) => invoke(exe,['--quiet','--dir',root,'--no-launch','--no-shortcuts']);
 let backend, working;
 const configPath = join(root,'.local/bridge-config.json');
@@ -61,6 +64,8 @@ try {
   assert.equal(readFileSync(configPath,'utf8'),original,'Pairing keys persist');
   assert.equal(readFileSync(userFile,'utf8'),'Keep user data');
   const updated=JSON.parse(readFileSync(join(root,'install.json')));
+  assert.equal(existsSync(join(root,'.local','claude-monitor-registration.json')),true,'Owned Claude hooks are prepared');
+  assert.equal(JSON.parse(readFileSync(claudeSettingsPath)).env.EXISTING_OPTION,'retain');
   assert.equal(updated.version,manifest.version);
   assert.equal(updated.current,manifest.version+'-'+manifest.buildId,'Upgrade selects the new payload');
   assert.equal(updated.versions.length,updated.current===record.current?1:2,'Working payload is retained across versions');
@@ -75,6 +80,8 @@ try {
   assert.equal(invoke(reg,['query',registry]).status,1,'Uninstall registration removed');
   assert.equal(readFileSync(configPath,'utf8'),original,'Uninstall retains user keys');
   assert.equal(existsSync(join(env.PI_CODING_AGENT_DIR,'extensions/even-pilot-monitor.ts')),false,'No broken Pi extension left behind');
+  assert.deepEqual(JSON.parse(readFileSync(claudeSettingsPath)),userClaudeSettings,'Uninstall removes only owned Claude hooks');
+  assert.equal(existsSync(join(root,'.local','claude-monitor-registration.json')),false);
   console.log('PASS: offline installer without system Node/npm; spaced paths; Windows uninstall registration; bundled backend; reinstall/key retention; upgrade preserves native process; uninstall refuses active terminals and retains data.');
 } finally {
   if(backend?.exitCode===null) { await request('/api/shutdown','POST').catch(()=>{}); await delay(500); if(backend.exitCode===null) backend.kill(); }

@@ -1,0 +1,4 @@
+apps/linux/bin/even-pilot text eol=lf
+*.sh text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf

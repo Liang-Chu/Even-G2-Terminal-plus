@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { once } from "node:events";
+import { spawn } from "node:child_process";
 import { ConnectorMonitor } from "../packages/connectors/monitor.js";
 import { CodexEvents } from "../packages/connectors/codex-events.js";
 import { ClaudeEvents } from "../packages/connectors/claude-events.js";
@@ -115,6 +116,146 @@ test("Claude hook lifecycle excludes foreign sessions and waits for the last sub
   assert.equal(monitor.store.state.connected, false); assert.equal(monitor.snapshot.completions.length, 1);
 });
 
+test("Claude Stop waits for official background work without treating shell tasks as subagents", async t => {
+  const root = await fixture(t), id = randomUUID();
+  const monitor = new ConnectorMonitor(root, { id, key: connectorKey("claude", id), cwd: root, tunnel: "claude" }, { prompt: async () => {} });
+  const events = new ClaudeEvents(monitor);
+  const emit = (hook_event_name: string, rest: any = {}) => events.receive({ session_id: id, hook_event_name, ...rest });
+  emit("UserPromptSubmit", { prompt: "Run background work" });
+  emit("Stop", { background_tasks: [{ id: "shell-task", type: "shell", status: "running" }] });
+  assert.equal(monitor.snapshot.completions.length, 0);
+  assert.equal(monitor.store.state.subagents?.active, 0, "task registry is not an agent counter");
+  emit("Stop");
+  assert.equal(monitor.snapshot.completions.length, 0, "missing registry cannot clear existing work");
+  emit("Stop", { background_tasks: [], last_assistant_message: "All done" });
+  assert.equal(monitor.snapshot.completions.length, 1);
+  emit("Stop", { background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 1);
+});
+
+test("Claude SubagentStop reconciles parent background tasks before releasing the last child", async t => {
+  const root = await fixture(t), id = randomUUID();
+  const monitor = new ConnectorMonitor(root, { id, key: connectorKey("claude", id), cwd: root, tunnel: "claude" }, { prompt: async () => {} });
+  const events = new ClaudeEvents(monitor);
+  const emit = (hook_event_name: string, rest: any = {}) => events.receive({ session_id: id, hook_event_name, ...rest });
+  emit("UserPromptSubmit", { prompt: "Run parallel tasks" });
+  emit("SubagentStart", { agent_id: "child" });
+  emit("Stop", { background_tasks: [] });
+  emit("SubagentStop", { agent_id: "child", background_tasks: [{ status: "running" }] });
+  assert.equal(monitor.snapshot.completions.length, 0, "unidentified in-flight tasks also block completion");
+  emit("SubagentStop", { agent_id: "child", background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 1);
+  emit("UserPromptSubmit", { prompt: "Another run" });
+  emit("Stop", { background_tasks: [{ id: "still-running" }] });
+  emit("SessionEnd");
+  assert.equal(monitor.snapshot.completions.length, 1, "session close cannot finish pending background work");
+});
+
+test("Claude hook queues bounded background metadata and excludes private task content", async t => {
+  const root = await fixture(t);
+  const hook = fileURLToPath(new URL("../apps/windows/src/connectors/claude-hook.ts", import.meta.url));
+  const child = spawn(process.execPath, ["--import", "tsx", hook, root], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+  let output = "";
+  child.stdout.on("data", part => { output += part; }); child.stderr.resume();
+  const done = once(child, "close");
+  child.stdin.end(JSON.stringify({ session_id: randomUUID(), hook_event_name: "Stop",
+    background_tasks: Array.from({ length: 257 }, (_, index) => ({ id: index + "x".repeat(200), type: "shell", status: "running",
+      description: "PRIVATE-TASK-CONTENT", command: "PRIVATE-SHELL-COMMAND" })), raw_input: "PRIVATE-INPUT",
+    session_crons: Array.from({ length: 257 }, (_, index) => ({ id: index + "x".repeat(200), recurring: true,
+      prompt: "PRIVATE-CRON-PROMPT", cron: "PRIVATE-CRON-EXPRESSION" })),
+  }));
+  assert.equal((await done)[0], 0, "monitoring remains fail-open without an HTTP receiver");
+  assert.equal(output, "{}\n");
+  const files = await readdir(join(root, "events"));
+  assert.equal(files.length, 1);
+  const event = JSON.parse(await readFile(join(root, "events", files[0]), "utf8"));
+  assert.equal(event.background_tasks.length, 257, "overflow retains an explicit uncertain-work blocker");
+  assert.equal(event.background_tasks.at(-1).id, "unknown:overflow");
+  assert(event.background_tasks.every((task: any) => task.id.length <= 128));
+  assert.equal(event.session_crons.length, 257);
+  assert.equal(event.session_crons.at(-1).id, "unknown:overflow");
+  assert(event.session_crons.every((cron: any) => cron.id.length <= 128));
+  assert.equal(JSON.stringify(event).includes("PRIVATE"), false);
+});
+
+test("Claude schedules block completion without adding agents until explicitly removed", async t => {
+  const root = await fixture(t), id = randomUUID();
+  const monitor = new ConnectorMonitor(root, { id, key: connectorKey("claude", id), cwd: root, tunnel: "claude" }, { prompt: async () => {} });
+  const events = new ClaudeEvents(monitor);
+  const emit = (hook_event_name: string, rest: any = {}) => events.receive({ session_id: id, hook_event_name, ...rest });
+  emit("UserPromptSubmit", { prompt: "Wait for scheduled work" });
+  emit("Stop", { session_crons: [{ id: "follow-up", recurring: false }] });
+  assert.equal(monitor.snapshot.completions.length, 0);
+  assert.equal(monitor.store.state.subagents?.active, 0, "schedules are not agents");
+  emit("Stop", { background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 0, "omission preserves the known schedule");
+  emit("Stop", { session_crons: [] });
+  assert.equal(monitor.snapshot.completions.length, 1);
+  emit("UserPromptSubmit", { prompt: "Another scheduled run" });
+  emit("StopFailure", { session_crons: "invalid" });
+  assert.equal(monitor.snapshot.completions.length, 1, "malformed registry cannot prove completion");
+  emit("SubagentStop", { agent_id: "child", session_crons: [{}] });
+  assert.equal(monitor.snapshot.completions.length, 1);
+  emit("StopFailure", { session_crons: [] });
+  assert.equal(monitor.snapshot.completions.length, 2);
+  assert.equal(monitor.snapshot.completions.at(-1)?.outcome, "failed");
+});
+
+test("Claude resumed main tools restore activity while child tools preserve delegated main state", async t => {
+  const root = await fixture(t), id = randomUUID();
+  const monitor = new ConnectorMonitor(root, { id, key: connectorKey("claude", id), cwd: root, tunnel: "claude" }, { prompt: async () => {} });
+  const events = new ClaudeEvents(monitor);
+  const emit = (hook_event_name: string, rest: any = {}) => events.receive({ session_id: id, hook_event_name, ...rest });
+  emit("UserPromptSubmit", { prompt: "Work" });
+  emit("SubagentStart", { agent_id: "child" });
+  emit("Stop", { background_tasks: [] });
+  emit("PreToolUse", { agent_id: "child", tool_use_id: "child-tool", tool_name: "Read" });
+  assert.equal(sessionAgentCount(monitor.store.state, true), "1");
+  assert.equal(monitor.snapshot.completions.length, 0);
+  emit("PreToolUse", { tool_use_id: "main-resumed", tool_name: "Read" });
+  assert.equal(sessionAgentCount(monitor.store.state, true), "2");
+  emit("SubagentStop", { agent_id: "child", background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 0, "a resumed main still owns its run");
+  emit("Stop", { background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 1);
+});
+
+test("Claude custom Stop hooks cannot end main or child work before their decisions are known", async t => {
+  const root = await fixture(t), id = randomUUID();
+  const monitor = new ConnectorMonitor(root, { id, key: connectorKey("claude", id), cwd: root, tunnel: "claude" }, { prompt: async () => {} });
+  const events = new ClaudeEvents(monitor);
+  const emit = (hook_event_name: string, rest: any = {}) => events.receive({ session_id: id, hook_event_name, ...rest });
+  emit("UserPromptSubmit", { prompt: "Work with a quality gate" });
+  emit("SubagentStart", { agent_id: "child" });
+  emit("Stop", { stopTrusted: false, background_tasks: [], last_assistant_message: "Attempted stop" });
+  emit("SubagentStop", { agent_id: "child", stopTrusted: false, background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 0);
+  assert.equal(sessionAgentCount(monitor.store.state, true), "2");
+  assert.match(monitor.store.state.commandStatus || "", /uncertain/);
+  emit("PreToolUse", { tool_use_id: "continued", tool_name: "Read" });
+  assert.equal(monitor.snapshot.completions.length, 0);
+  emit("SubagentStop", { agent_id: "child", stopTrusted: true, background_tasks: [] });
+  emit("Stop", { stopTrusted: true, background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 1);
+  assert.equal(monitor.store.state.commandStatus, undefined);
+});
+
+test("Claude child-scoped Stop and SessionEnd cannot finish or disconnect the parent", async t => {
+  const root = await fixture(t), id = randomUUID();
+  const monitor = new ConnectorMonitor(root, { id, key: connectorKey("claude", id), cwd: root, tunnel: "claude" }, { prompt: async () => {} });
+  const events = new ClaudeEvents(monitor);
+  const emit = (hook_event_name: string, rest: any = {}) => events.receive({ session_id: id, hook_event_name, ...rest });
+  emit("UserPromptSubmit", { prompt: "Main work" });
+  emit("SubagentStart", { agent_id: "child" });
+  for (const name of ["Stop", "StopFailure", "SessionEnd"]) emit(name, { agent_id: "child", stopTrusted: true, background_tasks: [] });
+  emit("SubagentStop", { agent_id: "child", stopTrusted: true, background_tasks: [] });
+  assert.equal(monitor.store.state.connected, true);
+  assert.equal(monitor.store.state.main.status, "running");
+  assert.equal(monitor.snapshot.completions.length, 0);
+  emit("Stop", { stopTrusted: true, background_tasks: [] });
+  assert.equal(monitor.snapshot.completions.length, 1);
+});
+
 test("catalog merges saved native sessions with namespaced identity and original-session routing", async t => {
   const root = await fixture(t), id = randomUUID(), claudeRoot = join(root, "claude"), project = join(claudeRoot, "project");
   await mkdir(project, { recursive: true });
@@ -190,6 +331,17 @@ test("real Claude channel process performs MCP handshake, hook auth and G2 comma
     key: connectorKey("claude", id), type: "prompt", text: "G2 fixture prompt", expiresAt: Date.now() + 5000 });
   await until(() => !!pushed);
   assert.equal(pushed.content, "G2 fixture prompt"); assert.equal(pushed.meta.session_id, id);
+  rpc.notify("notifications/claude/channel/permission_request", { request_id: "abcde", tool_name: "Read",
+    description: "Parent approval fixture", input_preview: "Fixture input" });
+  await until(() => readLocalJson(path).state.interactions?.length === 1);
+  for (const name of ["Stop", "SessionEnd", "UserPromptSubmit", "SessionStart"])
+    assert.equal((await post(endpoint.token, { session_id: randomUUID(), hook_event_name: name, agent_id: "child", cwd: root })).status, 204);
+  assert.equal((await post(endpoint.token, { session_id: id, hook_event_name: "PreToolUse", agent_id: "child", tool_use_id: "child-read" })).status, 204);
+  await delay(300);
+  const retained = readLocalJson(path);
+  assert.equal(retained.state.session.id, id, "Child SessionStart cannot replace the parent");
+  assert.equal(retained.state.interactions.length, 1, "Child lifecycle/tools cannot dismiss the parent's approval");
+  assert.equal(retained.completions.length, 0);
   assert.equal((await post(endpoint.token, { session_id: id, hook_event_name: "Stop", last_assistant_message: "Fixture completed" })).status, 204);
   await until(() => readLocalJson(path).completions.length === 1);
   assert.equal(readLocalJson(path).state.currentAssistantText, "Fixture completed");

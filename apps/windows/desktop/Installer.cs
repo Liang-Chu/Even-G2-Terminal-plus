@@ -13,8 +13,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Even-Pilot Setup")]
-[assembly: AssemblyFileVersion("1.0.22.0")]
-[assembly: AssemblyVersion("1.0.22.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
 
 class ReleaseFile { public string path { get; set; } public string sha256 { get; set; } public long bytes { get; set; } }
 class ReleasePayload { public string version { get; set; } public string buildId { get; set; } public ReleaseFile[] files { get; set; } }
@@ -34,7 +34,7 @@ class PilotInstaller : Form {
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen; BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         using (var image = Assembly.GetExecutingAssembly().GetManifestResourceStream("Even-Pilot.ico")) Icon = new Icon(image);
-        Controls.Add(new Label { Text = "Even-Pilot 1.0.22", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
+        Controls.Add(new Label { Text = "Even-Pilot 1.1.0", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
         Controls.Add(new Label { Text = removing ? "Remove the app. Connection settings will be retained.\nClose connected native terminals before uninstalling."
             : "Desktop monitor for Pi, Codex and Claude.\nRuntime included. No Node.js installation or setup commands.", AutoSize = true, Location = new Point(24, 65) });
         location.Text = root; location.Location = new Point(24, 124); location.Size = new Size(388, 28); location.ReadOnly = true; Controls.Add(location);
@@ -84,6 +84,19 @@ class PilotInstaller : Form {
             }
             if (!InstallerSupport.Inside(path, directory) || !File.Exists(path) || new FileInfo(path).Length != file.bytes
                 || InstallerSupport.HashFile(path) != file.sha256) throw new Exception("Installation file verification failed: " + file.path);
+        }
+    }
+    static void RemoveClaudeMonitoring(string root, string payload) {
+        if (!File.Exists(Path.Combine(InstallerSupport.Data(root), "claude-monitor-registration.json"))) return;
+        string hookRemoval = Path.Combine(payload, "apps", "windows", "src", "install-claude-monitor.ts");
+        if (!File.Exists(hookRemoval)) throw new Exception("Claude monitoring cleanup is unavailable. Reinstall the current package before uninstalling.");
+        string node = Path.Combine(payload, "runtime", "node.exe");
+        string loader = new Uri(Path.Combine(payload, "node_modules", "tsx", "dist", "loader.mjs")).AbsoluteUri;
+        using (var cleanup = Process.Start(new ProcessStartInfo(node, "--import " + Quote(loader) + " " + Quote(hookRemoval)
+            + " --remove --data " + Quote(InstallerSupport.Data(root))) {
+            WorkingDirectory = payload, UseShellExecute = false, CreateNoWindow = true
+        })) {
+            if (!cleanup.WaitForExit(20000) || cleanup.ExitCode != 0) throw new Exception("Claude monitoring cleanup failed. Application files and user settings were retained; repair the settings before retrying.");
         }
     }
     static void Run(string root, bool removing, bool noLaunch, bool noShortcuts, Action<string> status, bool backgroundUpdate = false) {
@@ -148,12 +161,19 @@ class PilotInstaller : Form {
             } catch {
                 if (stopped && !committed && File.Exists(previousExe)) {
                     InstallerSupport.StopMonitor(root);
+                    Exception cleanupError = null;
+                    if (!File.Exists(Path.Combine(Path.GetDirectoryName(previousExe), "apps", "windows", "src", "install-claude-monitor.ts"))) {
+                        try { RemoveClaudeMonitoring(root, target); } catch (Exception error) { cleanupError = error; }
+                    }
                     if (oldRecord != null) {
                         File.WriteAllText(Path.Combine(root, "install.json"), oldRecord);
                         InstallerSupport.Register(root, Path.GetDirectoryName(previousExe), previous.version, !noShortcuts);
                     } else if (File.Exists(Path.Combine(root, "install.json"))) File.Delete(Path.Combine(root, "install.json"));
                     using (var prepare = Process.Start(new ProcessStartInfo(previousExe, "--prepare") { WorkingDirectory = Path.GetDirectoryName(previousExe), UseShellExecute = false, CreateNoWindow = true })) prepare.WaitForExit(20000);
                     Process.Start(new ProcessStartInfo(previousExe, "--autostart") { WorkingDirectory = Path.GetDirectoryName(previousExe), UseShellExecute = false, CreateNoWindow = true });
+                    if (cleanupError != null) throw new Exception("The previous monitor was restored, but Claude monitoring settings need repair before removing the new payload.", cleanupError);
+                } else if (stopped && !committed) {
+                    RemoveClaudeMonitoring(root, target);
                 }
                 throw;
             } finally { InstallerSupport.DeleteOwnedTree(temporary, root); }
@@ -169,6 +189,8 @@ class PilotInstaller : Form {
             string path = null; try { path = process.MainModule.FileName; } catch { }
             if (path != null && InstallerSupport.Inside(path, Path.Combine(root, "versions"))) throw new Exception("A terminal still uses this installation. Close it and retry. It has not been stopped.");
         }
+        string payload = Path.Combine(root, "versions", SafeVersion(record.current));
+        RemoveClaudeMonitoring(root, payload);
         status("Removing application files; keeping connection settings…");
         foreach (string version in record.versions) InstallerSupport.DeleteOwnedTree(Path.Combine(root, "versions", SafeVersion(version)), root);
         InstallerSupport.RemoveRegistration(root);

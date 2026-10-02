@@ -2,7 +2,7 @@
 
 Even-Pilot sends a notification when **each monitored session** finishes its main run and reported subagents. Session A notifies when A settles, even while B continues running. A reported interruption or failure produces that outcome; disconnection or closing a native terminal is not completion. Intermediate replies, tool completion, reconnect, initial idle and session browsing do not trigger a push. Remaining idle does not send repeated notifications. Unwatch never closes or interrupts the native terminal; temporary network loss retains monitoring membership.
 
-The desktop observes native Pi, Codex and Claude sessions through their connectors. Existing Pi terminals attach with `/reload` while idle; Plain Codex CLI and local Codex desktop App sessions also use the automatic read-only rollout observer; Claude still needs its connector. Automatic PUSH and POLL notifications are suppressed for a session while its conversation or voice page is mounted on G2. Other watched sessions notify normally. Phone/desktop preview alone does not suppress delivery. Opening Sessions, switching away, or exiting releases the view; a lost heartbeat expires after 15 seconds. This ephemeral lease never changes Watch membership. Suppressed completion records remain in history and are never replayed as notifications. Explicit test pushes remain available while viewing.
+The desktop observes native Pi, Codex and Claude sessions. Existing Pi terminals attach with `/reload` while idle; plain Codex CLI and local Codex desktop App sessions use the automatic read-only rollout observer. Ordinary Claude uses official monitor hooks installed during preparation, beginning with its next prompt; known custom Stop hooks or uncertain background work prevent an unconfirmed completion push. See [connector limits](connectors.md). Automatic PUSH and POLL notifications are suppressed for a session while its conversation or voice page is mounted on G2. Other watched sessions notify normally. Phone/desktop preview alone does not suppress delivery. Opening Sessions, switching away, or exiting releases the view; a lost heartbeat expires after 15 seconds. This ephemeral lease never changes Watch membership. Suppressed completion records remain in history and are never replayed as notifications. Explicit test pushes remain available while viewing.
 
 ## Windows setup
 
@@ -10,7 +10,15 @@ The installed Glance APK uses Firebase project **`even-glance`**, Android packag
 
 A new installation generates its own bridge credentials but has **no Firebase sending credentials**. Core monitoring works without them; push sending does not. Do not ship your service account to other users. Each sender needs credentials authorized for the installed Glance app's Firebase project. This is a prerequisite for distributing push functionality beyond an authorized test group.
 
-After configuring credentials below, verify authentication and launch the native backend:
+For an installed Windows companion, add the Firebase fields shown below to its existing `.local/bridge-config.json` at the installation root, preserving the keys. Use an absolute credential-file path. Restart the monitoring backend using the [manual update shutdown steps](development.md#更新已有安装), then open Even-Pilot again; quitting only the tray does not reload the backend. No system Node or npm is required. In the current payload folder, the optional credential check uses the bundled runtime:
+
+```powershell
+.\runtime\node.exe --import tsx .\apps\windows\src\push-cli.ts check-auth
+```
+
+Linux users can configure the sender with `even-pilot settings firebase --credentials /private/service-account.json`, which restarts only monitoring. See [Linux settings](linux.md#推送与-firebase-设置).
+
+The following npm commands are **source-checkout diagnostics**, requiring the development Node/npm environment:
 
 ```powershell
 npm run push -- check-auth
@@ -19,7 +27,7 @@ npm start
 
 The desktop session picker selects the original session in its native terminal. LAN/Tailscale access is enabled by default, so no `--host` flag is required.
 
-For a different setup, use process environment variables:
+For a source checkout or another explicitly managed process environment, use these overrides:
 
 ```powershell
 $env:EVEN_PILOT_FCM_PROJECT_ID = 'even-glance'

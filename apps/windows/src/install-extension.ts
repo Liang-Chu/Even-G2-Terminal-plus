@@ -2,6 +2,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { installClaudeMonitor } from "./install-claude-monitor.js";
+
+/** Explicit companion preparation installs owned monitoring integrations. */
+export function prepareMonitorExtensions() {
+  const pi = installMonitorExtension();
+  const claude = installClaudeMonitor();
+  return { pi, claude };
+}
 
 export function installMonitorExtension() {
   const target = join(process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"), "extensions", "even-pilot-monitor.ts");

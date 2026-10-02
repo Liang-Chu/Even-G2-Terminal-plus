@@ -22,6 +22,7 @@ const env={...process.env,EVEN_PILOT_DATA_DIR:data,EVEN_PILOT_INSTALL_DIR:root,E
  PI_CODING_AGENT_SESSION_DIR:'',CODEX_HOME:join(sandbox,'codex'),CLAUDE_CONFIG_DIR:join(sandbox,'claude'),
  EVEN_PILOT_CODEX:join(sandbox,'no-codex'),GOOGLE_APPLICATION_CREDENTIALS:'',EVEN_PILOT_FCM_PROJECT_ID:'',
  EVEN_PILOT_TOKEN:'',EVEN_PILOT_NOTIFICATION_TOKEN:'',DISPLAY:'',WAYLAND_DISPLAY:''};
+if(!windows) { env.HOME=join(sandbox,'home'); env.SHELL='/bin/bash'; mkdirSync(env.HOME,{recursive:true}); }
 const run=(exe,args)=>spawnSync(exe,args,{env,cwd:sandbox,windowsHide:true,encoding:'utf8',timeout:110000});
 const install=(file,update)=>windows?run(file,['--quiet','--dir',root,'--no-shortcuts',update?'--update':'--no-launch'])
  :run('sh',[file,'--dir',root,update?'--update':'--no-start']);
@@ -32,6 +33,7 @@ async function healthy(){try{return(await request('/api/updates')).ok;}catch{ret
 try {
  const first=install(setup,false);assert.equal(first.status,0,first.stderr);
  record=JSON.parse(readFileSync(join(root,'install.json')));const payload=join(root,'versions',record.current);
+ const claudeBefore=JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR,'settings.json')));
  const config=readFileSync(join(data,'bridge-config.json'),'utf8');token=JSON.parse(config).controlToken;
  writeFileSync(join(data,'update-settings.json'),'{"automaticChecks":false}');
  const node=join(payload,'runtime',windows?'node.exe':'node');
@@ -58,11 +60,13 @@ try {
  assert.equal((await(await request('/api/updates')).json()).currentVersion,version,'Previous backend is healthy after rollback');
  assert.equal(worker.exitCode,null,'Native process survives failed update');
  assert.equal(readFileSync(join(data,'bridge-config.json'),'utf8'),config,'Keys survive rollback');
+ assert.deepEqual(JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR,'settings.json'))),claudeBefore,'Rollback restores the previous owned hook command');
  const accepted=install(setup,true);assert.equal(accepted.status,0,accepted.stderr);
  await until(healthy);
  assert.equal(worker.exitCode,null,'Native process survives successful update');
  assert.equal((await(await request('/api/updates')).json()).automaticChecks,false,'Disabled update preference persists');
  assert.equal(readFileSync(join(data,'bridge-config.json'),'utf8'),config);
+ assert.deepEqual(JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR,'settings.json'))),claudeBefore,'Reinstall preserves the registered hook settings');
  console.log('PASS: '+process.platform+' real --update installation, failed health check rollback, healthy restart, saved preference/key retention and native-process survival.');
 } finally {
  if(worker?.exitCode===null){worker.kill();await until(()=>worker.exitCode!==null||worker.signalCode!==null);}

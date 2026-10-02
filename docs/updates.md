@@ -4,7 +4,7 @@ Published installers come from [Liang-Chu/Even-Pilot Releases](https://github.co
 
 ## Windows and management page
 
-1. Open **Updates** in the phone/desktop page and select the computer, or use the Windows tray's **Check for updates**.
+1. Open **Updates** in the desktop page to update the computer serving that page. In the phone Hub it targets the active computer when the dialog opens. There is no additional computer selector. You can also use the Windows tray's **Check for updates**.
 2. Review the installed and available versions. Choose **Update to …** to start downloading and installing on that computer.
 3. The monitoring backend reconnects after installation. Native CLI windows remain open.
 
@@ -37,4 +37,4 @@ Hub packages have their own Even Hub installation/update flow; a backend update 
 - `POST /api/updates/settings` with `{ "automaticChecks": false }`: disable background checks and reminders; `true` enables them.
 - `POST /api/updates/install` with `{ "version": "1.2.3" }`: explicitly install the version returned by a successful check. Revalidates release metadata before downloading; returns 202 while work continues.
 
-All update endpoints require the computer's control key. Notification and relay credentials cannot install software or alter preferences. The phone selects each computer directly; an unrelated relay server does not gain update control.
+All update endpoints require the computer's control key. Notification and relay credentials cannot install software or alter preferences. The dialog keeps its target fixed until it is closed; an unrelated relay server does not gain update control.

@@ -10,6 +10,7 @@ import { connectorKey, isTunnel } from "../connectors/identity.js";
 import { sessionLabel, promptLabel } from "../cockpit-state/selectors.js";
 import type { InteractionAnswer } from "../cockpit-state/interactions.js";
 import { CodexObserver, type CodexObservation } from "../connectors/codex-observer.js";
+import { ClaudeObserver, type ClaudeObservation } from "../connectors/claude-observer.js";
 
 interface Options {
   cwd: string; directory: string; preferencesPath: string; sessions?: SessionRepositoryOptions;
@@ -18,14 +19,16 @@ interface Options {
   unregistered?: (knownPids: number[], tunnel?: Tunnel) => Promise<boolean>;
   alive?: (pid: number) => boolean;
   codexObservation?: { root?: string };
+  claudeObservation?: { directory: string; root?: string };
 }
 interface Watch { key: string; monitored: boolean; name?: string; cwd?: string; model?: string; tunnel?: Tunnel }
 class ObservedRuntime {
   readonly store = new CockpitStore("");
   updatedAt = 0;
-  async prompt(_text: string): Promise<void> { throw new SessionError("Send this prompt in the original Codex window.", 409); }
-  async interrupt(): Promise<void> { throw new SessionError("Stop this run in the original Codex window.", 409); }
-  async respond(_answer: InteractionAnswer): Promise<void> { throw new SessionError("Answer in the original Codex window.", 409); }
+  private get name() { return this.store.state.session.tunnel === "claude" ? "Claude" : "Codex"; }
+  async prompt(_text: string): Promise<void> { throw new SessionError(`Send this prompt in the original ${this.name} window.`, 409); }
+  async interrupt(): Promise<void> { throw new SessionError(`Stop this run in the original ${this.name} window.`, 409); }
+  async respond(_answer: InteractionAnswer): Promise<void> { throw new SessionError(`Answer in the original ${this.name} window.`, 409); }
 }
 class NativeRuntime {
   readonly store: CockpitStore;
@@ -81,6 +84,7 @@ export class NativeHost {
   private observed = new Map<string, ObservedRuntime>();
   private connectorOwned = new Map<string, number>();
   private codexObserver?: CodexObserver;
+  private claudeObserver?: ClaudeObserver;
   private watches = new Map<string, Watch>();
   private selected?: string;
   private timer?: NodeJS.Timeout;
@@ -90,6 +94,7 @@ export class NativeHost {
   private since = Date.now();
   private wasRunning = 0;
   private desktopOpenId?: string;
+  private preferencesDirty = false;
   constructor(private options: Options) {
     this.directory = options.directory; this.store = new CockpitStore(options.cwd);
     this.repository = options.catalog || new SessionRepository(options.sessions);
@@ -104,21 +109,33 @@ export class NativeHost {
     }
   }
   async start() {
-    this.scan(); this.timer = setInterval(() => this.scan(), 300); this.timer.unref();
+    this.scan(); this.timer = setInterval(() => {
+      try { this.scan(); } catch { /* Retry monitoring without terminating native terminals on a transient local failure. */ }
+    }, 300); this.timer.unref();
     if (this.options.codexObservation) {
       this.codexObserver = new CodexObserver(event => this.observeCodex(event), this.options.codexObservation);
       await this.codexObserver.start();
     }
+    if (this.options.claudeObservation) {
+      this.claudeObserver = new ClaudeObserver(event => this.observeClaude(event), this.options.claudeObservation);
+      await this.claudeObserver.start();
+    }
   }
   /** Existing connector instances always own their state/commands and completion delivery. */
   observeCodex(event: CodexObservation) {
+    this.observeExternal(event);
+  }
+  observeClaude(event: ClaudeObservation) {
+    this.observeExternal(event);
+  }
+  private observeExternal(event: CodexObservation | ClaudeObservation) {
     const key = event.state.session.key;
     if (!key) return;
     if (event.retired) { if (this.observed.delete(key)) this.publish(); return; }
     const ownedThrough = this.connectorOwned.get(key), native = this.sessions.get(key);
     if (ownedThrough !== undefined) {
       if (native && (this.options.alive || processAlive)(native.snapshot.pid) && native.snapshot.state.connected) return;
-      // A later ordinary Codex launch may resume the same ID after its connector exits.
+      // A later ordinary CLI launch may resume the same ID after its connector exits.
       // Require a new turn: delayed records from the old connector cannot notify twice.
       if (!event.activity || (event.state.main.startedAt || 0) <= ownedThrough) return;
       this.sessions.delete(key); this.connectorOwned.delete(key);
@@ -130,9 +147,9 @@ export class NativeHost {
     runtime.updatedAt = event.updatedAt;
     runtime.store.publish(event.state, { type: "monitoring.updated" });
     if (!watch || event.activity || watch.model !== event.state.session.model || watch.name !== event.state.session.name) {
-      this.watches.set(key, { key, monitored: event.activity || !watch ? true : watch.monitored,
-        ...event.state.session, tunnel: "codex" });
-      this.save();
+      this.watches.set(key, { key, monitored: watch ? watch.monitored : true,
+        ...event.state.session, tunnel: event.state.session.tunnel || "codex" });
+      this.save(true);
     }
     this.publish();
     if (event.completion && this.watches.get(key)?.monitored) {
@@ -142,7 +159,13 @@ export class NativeHost {
   }
   private allRuntimes(): Map<string, NativeRuntime | ObservedRuntime> { return new Map<string, NativeRuntime | ObservedRuntime>([...this.observed, ...this.sessions]); }
   private updatedAt(runtime: NativeRuntime | ObservedRuntime) { return runtime instanceof NativeRuntime ? runtime.snapshot.updatedAt : runtime.updatedAt; }
-  private save() { writeLocalJson(this.options.preferencesPath, { version: 1, desktopOpenId: this.desktopOpenId, sessions: [...this.watches.values()] }); }
+  private save(background = false) {
+    this.preferencesDirty = true;
+    try {
+      writeLocalJson(this.options.preferencesPath, { version: 1, desktopOpenId: this.desktopOpenId, sessions: [...this.watches.values()] });
+      this.preferencesDirty = false;
+    } catch (error) { if (!background) throw error; }
+  }
   /** Apply startup defaults once per explicit manager opening, never on polling or reconnect. */
   async applyDesktopDefaults(openId: string, now = Date.now()) {
     if (!uuidPattern.test(openId)) throw new SessionError("A valid desktop openId is required");
@@ -165,10 +188,12 @@ export class NativeHost {
     } finally { this.changing = false; }
   }
   scan() {
+    if (this.preferencesDirty) this.save(true);
     let files: string[] = [];
     try { files = readdirSync(this.directory).filter(name => /^\d+\.json$/.test(name)); } catch {}
     let changed = false;
     const snapshots = new Map<string, NativeSnapshot>();
+    const retired: NativeSnapshot[] = [];
     // A session can be open in more than one Pi window. Heartbeats describe
     // liveness, not which window has the newest conversation. Pick once per
     // scan by real activity and retain the incumbent on ties.
@@ -197,6 +222,7 @@ export class NativeHost {
       } catch { continue; }
       const key = snapshot.state.session.key!;
       const alive = (this.options.alive || processAlive)(snapshot.pid);
+      if (!alive && Date.now() - snapshot.at > 6000 && retired.length < 16) retired.push(snapshot);
       const runtime = this.sessions.get(key);
       // Old files are not evidence of a running window.
       if (!runtime && (!alive || !snapshot.state.connected || Date.now() - snapshot.at > 6000)) continue;
@@ -225,8 +251,8 @@ export class NativeHost {
       const watch = this.watches.get(key);
       snapshot.state.session.name ||= watch?.name || promptLabel(snapshot.state.transcript.find(entry => entry.role === "user")?.text || "") || undefined;
       if ((!watch && online) || newActivity || (watch && (watch.name !== snapshot.state.session.name || watch.model !== snapshot.state.session.model))) {
-        this.watches.set(key, { key, monitored: newActivity || !watch ? true : watch.monitored, name: snapshot.state.session.name, cwd: snapshot.state.session.cwd,
-          model: snapshot.state.session.model, tunnel: snapshot.state.session.tunnel || "pi" }); this.save();
+        this.watches.set(key, { key, monitored: watch ? watch.monitored : true, name: snapshot.state.session.name, cwd: snapshot.state.session.cwd,
+          model: snapshot.state.session.model, tunnel: snapshot.state.session.tunnel || "pi" }); this.save(true);
       }
       runtime.seenRun = Math.max(runtime.seenRun, snapshot.runId);
       if (fresh || runtime.snapshot.state.revision !== snapshot.state.revision || runtime.store.state.connected !== online) {
@@ -253,6 +279,19 @@ export class NativeHost {
     }
     for (const [id, deadline] of this.newWindows) if (Date.now() > deadline) this.newWindows.delete(id);
     if (changed || !this.store.state.monitoring) this.publish();
+    // Final completions above must be consumed before discarding a dead owner's
+    // heartbeat. Saved conversations and watch membership live elsewhere.
+    for (const snapshot of retired) {
+      try {
+        if ((this.options.alive || processAlive)(snapshot.pid)) continue;
+        const path = join(this.directory, `${snapshot.pid}.json`), current = readLocalJson(path);
+        if (current.instance !== snapshot.instance || current.pid !== snapshot.pid || current.at !== snapshot.at) continue;
+        unlinkSync(path);
+        for (const suffix of ["command", "reply"]) {
+          try { unlinkSync(join(this.directory, `${snapshot.instance}.${suffix}.json`)); } catch {}
+        }
+      } catch { /* A concurrently replaced/locked file is retried on the next scan. */ }
+    }
   }
   private publish() {
     const runtimes = this.allRuntimes();
@@ -306,6 +345,9 @@ export class NativeHost {
   async resumeSession(key: string) { await this.openMonitoredSession(key); }
   async selectWatchedSession(key: string) { await this.openMonitoredSession(key, true); }
   async openMonitoredSession(key: string, watchedOnly = false) {
+    return this.openSession(key, watchedOnly);
+  }
+  private async openSession(key: string, watchedOnly: boolean, newlyCreated = false) {
     if (this.changing) throw new SessionError("A session is opening", 409);
     this.changing = true;
     try {
@@ -324,9 +366,9 @@ export class NativeHost {
         const original = await this.repository.original(key);
         if (runtime && (this.options.alive || processAlive)(runtime.snapshot.terminalPid || runtime.snapshot.pid) && runtime.snapshot.state.connected)
           throw new SessionError("This terminal is still open. Reconnect its monitor before opening another window.", 409);
-        if (!original.fresh && await this.options.unregistered?.([...this.sessions.values()].flatMap(item => [item.snapshot.pid, item.snapshot.terminalPid || item.snapshot.pid]), original.tunnel || "pi"))
+        if (!newlyCreated && !original.fresh && await this.options.unregistered?.([...this.sessions.values()].flatMap(item => [item.snapshot.pid, item.snapshot.terminalPid || item.snapshot.pid]), original.tunnel || "pi"))
           throw new SessionError("An existing terminal has not connected. Pi: run /reload. Codex/Claude: reopen through Even-Pilot when idle.", 409);
-        await this.options.launch(original.path, original.cwd, original.tunnel || "pi", original.fresh);
+        await this.options.launch(original.path, original.cwd, original.tunnel || "pi", newlyCreated || original.fresh);
         this.launching.set(key, Date.now() + 15_000);
       }
       const summary = runtime?.store.state.connected ? runtime.store.state.session : (await this.repository.history(key)).session;
@@ -340,8 +382,6 @@ export class NativeHost {
     if (options.name !== undefined && (!options.name.trim() || options.name.length > 128)) throw new SessionError("Invalid session name");
     if (this.changing) throw new SessionError("A session is opening", 409);
     this.scan();
-    if ((!options.tunnel || options.tunnel === "pi") && await this.options.unregistered?.([...this.sessions.values()].flatMap(item => [item.snapshot.pid, item.snapshot.terminalPid || item.snapshot.pid]), options.tunnel || "pi"))
-      throw new SessionError("An existing terminal has not connected. Pi: run /reload. Codex/Claude: reopen with the connector when idle.", 409);
     const cwd = await validateCwd(options.cwd || this.store.state.session.cwd);
     if (options.tunnel === "codex") {
       // The native TUI creates the session: an empty app-server thread has no
@@ -352,7 +392,9 @@ export class NativeHost {
       return;
     }
     const created = await this.repository.create(cwd, options.name?.trim(), options.tunnel);
-    await this.openMonitoredSession(created.key);
+    // Creation reserves a distinct native identity/file. Unrelated terminals
+    // cannot own it; only this internal path may bypass the resume guard.
+    await this.openSession(created.key, false, true);
   }
   async setMonitored(key: string, monitored: boolean) {
     const summary = (await this.listSessions()).sessions.find(session => session.key === key);
@@ -361,5 +403,5 @@ export class NativeHost {
     this.watches.set(key, { key, monitored, name: summary?.name || previous?.name, cwd: summary?.cwd || previous?.cwd,
       model: summary?.model || previous?.model, tunnel: summary?.tunnel || previous?.tunnel || "pi" }); this.save(); this.publish();
   }
-  async stop() { clearInterval(this.timer); await this.codexObserver?.stop(); await this.repository.close?.(); /* Native terminals belong to the user, never the monitor. */ }
+  async stop() { clearInterval(this.timer); await this.codexObserver?.stop(); await this.claudeObserver?.stop(); await this.repository.close?.(); /* Native terminals belong to the user, never the monitor. */ }
 }

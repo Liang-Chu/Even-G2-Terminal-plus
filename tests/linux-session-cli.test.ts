@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runSessionCommand, readPromptStdin } from "../apps/linux/src/session-cli.js";
+import { runSessionCommand, sessionCommands, sessionHelp } from "../apps/linux/src/session-cli.js";
 import type { SessionSummary } from "../packages/pi-runtime/sessions.js";
 import { monitorRunning } from "../apps/linux/src/monitor-health.js";
 
@@ -58,13 +58,13 @@ test("watch/unwatch require an unambiguous key/title and never open or terminate
   await assert.rejects(runSessionCommand("unwatch", ["same"], duplicate.context), /Ambiguous/);
 });
 
-test("headless prompt and cancellation are pinned to the chosen session, never global selection", async () => {
+test("watcher CLI exposes no prompt or task interruption commands", async () => {
   const f = fixture();
-  await runSessionCommand("send", ["Second", "--stdin"], { ...f.context, readStdin: async () => "first\nsecond\n" });
-  assert.deepEqual(f.calls.at(-1), { path: `/api/runtime/${beta}/prompt`, body: { text: "first\nsecond\n" }, timeoutMs: 30000 });
-  await runSessionCommand("interrupt", ["First"], f.context);
-  assert.equal(f.calls.at(-1)?.path, `/api/runtime/${alpha}/interrupt`);
-  assert(f.calls.every(call => !["/api/prompt", "/api/session/resume"].includes(call.path)));
+  assert(!sessionCommands.has("send") && !sessionCommands.has("interrupt"));
+  assert(!/^\s+(send|interrupt)\s/m.test(sessionHelp));
+  await assert.rejects(runSessionCommand("send", ["First", "hello"], f.context), /Invalid/);
+  await assert.rejects(runSessionCommand("interrupt", ["First"], f.context), /Invalid/);
+  assert.equal(f.calls.length, 0);
 });
 
 test("CLI does not retry an uncertain mutation and preserves bridge refusal errors", async () => {
@@ -74,17 +74,17 @@ test("CLI does not retry an uncertain mutation and preserves bridge refusal erro
     if (body) { writes++; throw new Error("network disconnected"); }
     return f.context.request(path);
   } };
-  await assert.rejects(runSessionCommand("send", ["First", "hello"], context), /may have been accepted.*Nothing was resent/);
+  await assert.rejects(runSessionCommand("watch", ["First"], context), /may have been accepted.*Nothing was resent/);
   assert.equal(writes, 1);
-  await assert.rejects(runSessionCommand("send", ["First", "hello"], { ...f.context,
+  await assert.rejects(runSessionCommand("watch", ["First"], { ...f.context,
     request: async (path, body) => body ? Response.json({ error: "Terminal is busy" }, { status: 409 }) : f.context.request(path),
   }), /Terminal is busy/);
-  await assert.rejects(runSessionCommand("send", ["First", "hello"], { ...f.context,
+  await assert.rejects(runSessionCommand("watch", ["First"], { ...f.context,
     request: async (path, body) => body ? new Response('{"accepted":') : f.context.request(path),
   }), /reply was incomplete.*Nothing was resent/);
 });
 
-test("invalid CLI inputs fail before contacting the bridge; piped prompts are bounded", async () => {
+test("invalid CLI inputs fail before contacting the bridge", async () => {
   const f = fixture();
   for (const [command, args] of [
     ["watch", []], ["unwatch", ["First", "Second"]], ["send", ["First", " "]],
@@ -92,11 +92,6 @@ test("invalid CLI inputs fail before contacting the bridge; piped prompts are bo
     ["new", ["pi", "--name", " "]], ["sessions", ["--typo"]],
   ] as [string, string[]][]) await assert.rejects(runSessionCommand(command, args, f.context));
   assert.equal(f.calls.length, 0);
-  const bytes = Buffer.from("你好\nworld");
-  async function* split() { yield bytes.subarray(0, 2); yield bytes.subarray(2); }
-  assert.equal(await readPromptStdin(split()), "你好\nworld");
-  async function* tooLong() { yield Buffer.alloc(128001); }
-  await assert.rejects(readPromptStdin(tooLong()), /too long/);
 });
 
 test("select reuses the existing native-terminal API; new carries literal project/title", async () => {

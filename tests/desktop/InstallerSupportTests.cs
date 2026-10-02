@@ -2,10 +2,11 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 class InstallerSupportTests {
     static void Assert(bool ok, string message) { if (!ok) throw new Exception(message); }
-    static void Main() {
+    static void Main(string[] args) {
         string root = Path.Combine(Path.GetTempPath(), "pilot-paths-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         string original = Environment.GetEnvironmentVariable("EVEN_PILOT_DATA_DIR");
@@ -38,6 +39,19 @@ class InstallerSupportTests {
             Assert(!InstallerSupport.OwnStartup("\""+root+"-another\\Even-Pilot.exe\" --autostart",root),"Do not change another installation startup");
             bool refused=false; try { InstallerSupport.ValidateRoot(Path.GetPathRoot(root)); } catch { refused=true; }
             Assert(refused,"Reject a drive root as install directory");
+            string launcher = Path.Combine(root,"Even-Pilot.exe");
+            File.Copy(args[0],launcher); File.Copy(args[0],selected,true);
+            Func<int> delegatedCheck = () => {
+                using (var process = Process.Start(new ProcessStartInfo(launcher,"--check") { UseShellExecute=false, CreateNoWindow=true })) {
+                    Assert(process.WaitForExit(10000),"Delegated check completes"); return process.ExitCode;
+                }
+            };
+            Assert(delegatedCheck() == 1,"Invalid selection returns failure without a UI");
+            File.WriteAllText(Path.Combine(root,"install.json"),"{\"current\":\"1.0.0-123456abcdef\"}");
+            Assert(delegatedCheck() == 1,"Root launcher waits and propagates child check failure");
+            Directory.CreateDirectory(Path.Combine(root,".local")); File.WriteAllText(Path.Combine(root,".local","bridge-config.json"),"{}");
+            Directory.CreateDirectory(Path.Combine(payload,"node_modules","tsx")); File.WriteAllText(Path.Combine(payload,"node_modules","tsx","package.json"),"{}");
+            Assert(delegatedCheck() == 0,"Root launcher propagates child check success");
         } finally { Environment.SetEnvironmentVariable("EVEN_PILOT_DATA_DIR",original); InstallerSupport.DeleteOwnedTree(root,Path.GetDirectoryName(root)); }
         Console.WriteLine("PASS: bundled runtime selection, shared installed data, native Windows shortcuts, scoped startup handling and installation-root guard.");
     }

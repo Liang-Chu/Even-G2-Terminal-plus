@@ -10,7 +10,7 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json')));
 const destination = mkdtempSync(join(root, 'outputs/linux-' + pkg.version + '-'));
 const stage = join(destination, 'Even-Pilot'); mkdirSync(stage);
 const run = (cmd, args, cwd = stage) => { const result = spawnSync(cmd, args, { cwd, stdio: 'inherit' }); if (result.error || result.status) throw new Error('Linux packaging step failed'); };
-const sources = ['README.md', 'RELEASE_NOTES.md', 'docs', 'apps/windows/src', 'apps/linux', 'packages', 'apps/evenhub/dist', 'apps/evenhub/THIRD_PARTY_NOTICES.md', 'assets/icon.svg', 'scripts/enable-pi-subagents.mjs'];
+const sources = ['README.md', 'README.zh-CN.md', 'RELEASE_NOTES.md', 'docs', 'apps/windows/src', 'apps/linux', 'packages', 'apps/evenhub/dist', 'apps/evenhub/THIRD_PARTY_NOTICES.md', 'assets/icon.svg', 'scripts/enable-pi-subagents.mjs'];
 for (const entry of sources) {
   if (!existsSync(join(root, entry))) throw new Error('Missing release input: ' + entry);
   cpSync(join(root, entry), join(stage, entry), { recursive: true });

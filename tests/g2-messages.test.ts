@@ -140,6 +140,6 @@ test("read-only Codex messages can expand without offering a working input actio
   t.after(() => display.dispose());
   display.update({ ...initialState(), connected: true, session: { key: "s", cwd: "test", tunnel: "codex" },
     capabilities: { prompt: false, interrupt: false }, currentAssistantText: "Readable response" }, true);
-  display.toggle(); assert.equal(opens, 0); assert.match(body, /original Codex window/);
+  display.toggle(); assert.equal(opens, 0); assert.match(body, /original terminal/);
   display.scroll(1); display.toggle(); assert.match(body, /^Readable response/); assert.equal(opens, 0);
 });

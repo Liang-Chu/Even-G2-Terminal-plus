@@ -11,8 +11,8 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Even-Pilot")]
-[assembly: System.Reflection.AssemblyFileVersion("1.0.22.0")]
-[assembly: System.Reflection.AssemblyVersion("1.0.22.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.0.0")]
 
 // Native tray UI. The bridge and its Pi sessions have an independent lifetime.
 class PilotTray : ApplicationContext {
@@ -258,11 +258,23 @@ class PilotTray : ApplicationContext {
     }
     [STAThread]
     static void Main(string[] args) {
-        string installed = DesktopPaths.InstalledExecutable(AppDomain.CurrentDomain.BaseDirectory);
-        if (installed != null) {
-            var forwarded = new List<string>();
-            foreach (string arg in args) if (arg == "--autostart" || arg == "--prepare" || arg == "--check") forwarded.Add(arg);
-            Process.Start(new ProcessStartInfo(installed, String.Join(" ", forwarded.ToArray())) { WorkingDirectory = Path.GetDirectoryName(installed), UseShellExecute = false, CreateNoWindow = true });
+        bool quietLaunch = Array.IndexOf(args, "--autostart") >= 0;
+        try {
+            string installed = DesktopPaths.InstalledExecutable(AppDomain.CurrentDomain.BaseDirectory);
+            if (installed != null) {
+                var forwarded = new List<string>();
+                foreach (string arg in args) if (arg == "--autostart" || arg == "--prepare" || arg == "--check") forwarded.Add(arg);
+                using (var child = Process.Start(new ProcessStartInfo(installed, String.Join(" ", forwarded.ToArray())) { WorkingDirectory = Path.GetDirectoryName(installed), UseShellExecute = false, CreateNoWindow = true })) {
+                    if (forwarded.Contains("--prepare") || forwarded.Contains("--check")) {
+                        child.WaitForExit(); Environment.ExitCode = child.ExitCode;
+                    }
+                }
+                return;
+            }
+        } catch (Exception error) {
+            LogStartup("delegate.failed", error); Environment.ExitCode = 1;
+            if (!quietLaunch && Array.IndexOf(args, "--prepare") < 0 && Array.IndexOf(args, "--check") < 0)
+                MessageBox.Show(error.Message, "Even-Pilot", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
         if (args.Length > 0 && args[0] == "--prepare") {
@@ -276,7 +288,6 @@ class PilotTray : ApplicationContext {
                 || !File.Exists(Path.Combine(root, "node_modules", "tsx", "package.json"))) Environment.Exit(1);
             return;
         }
-        bool quietLaunch = Array.IndexOf(args, "--autostart") >= 0;
         bool first;
         string instance = Port() == 4317 ? "" : "-" + Port();
         using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\Even-PIlot-Show" + instance))

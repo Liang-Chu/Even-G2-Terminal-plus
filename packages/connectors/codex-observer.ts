@@ -233,6 +233,11 @@ export class CodexObserver {
     const p = row?.payload;
     if (!p || typeof p !== "object") return;
     if (row.type === "session_meta") {
+      // Desktop subagent/fork rollouts contain copied parent history, including
+      // its session_meta. The first valid record owns this file; accepting a
+      // later copied record would turn a child into the parent and replay its
+      // completions while the real parent is still working.
+      if (file.id) return;
       if (typeof p.id !== "string" || !uuid.test(p.id) || typeof p.cwd !== "string") return;
       const parent = p.parent_thread_id || p.source?.subagent?.thread_spawn?.parent_thread_id;
       if (!parent && !["cli", "vscode", "appServer"].includes(p.source)) return;

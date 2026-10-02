@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync, spawn } from 'node:child_process';
 import { createServer } from 'node:net';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID, createHash, generateKeyPairSync } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const setup = resolve(process.argv[2]), systemd = process.argv.includes('--systemd');
@@ -12,15 +12,19 @@ const previousIndex = process.argv.indexOf('--previous');
 const previousSetup = previousIndex >= 0 ? resolve(process.argv[previousIndex + 1]) : setup;
 const fixture = mkdtempSync(join(tmpdir(), 'pilot-linux-install-'));
 const root = join(fixture, "App with spaces and ' quote"), data = join(fixture, 'data');
+const profileHome = join(fixture, 'home'); mkdirSync(profileHome);
 const reservation = createServer(); await new Promise(done => reservation.listen(0, '127.0.0.1', done));
 const port = reservation.address().port; await new Promise(done => reservation.close(done));
-const env = { ...process.env, PATH: '/usr/local/bin:/usr/bin:/bin', EVEN_PILOT_INSTALL_DIR: root, EVEN_PILOT_DATA_DIR: data,
+const env = { ...process.env, HOME: profileHome, SHELL: '/bin/bash', PATH: '/usr/local/bin:/usr/bin:/bin', EVEN_PILOT_INSTALL_DIR: root, EVEN_PILOT_DATA_DIR: data,
   EVEN_PILOT_BIN_DIR: join(fixture, 'bin'), XDG_DATA_HOME: join(fixture, 'share'), XDG_CONFIG_HOME: join(fixture, 'config'),
   EVEN_PILOT_SERVICE_NAME: 'even-pilot-test-' + randomUUID() + '.service', EVEN_PILOT_NO_SYSTEMD: systemd ? '' : '1',
   EVEN_PILOT_PORT: String(port), PI_CODING_AGENT_DIR: join(fixture, 'pi'), PI_CODING_AGENT_SESSION_DIR: '',
   CODEX_HOME: join(fixture, 'codex'), CLAUDE_CONFIG_DIR: join(fixture, 'claude'), GOOGLE_APPLICATION_CREDENTIALS: '',
   EVEN_PILOT_TOKEN: '', EVEN_PILOT_NOTIFICATION_TOKEN: '', EVEN_PILOT_FCM_PROJECT_ID: '', DISPLAY: '', WAYLAND_DISPLAY: '' };
 const invoke = (exe, args) => spawnSync(exe, args, { env, encoding: 'utf8', timeout: 90000, cwd: fixture });
+const claudeSettingsPath=join(env.CLAUDE_CONFIG_DIR,'settings.json');
+const userClaudeSettings={env:{EXISTING_OPTION:'retain'},hooks:{Stop:[{hooks:[{type:'command',command:'echo keep-user-hook'}]}]}};
+mkdirSync(env.CLAUDE_CONFIG_DIR,{recursive:true}); writeFileSync(claudeSettingsPath,JSON.stringify(userClaudeSettings));
 const launcher = join(env.EVEN_PILOT_BIN_DIR, 'even-pilot');
 const command = (...args) => { const result = invoke(launcher, args); assert.equal(result.status, 0, result.stderr + result.stdout); return result.stdout; };
 let worker, token, native;
@@ -63,7 +67,11 @@ try {
   const refused = invoke(launcher, ['uninstall']); assert.notEqual(refused.status, 0, 'Do not uninstall a working native terminal');
   assert.equal((await request('/api/monitoring')).status, 200);
   const upgrade = invoke('sh', [setup, '--dir', root, '--update']); assert.equal(upgrade.status, 0, upgrade.stderr + upgrade.stdout);
+  const shell = invoke('bash', ['--noprofile', '--rcfile', join(profileHome, '.bashrc'), '-ic', 'command -v even-pilot']);
+  assert.equal(shell.status, 0, shell.stderr); assert.equal(shell.stdout.trim(), launcher, 'Fresh interactive shell resolves the global launcher');
   const updated = JSON.parse(readFileSync(join(root, 'install.json')));
+  assert.equal(existsSync(join(data,'claude-monitor-registration.json')),true,'Owned Claude hooks are prepared');
+  assert.equal(JSON.parse(readFileSync(claudeSettingsPath)).env.EXISTING_OPTION,'retain');
   assert.equal(updated.versions.length, updated.current === record.current ? 1 : 2, 'Prior payload remains available to existing terminals');
   assert.equal(readFileSync(join(data, 'bridge-config.json'), 'utf8'), original);
   assert.equal(worker.exitCode, null, 'Upgrade preserves the native runtime');
@@ -90,12 +98,59 @@ try {
     assert.equal(JSON.parse(command('sessions', '--watched', '--json')).sessions.some(session => session.key === key), false);
     process.kill(native.pid, 0);
   }
+  // Exercise the installed settings dispatcher, including its real monitoring
+  // restart. Empty CLI histories and zero subscriptions keep this entirely
+  // local: no model turn, ADC refresh or FCM send is requested.
+  const noPushWork = async configured => {
+    const push = await (await request('/api/glance/push')).json();
+    assert.equal(push.configured, configured);
+    assert.equal(push.subscriptions.length, 0, 'Fixture has no FCM subscribers');
+    assert.equal(push.jobs.length, 0, 'Fixture has no outbound FCM jobs');
+  };
+  await noPushWork(false);
+  assert.match(command('settings'), /Delivery: direct.*Firebase sender: not configured/s);
+  assert.match(command('settings', 'push', 'direct'), /Direct notification delivery saved/);
+  assert.equal((await (await request('/api/glance/routing')).json()).mode, 'direct');
+  const credentialPath = join(fixture, 'synthetic-firebase-service-account.json');
+  const syntheticPrivateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  writeFileSync(credentialPath, JSON.stringify({ type: 'service_account', project_id: 'even-glance',
+    client_email: 'fixture@even-glance.iam.gserviceaccount.com', private_key: syntheticPrivateKey,
+    token_uri: 'https://oauth2.googleapis.com/token', universe_domain: 'googleapis.com' }), { mode: 0o600 });
+  const configureOutput = command('settings', 'firebase', '--credentials', credentialPath);
+  assert.match(configureOutput, /credential reference saved.*Monitoring restarted/s);
+  assert.ok(!configureOutput.includes(syntheticPrivateKey) && !configureOutput.includes(token), 'Settings output keeps credentials private');
+  const firebaseConfig = JSON.parse(readFileSync(join(data, 'bridge-config.json'), 'utf8'));
+  assert.equal(firebaseConfig.firebaseCredentialsPath, credentialPath);
+  assert.equal(firebaseConfig.firebaseProjectId, 'even-glance');
+  const originalConfig = JSON.parse(original);
+  assert.equal(firebaseConfig.controlToken, originalConfig.controlToken, 'Firebase setup preserves the control key');
+  assert.equal(firebaseConfig.notificationToken, originalConfig.notificationToken, 'Firebase setup preserves the notification key');
+  assert.equal(worker.exitCode, null, 'Firebase setup restart preserves a native process');
+  process.kill(worker.pid, 0); if (native) process.kill(native.pid, 0);
+  await noPushWork(true);
+  if (systemd) {
+    const unit = readFileSync(join(env.XDG_CONFIG_HOME, 'systemd/user', env.EVEN_PILOT_SERVICE_NAME), 'utf8');
+    assert.ok(unit.includes('GOOGLE_APPLICATION_CREDENTIALS=' + credentialPath), 'Restart uses the newly saved credential path');
+  }
+  assert.match(command('settings'), /Firebase sender: configured/);
+  const clearOutput = command('settings', 'firebase', 'clear');
+  assert.match(clearOutput, /reference removed.*Monitoring restarted/s);
+  const cleared = JSON.parse(readFileSync(join(data, 'bridge-config.json'), 'utf8'));
+  assert.deepEqual(cleared, originalConfig, 'Clearing restores original pairing configuration');
+  assert.equal(existsSync(credentialPath), true, 'Clearing never deletes the credentials file');
+  assert.equal(worker.exitCode, null, 'Clearing restart preserves a native process');
+  process.kill(worker.pid, 0); if (native) process.kill(native.pid, 0);
+  await noPushWork(false);
+  if (systemd) {
+    const unit = readFileSync(join(env.XDG_CONFIG_HOME, 'systemd/user', env.EVEN_PILOT_SERVICE_NAME), 'utf8');
+    assert.ok(!unit.includes('GOOGLE_APPLICATION_CREDENTIALS=' + credentialPath), 'Clear does not retain config-derived credential environment');
+  }
+  assert.match(command('settings'), /Firebase sender: not configured/);
   command('stop'); assert.equal(worker.exitCode, null, 'Service stop preserves a native process');
   if (native) {
-    // A foreground CLI launch must bring up its monitor, even after an explicit
-    // stop. --help exercises the real Pi executable without a paid model turn.
-    command('terminal', 'pi', '--help');
-    assert.equal((await request('/api/monitoring')).status, 200, 'Foreground terminal starts its monitor');
+    assert.notEqual(invoke(launcher, ['terminal', 'pi', '--help']).status, 0, 'Removed terminal wrapper stays unavailable');
+    command('start');
+    assert.equal((await request('/api/monitoring')).status, 200, 'Explicit start brings up monitoring');
     command('stop');
     process.kill(native.pid, 0);
     const before = JSON.parse(readFileSync(join(data, 'native', native.pid + '.json'))).at;
@@ -113,7 +168,9 @@ try {
   assert.equal(existsSync(launcher), false);
   assert.equal(readFileSync(join(data, 'bridge-config.json'), 'utf8'), original);
   assert.equal(existsSync(join(env.PI_CODING_AGENT_DIR, 'extensions/even-pilot-monitor.ts')), false);
-  console.log('PASS: Linux ' + (systemd ? 'systemd user service' : 'non-systemd daemon') + '; offline self-extracting installer; no global Node; spaced/quoted paths; auth/assets; autostart; reinstall/key retention; native-process survival; safe uninstall.' + (process.env.EVEN_PILOT_PI ? ' Real Pi TUI/extension, tmux, Unwatch and service-stop survival also verified.' : ''));
+  assert.deepEqual(JSON.parse(readFileSync(claudeSettingsPath)),userClaudeSettings,'Uninstall removes only owned Claude hooks');
+  assert.equal(existsSync(join(data,'claude-monitor-registration.json')),false);
+  console.log('PASS: Linux ' + (systemd ? 'systemd user service' : 'non-systemd daemon') + '; offline self-extracting installer; no global Node; spaced/quoted paths; auth/assets; autostart; reinstall/key retention; installed notification settings and Firebase set/clear restarts; native-process survival; safe uninstall.' + (process.env.EVEN_PILOT_PI ? ' Real Pi TUI/extension, tmux, Unwatch and service-stop survival also verified.' : ''));
 } finally {
   if (native?.sessionFile) {
     const session = '=pilot-pi-' + createHash('sha256').update(native.sessionFile).digest('hex').slice(0, 12);

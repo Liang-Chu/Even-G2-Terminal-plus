@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { CockpitStore } from "../packages/cockpit-state/store.js";
 import { TestRuntime, completeSession } from "./fixtures/runtime.js";
 import { NotificationJournal } from "../apps/windows/src/notifications.js";
@@ -136,4 +137,70 @@ test("notification limits use UTF-16, no duplicate settled and no false success 
   completeSession(store, "failed");
   assert.equal(journal.list()[1].outcome, "failed");
   journal.close();
+});
+
+test("a blocked completion journal does not interrupt monitoring and delivers once after durable recovery", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "pilot-journal-retry-"));
+  const path = join(directory, "notifications.json"), store = new CockpitStore("fixture"), journal = new NotificationJournal(store, path);
+  t.after(() => { journal.close(); rmSync(directory, { recursive: true, force: true }); });
+  mkdirSync(path + ".tmp");
+  const delivered: number[] = [];
+  journal.subscribe(event => delivered.push(event.id));
+  assert.doesNotThrow(() => completeSession(store));
+  assert.doesNotThrow(() => completeSession(store, "failed"));
+  assert.deepEqual(delivered, [], "receivers never get an event before its journal is saved");
+  assert.deepEqual(journal.list(), [], "scheduled push and relay recovery cannot read uncommitted completions");
+  assert.equal(journal.poll("before-recovery", 80, 32), undefined, "polling cannot consume an uncommitted completion");
+  rmSync(path + ".tmp", { recursive: true });
+  await delay(1150);
+  assert.deepEqual(delivered, [1, 2]);
+  assert.deepEqual(journal.list().map(event => event.id), [1, 2]);
+  assert.match(journal.poll("before-recovery", 80, 32)!.text, /^Job complete/);
+  assert.match(journal.poll("before-recovery", 80, 32)!.text, /^Job failed/);
+  assert.equal(journal.poll("before-recovery", 80, 32), undefined);
+  const restored = new NotificationJournal(new CockpitStore("fixture"), path);
+  t.after(() => restored.close());
+  assert.equal(restored.list().length, 2);
+  await delay(150);
+  assert.deepEqual(delivered, [1, 2], "recovery does not replay events");
+});
+
+test("a failed poll cursor save leaves the committed completion available for retry", t => {
+  const directory = mkdtempSync(join(tmpdir(), "pilot-journal-cursor-"));
+  const path = join(directory, "notifications.json"), store = new CockpitStore("fixture"), journal = new NotificationJournal(store, path);
+  t.after(() => { journal.close(); rmSync(directory, { recursive: true, force: true }); });
+  completeSession(store);
+  assert.match(journal.poll("same-watcher", 80, 32)!.text, /^Job complete/);
+  completeSession(store, "failed");
+  mkdirSync(path + ".tmp");
+  assert.throws(() => journal.poll("same-watcher", 80, 32));
+  assert.throws(() => journal.poll("new-watcher", 80, 32));
+  assert.equal(journal.list().length, 2);
+  rmSync(path + ".tmp", { recursive: true });
+  assert.match(journal.poll("same-watcher", 80, 32)!.text, /^Job failed/);
+  assert.equal(journal.poll("same-watcher", 80, 32), undefined);
+  assert.match(journal.poll("new-watcher", 80, 32)!.text, /^Job complete/);
+  assert.match(journal.poll("new-watcher", 80, 32)!.text, /^Job failed/);
+  assert.equal(journal.poll("new-watcher", 80, 32), undefined);
+});
+
+test("a prolonged journal write failure retains the latest 100 completions and commits their original IDs on recovery", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "pilot-journal-retention-"));
+  const path = join(directory, "notifications.json"), store = new CockpitStore("fixture"), journal = new NotificationJournal(store, path);
+  t.after(() => { journal.close(); rmSync(directory, { recursive: true, force: true }); });
+  mkdirSync(path + ".tmp");
+  const delivered: number[] = [];
+  journal.subscribe(event => delivered.push(event.id));
+  for (let index = 0; index < 105; index++) completeSession(store);
+  assert.deepEqual(journal.list(), []);
+  assert.equal(journal.poll("during-outage", 80, 32), undefined);
+  rmSync(path + ".tmp", { recursive: true });
+  await delay(1150);
+  const expected = Array.from({ length: 100 }, (_, index) => index + 6);
+  assert.deepEqual(journal.list().map(event => event.id), expected);
+  assert.deepEqual(delivered, expected);
+  assert.deepEqual(journal.list(104).map(event => event.id), [105]);
+  const restored = new NotificationJournal(new CockpitStore("fixture"), path);
+  t.after(() => restored.close());
+  assert.deepEqual(restored.list().map(event => event.id), expected);
 });

@@ -15,6 +15,8 @@ export class ConnectorMonitor {
   private pendingReply?: { path: string; value: { id: string; error?: string }; expiresAt: number };
   private mainBusy = false;
   private completionPending = false;
+  private backgroundWork = new Set<string>();
+  private scheduledWork = new Set<string>();
   private outcome: "completed" | "interrupted" | "failed" = "completed";
   readonly subagents = new Set<string>();
   readonly interactions = new InteractionBroker(requests => {
@@ -32,7 +34,7 @@ export class ConnectorMonitor {
   start() { clearInterval(this.timer); this.publish(); this.timer = setInterval(() => { this.publish(); void this.poll(); }, 250); }
   changeSession(session: RuntimeState["session"]) {
     this.interactions.clear();
-    this.mainBusy = false; this.completionPending = false; this.subagents.clear();
+    this.mainBusy = false; this.completionPending = false; this.subagents.clear(); this.backgroundWork.clear(); this.scheduledWork.clear();
     this.snapshot.instance = randomUUID(); this.snapshot.completions = []; this.snapshot.runId = 0;
     this.store.dispatch({ type: "session.reset" }); this.store.dispatch({ type: "session.updated", session });
     this.store.dispatch({ type: "runtime.connected" }); this.store.state.capabilities = { interrupt: !!this.commands.interrupt };
@@ -52,6 +54,10 @@ export class ConnectorMonitor {
     this.publishCounts();
     this.activity(); this.settle();
   }
+  /** Official in-flight task registry blocks completion without inventing agents. */
+  background(ids: readonly string[]) { this.backgroundWork = new Set(ids); }
+  /** Session schedules can wake this same turn later; keep them separate from agents. */
+  crons(ids: readonly string[]) { this.scheduledWork = new Set(ids); }
   end(outcome: "completed" | "interrupted" | "failed" = "completed") {
     this.mainBusy = false; this.outcome = outcome; this.publishCounts(); this.settle();
   }
@@ -59,7 +65,7 @@ export class ConnectorMonitor {
     this.store.publish({ ...this.store.state, subagents: { active: this.subagents.size, mainDelegated: !this.mainBusy } }, { type: "monitoring.updated" });
   }
   private settle() {
-    if (this.mainBusy || this.subagents.size || !this.completionPending) return;
+    if (this.mainBusy || this.subagents.size || this.backgroundWork.size || this.scheduledWork.size || !this.completionPending) return;
     this.completionPending = false;
     this.interactions.clear();
     this.store.state.main = { ...this.store.state.main, outcome: this.outcome,

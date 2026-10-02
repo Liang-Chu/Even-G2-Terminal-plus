@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { writeLocalJson } from "../../../../packages/pi-runtime/native-protocol.js";
+import { stopHookTrust } from "../claude-hook-trust.mjs";
 
 // Hooks must fail open: a stopped monitor cannot stall or reject native CLI work.
 let event: Record<string, unknown> | undefined;
@@ -12,6 +13,37 @@ try {
   event = { eventId: randomUUID() };
   for (const key of ["hook_event_name", "session_id", "cwd", "transcript_path", "model", "prompt",
     "last_assistant_message", "agent_id", "tool_name", "tool_use_id"]) if (raw[key] !== undefined) event[key] = raw[key];
+  if (raw.background_tasks !== undefined) {
+    // Keep only bounded task identity/status. Descriptions and shell commands
+    // can contain private data and are unnecessary for the completion guard.
+    const tasks = raw.background_tasks;
+    event.background_tasks = Array.isArray(tasks) ? [
+      ...tasks.slice(0, 256).map(task => {
+        const safe: Record<string, string> = {};
+        for (const key of ["id", "type", "status"]) if (typeof task?.[key] === "string") safe[key] = task[key].slice(0, 128);
+        return safe;
+      }),
+      ...(tasks.length > 256 ? [{ id: "unknown:overflow" }] : []),
+    ] : [{ id: "unknown:registry" }];
+  }
+  if (raw.session_crons !== undefined) {
+    // Cron prompts and expressions are private and unnecessary for liveness.
+    const crons = raw.session_crons;
+    event.session_crons = Array.isArray(crons) ? [
+      ...crons.slice(0, 256).map(cron => ({
+        ...(typeof cron?.id === "string" ? { id: cron.id.slice(0, 128) } : {}),
+        ...(typeof cron?.recurring === "boolean" ? { recurring: cron.recurring } : {}),
+      })),
+      ...(crons.length > 256 ? [{ id: "unknown:overflow" }] : []),
+    ] : [{ id: "unknown:registry" }];
+  }
+  if (["Stop", "SubagentStop"].includes(String(raw.hook_event_name))) {
+    const runDirectory = resolve(process.argv[2]);
+    const trust = await stopHookTrust({ eventName: String(raw.hook_event_name),
+      cwd: typeof raw.cwd === "string" ? raw.cwd : process.cwd(), data: resolve(runDirectory, "../.."), runDirectory });
+    event.stopTrusted = trust.trusted;
+    if (trust.reason) event.stopTrustReason = trust.reason;
+  }
   // Persist before delivery. Otherwise a slow/failed HTTP call can queue an
   // older SessionStart after a newer session's hooks have already arrived.
   writeLocalJson(join(process.argv[2], "events", Date.now() + "-" + event.eventId + ".json"), event);

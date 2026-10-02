@@ -1,6 +1,6 @@
 # Linux 安装和运行
 
-1.0.22 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。已在 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6** 上验证。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node，也不修改 shell 配置或 CLI 登录。
+1.1.0 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。已在 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6** 上验证。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
 
 发行版仍需能运行官方 Node Linux 二进制；Alpine/musl 不适用此预编译包。ARM64 构建脚本可在对应 Linux 主机运行，但当前未进行 ARM64 实机验收。GNOME、KDE、XFCE、Kitty、xterm 的启动参数有回归测试；NUC 没有图形桌面，不能代替这些桌面的实机验收。
 
@@ -9,12 +9,12 @@
 在普通用户的终端里执行：
 
 ```sh
-sh ./Even-Pilot-1.0.22-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.0-Setup-linux-x64.run
 ```
 
-安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。首次安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
+安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。安装后新开的 Bash、Zsh、Fish 或支持的 POSIX 登录 shell 可直接输入 `even-pilot`。当前终端先用完整路径，或执行 `export PATH="$HOME/.local/bin:$PATH"`；自定义 bin 目录按安装器输出添加。安装器保留用户自己的 shell 内容，遇到链接／不支持的 shell 会提示手工设置。首次安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
 
-自定义目录：`sh ./Even-Pilot-1.0.22-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。更新时下载新版本的 `.run`，按同样的 `sh ./文件名.run` 命令执行即可，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。
+自定义目录：`sh ./Even-Pilot-1.1.0-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。更新时下载新版本的 `.run`，按同样的 `sh ./文件名.run` 命令执行即可，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。
 
 运行环境可用时支持直接解压 `.tar.gz` 到专用文件夹，再运行 `./bin/even-pilot open`；不把便携文件覆盖到正在运行的版本目录。
 
@@ -26,15 +26,14 @@ sh ./Even-Pilot-1.0.22-Setup-linux-x64.run
 - [Codex CLI 官方说明](https://learn.chatgpt.com/docs/codex/cli)：也可使用 `npm install -g @openai/codex`，运行 `codex` 登录。
 - [Claude Code 官方说明](https://code.claude.com/docs/en/quickstart)：使用官方 Linux 安装方式，运行 `claude` 登录。Claude 的 Linux 连接器使用 Python 3 标准库，不需要 pip 包。
 
-Pi 监控扩展会自动安装，新 Pi 自动加载；已有 Pi 等任务结束后 `/reload`。普通 `codex` 自动进入只读监控和完成通知。需要从手机／G2 发 prompt 时，从网页管理页新建对应连接器终端，也可以在 SSH 中直接执行：
+Pi 监控扩展会自动安装，新 Pi 自动加载；已有 Pi 等任务结束后 `/reload`。普通 `codex` 自动进入只读监控和完成通知。需要从手机／G2 发 prompt 时，从网页管理页新建对应连接器终端，或用会话管理命令新开独立原生终端：
 
 ```sh
-~/.local/bin/even-pilot terminal codex --cwd /your/project
-~/.local/bin/even-pilot terminal claude --cwd /your/project
-~/.local/bin/even-pilot terminal pi
+even-pilot new codex --cwd /your/project
+even-pilot new claude --cwd /your/project
 ```
 
-普通 `claude` 的已有窗口不会自动接入实时监控；等任务结束后正常退出，再从管理页选中原会话打开连接器，并接受原生终端的 Channel 确认。完整对话和需要原生菜单的操作仍在该终端中进行。三个 CLI 的功能边界见[连接器说明](connectors.md)。CLI 安装后若后台找不到命令，在能运行该 CLI 的 shell 执行 `~/.local/bin/even-pilot restart`，更新后台 PATH；也可设置 `EVEN_PILOT_PI`、`EVEN_PILOT_CODEX`、`EVEN_PILOT_CLAUDE` 为实际程序路径。
+普通 `claude` 通过安装时添加的官方 Hooks 接入只读监控，下一次 prompt 开始报告状态；`/hooks` 可确认已加载。已有窗口若未加载，等任务结束后再重开。普通监控无需 Channel；需要远程输入时使用上面的连接器终端，并接受原生终端的 Channel 确认。安装保留其他 Claude 设置，卸载只移除自身登记的 Hooks；存在已知自定义 Stop Hooks 时，完成状态保留为未确认。完整对话和需要原生菜单的操作仍在终端中进行。三个 CLI 的功能边界见[连接器说明](connectors.md)。CLI 安装后若后台找不到命令，在能运行该 CLI 的 shell 执行 `~/.local/bin/even-pilot restart`，更新后台 PATH；也可设置 `EVEN_PILOT_PI`、`EVEN_PILOT_CODEX`、`EVEN_PILOT_CLAUDE` 为实际程序路径。
 
 已有受支持的官方 Pi subagent 示例无需重装；尚未启用时执行 `~/.local/bin/even-pilot enable-pi-subagents`，再在空闲的 Pi 中 `/reload`。它联网下载与已安装 Pi 版本匹配的官方示例，已有自定义文件冲突时拒绝覆盖。基础监控无需此扩展；脚本不重新登录、不填写模型 key、不自动重载工作中的 Pi。
 
@@ -58,14 +57,11 @@ Pi 监控扩展会自动安装，新 Pi 自动加载；已有 Pi 等任务结束
 ~/.local/bin/even-pilot unwatch abc12345
 ~/.local/bin/even-pilot select abc12345
 ~/.local/bin/even-pilot new codex --cwd ~/project --name "My task"
-~/.local/bin/even-pilot send abc12345 "继续完成当前任务"
-~/.local/bin/even-pilot send abc12345 --stdin < prompt.txt
-~/.local/bin/even-pilot interrupt abc12345
 ```
 
-`watch` 只监控，`unwatch` 只取消监控，两者都不打开或关闭终端。`select` 才打开或复用终端并选中会话；`new` 创建独立原生终端。`send`/`interrupt` 固定目标会话，不受手机切换会话影响；连接器原有权限和能力限制仍适用。网络超时不自动重发，应先在原生终端确认是否收到。`interrupt` 请求取消当前任务，终端仍保留。
+`watch` 只监控，`unwatch` 只取消监控，两者都不打开或关闭终端。`select` 才打开或复用终端并选中会话；`new` 创建独立原生终端。1.1.0 的 Linux CLI 仅提供监控、管理和设置，已移除 `send`、`interrupt`、`terminal` 包装命令；实际 prompt 在原生终端或受支持的手机／G2 页面输入。
 
-`sessions --watched` 只列已 Watch；`sessions --json` 输出完整 key，便于脚本调用。`even-pilot --help` 查看全部命令。也可直接 `even-pilot terminal pi`（或 `codex` / `claude`）在当前 SSH 终端里启动原生 CLI；它先确保监控后台运行。此方式占用当前终端，如需断开 SSH 后继续，先进入自己的 tmux 会话。
+`sessions --watched` 只列已 Watch；`sessions --json` 输出完整 key，便于脚本调用。`even-pilot --help` 查看全部命令。自己的 Pi/Codex 仍用原本的 `pi`／`codex` 启动；如需断开 SSH 后继续，先进入自己的 tmux 会话。
 
 安装发行版提供的 `tmux`；Ubuntu/Debian 可执行 `sudo apt install tmux python3`。这两个工具由系统管理，Even-Pilot 安装器不会自动提权安装。
 
@@ -77,6 +73,19 @@ tmux attach -t pilot-pi-对应编号
 ```
 
 用 `Ctrl+B` 后按 `D` 脱离 tmux，CLI 保持工作。关闭 CLI 或该 tmux 会话则断开连接；断开、SSH 波动、Unwatch 不表示任务完成。不要用 `tmux kill-server` 关闭某一个会话，它会影响其它工作。
+
+### 推送与 Firebase 设置
+
+```sh
+even-pilot settings
+even-pilot settings push direct
+even-pilot settings firebase --credentials /private/firebase-service-account.json
+even-pilot settings push forward --url http://CENTER_IP:4317 --key-file /private/center-key.txt
+```
+
+独立发送时在本机配置 Firebase；集中发送时只在中心配置。JSON 必须是 Glance 使用的 `even-glance` 项目的有效服务账号凭据，并具有发送权限。先在发送端或中心运行 `even-pilot pair`，用 Glance 扫码、保存并注册 PUSH watcher，再让其他电脑选择 `push forward`。`center-key.txt` 只放中心的 connection key，命令不会把 key 放在参数或输出里。
+
+`settings firebase` 保存凭据文件引用并重启监控后台，不复制私钥、不终止原生 CLI。保持文件可读且位于私有目录；`settings firebase clear` 只移除引用，不删除 JSON 文件。显式 `GOOGLE_APPLICATION_CREDENTIALS` 或 `EVEN_PILOT_FCM_PROJECT_ID` 环境变量会覆盖保存设置，状态会提示。详细步骤见[通知转发](notification-routing.md)。
 
 ## 4. 后台、自启动与卸载
 
