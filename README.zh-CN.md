@@ -1,8 +1,8 @@
 # Even-Pilot
 
-轻量的 Pi、Codex、Claude Code 会话监控端。继续在 Windows/Linux 的原生 CLI 工作，在手机和 Even G2 查看已 Watch 的会话；支持远程输入的会话也能接收手机／G2 prompt。Glance 完成通知是可选功能。
+轻量的 Pi、Codex、Claude Code 会话监控端。桌面管理页只管理本机，手机汇总多台电脑的会话，在手机和 Even G2 查看已 Watch 的内容。继续在 Windows/Linux 的原生 CLI 工作；支持远程输入的会话也能接收手机／G2 prompt。Glance 完成通知是可选功能。
 
-**1.1.4** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**1.1.5** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [下载](https://github.com/Liang-Chu/Even-Pilot/releases) · [English](README.md) · [发布说明](RELEASE_NOTES.md)
 
@@ -12,11 +12,11 @@
 
 已有 CLI 和模型登录直接复用。Even-Pilot 必须与 CLI 使用同一个系统用户。
 
-- **Windows：**运行 `Even-Pilot-1.1.4-Setup-x64.exe`，点击 **Install**。管理页自动打开；以后双击桌面快捷方式或托盘图标。托盘右键勾选 **Start with Windows** 可登录自启动。
+- **Windows：**运行 `Even-Pilot-1.1.5-Setup-x64.exe`，点击 **Install**。管理页自动打开；以后双击桌面快捷方式或托盘图标。托盘右键勾选 **Start with Windows** 可登录自启动。
 - **Linux／SSH：**下载 Linux 包，在普通用户下运行：
 
   ```sh
-  sh ./Even-Pilot-1.1.4-Setup-linux-x64.run
+  sh ./Even-Pilot-1.1.5-Setup-linux-x64.run
   ```
 
   新开一个 shell 后运行 `even-pilot status` 和 `even-pilot pair`；当前终端先用 `~/.local/bin/even-pilot`。离线安装包已包含 Node 和后端依赖，不需要 npm 全局安装。[无头运行与重启自启动](docs/setup.zh-CN.md#linux无头或桌面)
@@ -41,10 +41,10 @@
 
 ### 4. 手机 Hub 单独安装并保存连接
 
-1. 在 Even Hub 安装／上传 `even-pilot-1.1.4.ehpk`，在 Even App 连好 G2。
+1. 在 Even Hub 安装／上传 `even-pilot-1.1.5.ehpk`，在 Even App 连好 G2。
 2. Windows 点击 **Connect phone** 查看这台电脑的手机连接信息；Linux 运行 `even-pilot pair`。
 3. 手机 Hub 打开 **Connection → Connect another computer**，填入该电脑的 **Bridge URL**、**Connection key**，点击 **Connect computer**。Key 只填原值，不加 `Bearer`。
-4. 连接保存在这部手机。另一台电脑按相同步骤填写它自己的 URL/key；桌面管理页用 **Other computers** 合并查看其他电脑的会话。
+4. 连接保存在这部手机。其他电脑也在手机按相同步骤填写各自的 URL/key，手机统一查看；每台桌面管理页只显示本机。
 
 二维码供 Glance 等支持扫码的应用使用；Hub 目前手工填写两项。添加电脑不会自动配置 Glance 通知。[多设备和 key 的区别](docs/setup.zh-CN.md#连接-hub-与多台电脑)
 

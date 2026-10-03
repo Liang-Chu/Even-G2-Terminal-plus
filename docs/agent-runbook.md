@@ -7,7 +7,7 @@ Start here when you have no history from the original setup. For a new user, fol
 1. Identify the computer, operating-system user and actual installation root. Run as the same user as the native CLI. A custom or portable installation may not use the default directory.
 2. Identify the task: monitor a local session, connect a viewer, configure notifications, update the companion, or install the phone package. These are separate operations.
 3. On Linux run `even-pilot status`, `even-pilot sessions` and `even-pilot settings`. These show monitoring/session/sender state without printing keys. Use `even-pilot pair` only when the owner needs connection details.
-4. On Windows open the shortcut and inspect Sessions and the tray's running state. **Connect phone** opens **Connect your phone** with this computer's URL/key; **Other computers** manages this browser's saved remote connections.
+4. On Windows open the shortcut and inspect Sessions and the tray's running state. The desktop manager controls only this computer. **Connect phone** opens **Connect your phone** with its URL/key; add each computer in phone **Connection** to combine sessions there.
 5. Check the installed version and [release status](release-status.md). Do not infer a deployed version from the source checkout or a file left in Downloads.
 
 The default backend listens on TCP 4317. Only one monitor should own a given data directory and port. Network loss, Unwatch and monitoring shutdown must not be turned into task completion or terminate native terminals.
@@ -51,11 +51,11 @@ even-pilot settings
 even-pilot update check
 ```
 
-Replace `SESSION` with a unique short key from `sessions`, or a quoted exact title. `select` can open a terminal; `watch` and `unwatch` cannot. No-argument `even-pilot` is `open`: it starts the manager and applies the desktop opening's 24-hour default Watch rule. `sessions` only lists; `pair` only displays connection information and does not start monitoring. [Linux commands and service setup](linux.md)
+Replace `SESSION` with a unique short key from `sessions`, or a quoted exact title. `select` can open a terminal; `watch` and `unwatch` cannot. No-argument `even-pilot` is `open`: it starts the manager and applies the desktop opening's 24-hour default Watch rule. On a headless host it prints a private authenticated manager link to open in your browser, without manual desktop URL/key setup; keep it confidential like `pair`. `sessions` only lists; `pair` only displays connection information and does not start monitoring. [Linux commands and service setup](linux.md)
 
 Windows tray Quit closes the tray only. To reload backend configuration manually, use the [authenticated monitoring shutdown procedure](development.md#更新已有安装), then reopen the shortcut. Never replace this with broad process killing. Installed upgrades perform their own backend shutdown and keep native terminal processes alive.
 
-For notifications, first decide **direct** versus **central**. A source's saved viewer connection is not its notification route. Only the sender/center needs Firebase and a registered Glance PUSH watcher. Use [setup commands](setup.md#optional-glance-notifications) or [routing details](notification-routing.md); do not install a user's private Firebase JSON on every source.
+For notifications, first decide **direct** versus **central**. A phone's saved connection is not the source's notification route. Desktop notification settings affect only that local source; phone settings select from its saved computers. Only the sender/center needs Firebase and a registered Glance PUSH watcher. A center URL/key supplied on desktop is used for relay registration, not for adding a remote session viewer; the backend retains a dedicated notification-only relay credential. Use [setup commands](setup.md#optional-glance-notifications) or [routing details](notification-routing.md); do not install a user's private Firebase JSON on every source.
 
 ## Source map
 

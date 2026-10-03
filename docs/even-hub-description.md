@@ -1,4 +1,4 @@
-# Even Hub description — Even-Pilot 1.1.4
+# Even Hub description — Even-Pilot 1.1.5
 
 Even-Pilot brings your coding sessions to Even G2. Monitor Pi, Codex and Claude Code sessions across multiple computers, see the source computer, model, agent count and running status, and switch between watched sessions.
 

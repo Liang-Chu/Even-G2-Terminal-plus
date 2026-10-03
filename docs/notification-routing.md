@@ -2,13 +2,13 @@
 
 Each computer can send directly to Glance or forward completion events to one center. This works on Windows and Linux. Start with [first-time notification setup](setup.md#optional-glance-notifications) / [中文配置](setup.zh-CN.md#可选-glance-通知).
 
-Adding a computer in phone **Connection** or desktop **Other computers** only saves access to its sessions on that viewer. It does not register Glance or change any notification route. **Glance notifications** is a separate dialog; **Computer** selects the source whose route you are changing.
+Adding a computer in phone **Connection** saves phone access to its sessions. The desktop manager controls only its own computer. Neither action registers Glance or changes notification routing. **Glance notifications** is a separate dialog: desktop settings affect only the local source; on the phone, **Computer** selects a saved source.
 
 ## Independent sending
 
 1. Configure FCM credentials on every sending computer, following [Glance push](glance-push.md).
 2. Add a PUSH watcher in Glance for each computer's `http://<address>:4317/api/glance` URL and its connection key.
-3. Open **Glance notifications**. Select **Computer**, set **Send notifications → Directly from this computer**, then **Save notification settings**. Repeat for each source.
+3. Open **Glance notifications** on each source's desktop, or select that source in phone **Computer**. Set **Send notifications → Directly from this computer**, then **Save notification settings**. Repeat for each source.
 
 On a Linux sender:
 
@@ -25,9 +25,11 @@ The service-account JSON must authorize FCM sending for Glance's `even-glance` F
 
 1. Install/update Even-Pilot on the server and other computers. Keep the center reachable from every source, for example through Tailscale.
 2. Configure FCM credentials only on the center using the commands above or [Windows sender setup](glance-push.md#windows-setup). The center uses **Directly from this computer** and can still monitor its own sessions.
-3. Save both center and source on this viewer: phone **Connection** or desktop **Other computers**.
-4. Open **Glance notifications**. Choose the source in **Computer**, set **Send notifications → Through a central computer**, select **Central computer**, then **Save notification settings**. Repeat for other source computers.
+3. To configure from the phone, save both center and source in phone **Connection**.
+4. Open phone **Glance notifications**. Choose the source in **Computer**, set **Send notifications → Through a central computer**, select **Central computer**, then **Save notification settings**. Repeat for other source computers.
 5. In Glance, edit the old watcher or create one PUSH watcher with the center's complete `/api/glance` URL and **the center's connection key**, then **Save and register**. Disable/remove other independent watchers if they are no longer needed. No Android APK update is needed for this routing feature.
+
+To configure from a source's desktop instead, open **Glance notifications**, choose **Through a central computer**, enter **Center URL** (`http://CENTER_IP:4317`) and **Center connection key**, then **Save notification settings**. The desktop source is fixed to this computer. This does not add the center to session viewing; the center control key is used only for registration, is not saved by the UI and clears when the dialog closes. An existing center URL is prefilled; keeping the same center needs no key and preserves that route's queued events. The source backend retains only the dedicated relay credential.
 
 On each Linux source, after the center is ready:
 

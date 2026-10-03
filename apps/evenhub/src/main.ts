@@ -12,6 +12,7 @@ import {
 import { type Connection } from "./bridge/client.js";
 import { FleetClient } from "./bridge/fleet.js";
 import { ConnectionSettings } from "./bridge/settings.js";
+import { restoreViewerConnections } from "./bridge/restore.js";
 import { consumePairingUrl } from "./bridge/pairing.js";
 import { G2Display, type G2InputTrace } from "./g2/display.js";
 import type { SessionsPanel, SessionSummary } from "./sessions/panel.js";
@@ -39,8 +40,8 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <aside><section class="glasses-card"><div class="panel-heading"><div><span class="section-number">02</span><h2>G2 output</h2></div><span class="tiny-label">G2</span></div><div class="g2-screen"><div class="display-label"><span>LIVE DISPLAY PREVIEW</span><span id="g2-mode">STATUS</span></div><div id="g2-status" class="g2-status"></div><pre id="g2-preview"></pre></div><div class="glasses-footer"><span id="g2-connection">Preview · open in Even Hub for G2</span><button id="toggle-display" class="text-button">Tap / Open ↵</button></div><div class="g2-controls" aria-label="G2 preview controls"><button id="g2-sessions" class="text-button">Sessions</button><button id="g2-previous" class="text-button" aria-label="G2 previous">↑</button><button id="g2-next" class="text-button" aria-label="G2 next">↓</button><button id="g2-back" class="text-button">Back</button></div></section>
   <section class="details-card"><div class="panel-heading"><div><span class="section-number">03</span><h2>Runtime</h2></div></div><dl><div><dt>Activity</dt><dd id="tools">No active tools</dd></div><div><dt>Model</dt><dd id="model">—</dd></div><div><dt>Project</dt><dd id="cwd">—</dd></div><div><dt>Session</dt><dd id="session-id">—</dd></div></dl><div class="session-actions"><button id="manage-sessions" class="outline" disabled>Switch session ↗</button><button id="new-session" class="outline" disabled>＋ New</button></div><p id="monitor-summary" class="caption">Choose a session to open it. History is available separately.</p></section>
   <section class="notification-card"><span class="notification-icon">◌</span><div><h3>JOB DONE. YOU KNOW.</h3><p>Point your Glance watcher at this bridge to get a notification when a session finishes.</p><button id="show-glance" class="text-button">Glance connection details ↗</button></div></section></aside></div>
-  <footer class="page-footer"><span>EVEN-PILOT <span class="version">/ 1.1.4</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
-  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Choose a computer to view its sessions.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connection panel.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
+  <footer class="page-footer"><span>EVEN-PILOT <span class="version">/ 1.1.5</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
+  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Choose a computer to view its sessions.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connect phone panel, or run even-pilot pair on Linux.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -51,7 +52,7 @@ void import("./updates/settings.js").then(({ UpdateSettings }) => { new UpdateSe
 const notificationSettingsButton = $<HTMLButtonElement>("notification-settings");
 let notificationSettings: import("./notifications/settings.js").NotificationSettings | undefined;
 async function openNotificationSettings() {
-  notificationSettings ||= new (await import("./notifications/settings.js")).NotificationSettings(() => client);
+  notificationSettings ||= new (await import("./notifications/settings.js")).NotificationSettings(() => client, desktopMode ? location.origin : undefined);
   dialog.close(); notificationSettings.open(desktopMode ? location.origin : undefined);
 }
 notificationSettingsButton.onclick = () => { void openNotificationSettings(); };
@@ -59,8 +60,7 @@ const hostsList = $("connected-computers"), connectionEditor = $<HTMLDetailsElem
 let editingConnection = false;
 if (desktopMode) {
   $("open-settings").textContent = "Connect phone";
-  dialog.querySelector("h2")!.textContent = "Other computers";
-  $("computers-caption").textContent = "This computer connects automatically. Add other computers to view their sessions here too.";
+  dialog.hidden = true;
   document.querySelector(".page-heading")!.setAttribute("hidden", "");
   document.querySelector(".page-heading p")!.textContent = "Monitor sessions. Open a terminal. Send a prompt.";
   document.querySelector(".terminal-panel h2")!.textContent = "Send to selected terminal";
@@ -101,7 +101,7 @@ async function respondToInteraction(key: string, answer: InteractionAnswer) {
 }
 const interactions = new InteractionPanel(respondToInteraction);
 $("prompt-form").before(interactions.element);
-if (!config) config = connectionSettings.current();
+if (!config) config = desktopMode ? connectionSettings.all().find(item => item.url === location.origin) : connectionSettings.current();
 const g2Canvas = document.createElement("canvas"); g2Canvas.width = 576; g2Canvas.height = 288;
 g2Canvas.className = "g2-canvas"; g2Canvas.setAttribute("aria-label", "G2 display preview");
 $("g2-preview").before(g2Canvas);
@@ -112,7 +112,7 @@ g2Diagnostics.innerHTML = '<summary>G2 input diagnostics</summary><p class="capt
 document.querySelector(".g2-controls")!.after(g2Diagnostics);
 const diagnosticText = g2Diagnostics.querySelector("textarea")!;
 function refreshInputTrace() {
-  diagnosticText.value = JSON.stringify({ version: "1.1.4", events: inputTrace }, null, 2);
+  diagnosticText.value = JSON.stringify({ version: "1.1.5", events: inputTrace }, null, 2);
 }
 g2Diagnostics.ontoggle = () => { if (g2Diagnostics.open) refreshInputTrace(); };
 g2Diagnostics.querySelector("button")!.onclick = async () => {
@@ -208,11 +208,9 @@ let desktopSessions: import("./sessions/desktop.js").DesktopSessions | undefined
 if (desktopMode) {
   const [, { DesktopSessions }] = await Promise.all([import("./desktop.css"), import("./sessions/desktop.js")]);
   desktopSessions = new DesktopSessions(() => client, notice, () => { void openSessions("new"); });
-  const otherComputers = document.createElement("button"); otherComputers.type = "button";
-  otherComputers.className = "subtle"; otherComputers.textContent = "Other computers"; otherComputers.onclick = openComputers;
   const glanceButton = document.createElement("button"); glanceButton.type = "button";
   glanceButton.className = "subtle"; glanceButton.textContent = "Glance"; glanceButton.onclick = () => { void openNotificationSettings(); };
-  document.querySelector(".header-right")!.append(otherComputers, glanceButton);
+  document.querySelector(".header-right")!.append(glanceButton);
 }
 
 function notice(message: string) {
@@ -246,7 +244,8 @@ function render() {
     state.main.status === "running" || state.main.status === "waiting";
   const ready = online && state.connected;
   const hosts = client?.hosts() || [], connectedHosts = hosts.filter(host => host.online).length;
-  $("link-state").textContent = hosts.length ? `${connectedHosts}/${hosts.length} computers connected` : "Not connected";
+  $("link-state").textContent = desktopMode ? online ? "Connected" : "Reconnecting"
+    : hosts.length ? `${connectedHosts}/${hosts.length} computers connected` : "Not connected";
   renderStatus();
   $("session-label").textContent = state.session.key
     ? `${state.source ? state.source.name + " · " : ""}${sessionLabel(state)}`
@@ -341,6 +340,7 @@ function render() {
   if (atBottom) log.scrollTop = log.scrollHeight;
 }
 function openComputers() {
+  if (desktopMode) return;
   $("connection-error")?.remove();
   clearConnectionEditor();
   renderHosts();
@@ -397,14 +397,10 @@ function fleet() {
   client = candidate; glasses.setStorageScope("computers"); return candidate;
 }
 async function restoreConnections() {
-  const saved = connectionSettings.all(), active = desktopMode ? location.origin : connectionSettings.current()?.url, target = fleet();
-  for (const existing of target.connections()) if (!saved.some(item => item.url === existing.url)) target.remove(existing.url);
-  for (const next of saved) {
-    if (!target.connections().some(item => item.url === next.url && item.token === next.token)) await target.add(next, true, false);
-  }
-  if (active && target.connections().some(item => item.url === active)) target.choose(active);
+  await restoreViewerConnections(fleet(), connectionSettings.all(), connectionSettings.current()?.url, desktopMode ? location.origin : undefined);
 }
 async function connect(next: Connection) {
+  if (desktopMode && next.url !== location.origin) throw new Error("Open this computer's Even-Pilot desktop shortcut to connect automatically.");
   const attempt = ++connectionAttempt;
   const target = fleet();
   if (!target.connections().some(item => item.url === next.url) && target.connections().length >= 16) throw new Error("Remove a computer before adding another (maximum 16).");
@@ -415,6 +411,7 @@ async function connect(next: Connection) {
 }
 let hostsSignature = "";
 function renderHosts() {
+  if (desktopMode) return;
   const hosts = client?.hosts() || [], signature = JSON.stringify([hosts, client?.activeUrl()]);
   if (signature === hostsSignature) return;
   hostsSignature = signature; hostsList.replaceChildren();
@@ -423,9 +420,8 @@ function renderHosts() {
   for (const host of hosts) {
     const row = document.createElement("div"); row.className = "connection-host";
     const info = document.createElement("div"), name = document.createElement("strong"), detail = document.createElement("small");
-    const local = desktopMode && host.url === location.origin;
     const status = host.online ? "Connected" : host.warning?.startsWith("Connection key rejected.") ? "Key rejected" : "Reconnecting";
-    name.textContent = `${host.name}${local ? " · This computer" : ""} · ${status}`;
+    name.textContent = `${host.name} · ${status}`;
     detail.textContent = host.url || ""; info.append(name, detail);
     if (host.warning) { const warning = document.createElement("small"); warning.textContent = host.warning; info.append(warning); }
     const actions = document.createElement("div"); actions.className = "connection-host-actions";
@@ -442,7 +438,7 @@ function renderHosts() {
     choose.onclick = () => { voice?.cancel(); client?.choose(host.url!); dialog.close(); void openSessions("browse"); };
     const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button"; remove.textContent = "Remove";
     remove.onclick = () => { void removeConnection(host.url!); };
-    actions.append(choose); if (!local) actions.append(edit, remove); row.append(info, actions); hostsList.append(row);
+    actions.append(choose, edit, remove); row.append(info, actions); hostsList.append(row);
   }
 }
 async function removeConnection(url: string) {

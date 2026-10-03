@@ -684,7 +684,9 @@ dialog input:focus {
 .notification-settings > .primary { width: 100%; margin-top: 16px; }
 .notification-settings .relay-sources p { border-top: 1px solid #ddd; padding-top: 10px; }
 .notification-settings { max-height: 88dvh; overflow-y: auto; }
-.notification-settings [data-notification-destination][hidden] { display: none; }
+.notification-settings [data-notification-source][hidden], .notification-settings [data-notification-destination][hidden], .notification-settings [data-notification-center][hidden] { display: none; }
+.notification-settings [data-notification-center] { border-left: 2px solid #111; padding-left: 12px; }
+.notification-settings [data-notification-center] input { margin-top: 8px; }
 .notification-connection { border-block: 1px solid #bbb; padding: 12px 0; margin-top: 16px; }
 .notification-connection h3 { font-size: 14px; font-weight: 600; margin: 0; }
 .notification-connection code { display: block; overflow-wrap: anywhere; font-size: 12px; }

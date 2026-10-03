@@ -85,6 +85,12 @@ try {
   assert.match(pairing, /Glance URL: http:\/\/.+:\d+\/api\/glance/);
   assert.match(pairing, /Scan in Glance/);
   assert.match(pairing, /[▀▄█]{20,}/, 'Installed CLI prints the terminal QR');
+  const managerOutput = command('open');
+  const managerLink = new URL(managerOutput.split(/\r?\n/).find(line => line.startsWith('http')));
+  assert.equal(managerLink.searchParams.get('desktop'), '1');
+  assert.equal(new URLSearchParams(managerLink.hash.slice(1)).get('pilot-token'), token,
+    'Headless desktop link authenticates directly without a manual connection editor');
+  assert.equal(managerLink.searchParams.has('pilot-token'), false, 'Credential stays out of the HTTP request URL');
   const hostInfo = await (await request('/api/host')).json();
   assert.equal(typeof hostInfo.name, 'string'); assert.ok(['tailscale', 'hostname'].includes(hostInfo.nameSource));
   if (process.env.EVEN_PILOT_TEST_HOSTNAME) assert.equal(hostInfo.name, process.env.EVEN_PILOT_TEST_HOSTNAME);

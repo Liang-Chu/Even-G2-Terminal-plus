@@ -2,7 +2,7 @@
 
 首次部署按[完整安装连接指南](setup.zh-CN.md)操作；没有历史记忆的操作者／agent 从[运行手册](agent-runbook.md)开始。本页保留 Linux 命令和服务的详细参考。
 
-1.1.4 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。上一版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次补丁的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
+1.1.5 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。上一版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次补丁的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
 
 发行版仍需能运行官方 Node Linux 二进制；Alpine/musl 不适用此预编译包。ARM64 构建脚本可在对应 Linux 主机运行，但当前未进行 ARM64 实机验收。GNOME、KDE、XFCE、Kitty、xterm 的启动参数有回归测试；NUC 没有图形桌面，不能代替这些桌面的实机验收。
 
@@ -11,12 +11,12 @@
 在普通用户的终端里执行：
 
 ```sh
-sh ./Even-Pilot-1.1.4-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.5-Setup-linux-x64.run
 ```
 
 安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。安装后新开的 Bash、Zsh、Fish 或支持的 POSIX 登录 shell 可直接输入 `even-pilot`。当前终端先用完整路径，或执行 `export PATH="$HOME/.local/bin:$PATH"`；自定义 bin 目录按安装器输出添加。安装器保留用户自己的 shell 内容，遇到链接／不支持的 shell 会提示手工设置。首次安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
 
-自定义目录：`sh ./Even-Pilot-1.1.4-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。更新时下载新版本的 `.run`，按同样的 `sh ./文件名.run` 命令执行即可，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。
+自定义目录：`sh ./Even-Pilot-1.1.5-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。更新时下载新版本的 `.run`，按同样的 `sh ./文件名.run` 命令执行即可，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。
 
 运行环境可用时支持直接解压 `.tar.gz` 到专用文件夹，再运行 `./bin/even-pilot open`；不把便携文件覆盖到正在运行的版本目录。
 
@@ -44,7 +44,7 @@ even-pilot new claude --cwd /your/project
 管理页是浏览器网页，NUC 本身无需安装图形桌面或浏览器。日常管理也可以全部通过 SSH 命令行完成。
 本机命令自动读取已保存的 connection key，不需要每条命令重新输入；`pair` 才会显式显示 URL、key、Glance URL 和二维码。Glance 可扫码后保存注册，无需手抄。集中转发时在中心服务器运行 `pair`；终端窗口需足够宽，以免二维码换行。
 
-`pair` 只打印，不会启动后台。无参数 `even-pilot` 相当于 `open`，会启动管理页并应用最近 24 小时默认 Watch；`sessions` 只是查询，不重置 Watch。
+`pair` 只打印，不会启动后台。无参数 `even-pilot` 相当于 `open`，会启动管理页并应用最近 24 小时默认 Watch。无头机器的 `even-pilot open` 打印已授权的私有管理链接，浏览器打开即可，无需手填桌面 URL/key；链接像 `pair` 输出一样保密。`sessions` 只是查询，不重置 Watch。
 
 先启动监控、查看配对信息和会话：
 
@@ -116,8 +116,8 @@ sudo loginctl enable-linger "$(id -un)"
 
 ## 5. 手机、Even Hub 和 Glance
 
-两端登录 Tailscale 后，在 Linux 执行 `~/.local/bin/even-pilot pair`，在手机 Hub **Connection → Connect another computer** 填入输出的 Bridge URL 和 connection key，点击 **Connect computer**。使用 **Linux 这台机器**的地址与 key，不能沿用 Windows 的地址；连接保存在当前手机。桌面管理页用 **Other computers** 添加远程电脑，与本机会话一起显示。添加设备不会自动配置通知。默认 TCP 4317；`EVEN_PILOT_PORT` 可修改端口，随后重新启动监控。
+两端登录 Tailscale 后，在 Linux 执行 `~/.local/bin/even-pilot pair`，在手机 Hub **Connection → Connect another computer** 填入输出的 Bridge URL 和 connection key，点击 **Connect computer**。使用 **Linux 这台机器**的地址与 key，不能沿用 Windows 的地址；连接保存在当前手机。其他电脑也在手机添加，手机汇总会话；桌面管理页只管理提供该页面的电脑。添加设备不会自动配置通知。默认 TCP 4317；`EVEN_PILOT_PORT` 可修改端口，随后重新启动监控。
 
-桌面浏览器先打开该 URL，填入 key；桌面管理入口可在 URL 后加 `/?desktop=1`。有桌面环境运行 `even-pilot open` 会自动打开已授权的本地管理页。显示的地址会优先选择本机 Tailscale IPv4，不写死任何用户的 IP。
+运行 `even-pilot open` 获取管理入口：有桌面环境时自动打开已授权的本地管理页；无头时复制它打印的完整私有链接到浏览器。桌面管理页自动连接自己的后台，不需要另填 URL/key。地址优先选择本机 Tailscale IPv4，不写死任何用户的 IP。
 
 Glance 继续使用同一套接口和 connection key，按 [Glance 指南](https://github.com/Liang-Chu/Glance)配置。Linux 包不含任何 Windows 凭据或 Firebase 私钥；要从另一台 Linux 主机发送 FCM，按[推送配置](glance-push.md)配置该主机的发送凭据。

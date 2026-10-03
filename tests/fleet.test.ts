@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FleetClient, scopedKey } from "../apps/evenhub/src/bridge/fleet.js";
+import { restoreViewerConnections } from "../apps/evenhub/src/bridge/restore.js";
 import { initialState, type RuntimeState } from "../packages/cockpit-state/types.js";
 import { statusBar } from "../packages/cockpit-state/selectors.js";
 import { CockpitStore } from "../packages/cockpit-state/store.js";
@@ -44,6 +45,36 @@ function fixture() {
   const add = async () => { await fleet.add({ url: a, token: "token-for-laptop" }); await fleet.add({ url: b, token: "token-for-nuc" }, false, false); };
   return { fleet, calls, endpoints, states, connectionMessages, add };
 }
+
+test("desktop restores only its own computer without contacting saved remote devices or changing Watch", async () => {
+  const f = fixture(), saved = [{ url: a, token: "local-key" }, { url: b, token: "remote-key" }];
+  await restoreViewerConnections(f.fleet, saved, b, a);
+  assert.deepEqual(f.fleet.connections(), [saved[0]]);
+  assert.equal(f.fleet.activeUrl(), a);
+  assert.equal(f.endpoints.has(b), false, "a saved notification center is not opened as a session viewer");
+  assert(f.calls.every(call => call.url === a && call.data === undefined));
+  assert.equal(saved.length, 2, "restoration does not delete saved credentials or phone preferences");
+  const previous = fixture();
+  await previous.add(); previous.calls.length = 0;
+  await restoreViewerConnections(previous.fleet, previous.fleet.connections(), b, a);
+  assert.equal(previous.endpoints.get(b)?.closed, true, "previous remote viewers are disconnected");
+  assert.equal(previous.endpoints.get(b)?.state.monitoring?.sessions[0].monitored, true, "disconnecting a viewer never unwatches its session");
+  assert.equal(previous.fleet.activeUrl(), a);
+  assert(previous.calls.every(call => call.url === a && call.data === undefined));
+  const missing = fixture();
+  await restoreViewerConnections(missing.fleet, [saved[1]], b, a);
+  assert.equal(missing.fleet.connections().length, 0, "missing local credentials never fall back to a remote computer");
+  assert.equal(missing.endpoints.size, 0);
+});
+
+test("phone restores all saved computers and its selected session source", async () => {
+  const f = fixture(), saved = [{ url: a, token: "local-key" }, { url: b, token: "remote-key" }];
+  await restoreViewerConnections(f.fleet, saved, b);
+  assert.deepEqual(f.fleet.connections(), saved);
+  assert.equal(f.fleet.activeUrl(), b);
+  assert.equal(f.endpoints.size, 2);
+  assert(f.calls.every(call => call.data === undefined), "viewing does not change notification routing or Watch");
+});
 
 test("fleet combines identical native session keys with distinct source names and globally recent ordering", async () => {
   const f = fixture(); await f.add();

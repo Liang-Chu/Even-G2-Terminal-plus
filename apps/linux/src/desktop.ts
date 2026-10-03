@@ -167,7 +167,7 @@ try {
     if (open && (process.env.DISPLAY || process.env.WAYLAND_DISPLAY)) {
       const child = spawn(open, [origin + "/?desktop=1#pilot-token=" + encodeURIComponent(token)], { detached: true, stdio: "ignore", shell: false });
       await new Promise<void>((done, fail) => { child.once("spawn", done); child.once("error", fail); }); child.unref();
-    } else console.log("Open " + (preferredPairOrigin("0.0.0.0", port) || origin) + "/?desktop=1 from your browser. Run `even-pilot pair` to view the connection key.");
+    } else console.log("Open this private manager link in your browser:\n" + (preferredPairOrigin("0.0.0.0", port) || origin) + "/?desktop=1#pilot-token=" + encodeURIComponent(token));
   } else if (command === "enable-pi-subagents") {
     const child = spawn(process.execPath, ["--import", loader, join(payload, "scripts/enable-pi-subagents.mjs")], { stdio: "inherit", shell: false });
     process.exitCode = await new Promise<number>((done, fail) => { child.once("error", fail); child.once("exit", code => done(code || 0)); });

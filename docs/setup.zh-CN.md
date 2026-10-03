@@ -11,13 +11,13 @@
 | 原生 Pi／Codex／Claude | 原来的电脑、原来的系统用户 | 执行任务，保存完整输出及模型登录 |
 | Glance，可选 | 手机 | 接收已配置发送端的完成通知 |
 
-Even-Pilot 是监控和简单会话管理端。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
+Even-Pilot 是监控和简单会话管理端。桌面管理页只控制提供这个页面的电脑，手机 Hub 汇总已保存电脑的会话。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
 
 ## 安装电脑端
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.4-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.5-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Even-Pilot**、**Start with Windows**、更新和 **Quit Even-Pilot**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -29,7 +29,7 @@ Even-Pilot 是监控和简单会话管理端。它不替你安装 CLI，也不�
 本包面向 x64/glibc，实测基准为无头 Ubuntu 26.04 LTS，不适用于 Alpine/musl。以普通用户执行，**不要加 sudo**：
 
 ```sh
-sh ./Even-Pilot-1.1.4-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.5-Setup-linux-x64.run
 ```
 
 程序安装到 `~/.local/lib/even-pilot`，命令位于 `~/.local/bin/even-pilot`；安装器给支持的 shell 添加可移除的 PATH 配置，并启动后台。新开一个 shell 后可直接输入短命令。当前终端先用完整路径，或执行安装器打印的 PATH 命令。这是当前用户的全局命令，不是 npm 全局包。
@@ -47,7 +47,7 @@ even-pilot sessions
 even-pilot pair
 ```
 
-`pair` 只打印 URL/key/Glance 二维码，不负责启动服务器。直接运行 `even-pilot` 等于 `open`：启动后台、应用桌面最近 24 小时的 Watch 默认规则，然后打开浏览器或打印管理地址。只想查看、不重置默认 Watch 时使用 `sessions`。
+`pair` 只打印 URL/key/Glance 二维码，不负责启动服务器。直接运行 `even-pilot` 等于 `open`：启动后台、应用桌面最近 24 小时的 Watch 默认规则，然后打开浏览器。无头机器的 `even-pilot open` 会打印已授权的私有管理链接，在浏览器打开即可，无需手填桌面 URL/key；像 `pair` 输出一样保密。只想查看、不重置默认 Watch 时使用 `sessions`。
 
 systemd 机器要在 SSH 登出后、重启后继续运行：
 
@@ -101,7 +101,7 @@ even-pilot new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. Even Hub 安装／上传 `even-pilot-1.1.4.ehpk`，Even App 2.2.10+ 连好 G2。
+1. Even Hub 安装／上传 `even-pilot-1.1.5.ehpk`，Even App 2.2.10+ 连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -111,9 +111,9 @@ even-pilot new claude --cwd /your/project
    | Connection key | 同一台电脑显示的原始 key，不加 `Bearer` |
 
 4. 点击 **Connect computer**。信息自动保存，下次打开恢复。**Connected computers** 列出保存的设备；**View sessions** 查看会话，**Edit connection** 修改连接。
-5. 第二台电脑展开同一个 **Connect another computer** 表单，填它自己的 URL/key。桌面用 **Other computers** 添加远程设备；**This computer** 会自动连接。每个需要看全部会话的查看端分别添加，列表保存在当前浏览器／手机。
+5. 其他电脑也在手机展开 **Connect another computer**，填各自的 URL/key。设备列表保存在这部手机。每台桌面管理页只连接自己的后台，管理本机的会话。
 
-会话按设备分组、按最近更新时间排列。断网保留连接和 Watch，其他电脑继续使用；Remove 只让当前查看端忘记远程电脑，不停后台或终端。**Glance notifications** 单独设置：添加电脑不会注册 watcher，也不会改变通知路由。
+手机会话按设备分组、按最近更新时间排列。断网保留连接和 Watch，其他电脑继续使用；手机 Remove 只忘记这部手机保存的连接，不停后台或终端。**Glance notifications** 单独设置：手机添加电脑不会注册 watcher，也不会改变通知路由。
 
 ### Key 与二维码
 
@@ -221,12 +221,14 @@ Quit 托盘，按[认证停止后台步骤](development.md#更新已有安装)�
 
 ### 3. 其他电脑转发到中心
 
-中心配置并注册完成后，在当前查看端保存来源和中心：手机 **Connection**，桌面 **Other computers**。打开独立的 **Glance notifications**：
+中心配置并注册完成后，选择一种设置方式。手机先在 **Connection** 保存来源和中心，再打开 **Glance notifications**：
 
 1. **Computer** 选择执行任务的来源电脑。
 2. **Send notifications** 选 **Through a central computer**。
 3. **Central computer** 选择中心设备。
 4. **Save notification settings** 保存，其他来源重复。中心本身选择 **Directly from this computer**。下方 **Glance watcher** URL 会对应实际发送端／中心；仍需到 Glance 单独注册该 URL 和它的 key。
+
+也可以在每台来源的桌面设置：打开 **Glance notifications**，选 **Through a central computer**，**Center URL** 填 `http://CENTER_IP:4317`，**Center connection key** 填中心原始 key，再点 **Save notification settings**。只修改本机路由，不把中心加入桌面会话列表。中心控制 key 只用于注册，不由 UI 保存；后台保存专用 relay 凭据。已配置的中心 URL 会预填，不换中心时 key 留空即可。
 
 Linux 来源电脑也可以在 SSH 执行：
 
@@ -243,7 +245,7 @@ even-pilot settings
 
 Windows 托盘 **Check for updates → Update to …**；Linux `even-pilot update` 后 `even-pilot update status`。管理页 **Updates** 更新提供当前页面的电脑，手机 Hub 更新打开弹窗时的当前电脑。托盘／Updates 或 `even-pilot update off` 可停自动检查。
 
-**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.4.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.5.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
 Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `even-pilot stop`。
 

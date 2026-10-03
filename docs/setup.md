@@ -11,13 +11,13 @@ This guide starts from a computer with a working Pi, Codex or Claude Code login.
 | Original Pi/Codex/Claude CLI | Its original computer and user account | Runs the actual task and retains full output and its own model login |
 | Glance, optional | Phone | Receives completion notifications from a configured sender |
 
-The companion is a watcher and lightweight session manager. Installing it does not install the three CLIs or duplicate their model credentials. Voice and notification credentials are separate optional settings.
+The companion is a watcher and lightweight session manager. Its desktop manager controls only the computer serving that page; the phone Hub combines sessions from saved computers. Installing it does not install the three CLIs or duplicate their model credentials. Voice and notification credentials are separate optional settings.
 
 ## Install a companion
 
 ### Windows
 
-1. Download `Even-Pilot-1.1.4-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
+1. Download `Even-Pilot-1.1.5-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Even-Pilot**, **Start with Windows**, update controls and **Quit Even-Pilot**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -29,7 +29,7 @@ The ZIP is an optional portable alternative: extract the whole archive to a dedi
 The supplied binary targets x64/glibc Linux. The tested baseline is headless Ubuntu 26.04 LTS; Alpine/musl is not supported by this package. Install as a normal user, without `sudo`:
 
 ```sh
-sh ./Even-Pilot-1.1.4-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.5-Setup-linux-x64.run
 ```
 
 It installs its bundled runtime under `~/.local/lib/even-pilot`, creates `~/.local/bin/even-pilot`, starts monitoring and adds a removable PATH block for supported shells. Open a new shell before using the short command; in the current shell use the full path or the PATH command printed by the installer. This is a per-user global command, not an npm package installation.
@@ -47,7 +47,7 @@ even-pilot sessions
 even-pilot pair
 ```
 
-`pair` prints the URL/key/Glance QR; it does not start the server itself. `even-pilot` without arguments means `open`: it starts monitoring and applies the desktop's recent-24-hour Watch defaults, then opens a browser or prints a management URL. Use `sessions` when you only want to inspect membership without resetting those defaults.
+`pair` prints the URL/key/Glance QR; it does not start the server itself. `even-pilot` without arguments means `open`: it starts monitoring and applies the desktop's recent-24-hour Watch defaults, then opens a browser. On a headless host, `even-pilot open` prints a private, already-authorized manager link for your browser; no manual desktop URL/key setup is needed. Keep that link private, like the `pair` output. Use `sessions` when you only want to inspect membership without resetting those defaults.
 
 For reboot and SSH-logout persistence on a systemd machine:
 
@@ -101,7 +101,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install/upload `even-pilot-1.1.4.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
+1. Install/upload `even-pilot-1.1.5.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `even-pilot pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -111,9 +111,9 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
    | Connection key | That same computer's displayed plain key, without `Bearer` |
 
 4. Choose **Connect computer**. Connection details persist on this phone and restore next time. Saved devices appear under **Connected computers**; use **View sessions** to select one, or **Edit connection** to correct its saved values.
-5. Add another machine through the same collapsed **Connect another computer** form, using its own URL/key. On desktop, **Other computers** adds remote machines alongside **This computer**, which connects automatically. Repeat additions in each viewer that should manage the fleet; saved computer lists belong to that phone/browser.
+5. Add each additional machine on the phone through the same collapsed **Connect another computer** form, using its own URL/key. The saved computer list belongs to this phone. Each desktop manager connects only to its own companion and manages that computer's sessions.
 
-Sessions are grouped by computer and ordered by latest update. A temporary disconnect keeps the saved connection and Watch membership; other computers still work. Removing a remote computer only forgets it on this viewer, without stopping its backend or terminals. **Glance notifications** is a separate setup: saving a computer here does not register a watcher or change notification delivery.
+Phone sessions are grouped by computer and ordered by latest update. A temporary disconnect keeps the saved connection and Watch membership; other computers still work. Removing a computer from the phone only forgets its connection there, without stopping its backend or terminals. **Glance notifications** is a separate setup: saving a computer on the phone does not register a watcher or change notification delivery.
 
 ### Keys and the QR
 
@@ -221,12 +221,14 @@ Keep the sending computer running. A sender status of configured or an FCM accep
 
 ### Forward other computers to a center
 
-After the center is configured and registered, save both source and center on this viewer: phone **Connection** or desktop **Other computers**. Open the separate **Glance notifications** dialog:
+After the center is configured and registered, choose a setup method. From the phone, save source and center in **Connection**, then open **Glance notifications**:
 
 1. **Computer:** select the source that runs the task.
 2. **Send notifications:** choose **Through a central computer**.
 3. **Central computer:** select the center.
 4. Choose **Save notification settings**; repeat for other sources. The center itself uses **Directly from this computer**. The shown **Glance watcher** URL follows the sender/center; register that URL and its key in Glance separately.
+
+Or configure each source on its own desktop: open **Glance notifications**, choose **Through a central computer**, fill **Center URL** with `http://CENTER_IP:4317` and **Center connection key** with that center's plain key, then **Save notification settings**. These settings affect only this computer. The center is not added to desktop session viewing; its control key is used for registration and is not saved by the UI. The backend keeps a dedicated relay credential. An already saved center URL is prefilled; leave the key empty when keeping the same center.
 
 The same operation over SSH, on each Linux source:
 
@@ -243,7 +245,7 @@ To return a source to independent delivery use `even-pilot settings push direct`
 
 Windows tray: **Check for updates → Update to …**. Linux: `even-pilot update`, then `even-pilot update status`. The manager's **Updates** targets its serving computer; phone Hub targets the computer active when the dialog opens. Automatic checks can be disabled in the tray/Updates or with `even-pilot update off`.
 
-**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.4.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.5.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Even-Pilot**. Linux uses `even-pilot uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `even-pilot stop`; native terminals keep working.
 

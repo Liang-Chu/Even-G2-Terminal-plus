@@ -1,4 +1,21 @@
-# Release status — 1.1.4
+# Release status — 1.1.5
+
+1.1.5 limits each desktop manager to its serving companion. Only the phone restores a multi-computer viewing pool. Desktop notification forwarding has its own center URL and temporary registration key, without opening remote session streams or saving a remote viewer connection. Saving the same center without a new key preserves its dedicated relay credential and pending events. A two-step relay Save finishes against its captured source even if the dialog is closed programmatically; normal Close, Escape and reentry are blocked during that Save.
+
+Checked 2026-10-03:
+
+| Check | Result |
+| --- | --- |
+| Windows source | 360 passed, 6 Linux-only tests skipped; type checking and production build passed |
+| Linux source | 363 passed, 3 Windows-only tests skipped; type checking and production build passed |
+| Viewer scope | Desktop startup never contacts saved remote hosts, missing local credentials never fall back to a remote, and disconnecting an old remote viewer leaves its Watch unchanged; phone restoration still includes its saved computers |
+| Notifications | Transient center registration happens only on explicit Save; desktop source stays local; same-center readback retains the route; existing-route credential rotation survives Close/Escape/reentry attempts and writes exactly once to the captured source; focused viewer/UI/relay tests passed 28/28 |
+| Browser UI | Synthetic desktop shows one local session while the phone shows both devices; no desktop Other computers/local editor; URL/key/QR fits 640 × 323 px without scrolling; standalone center Save clears its key and adds no desktop session viewer |
+| Documentation | Bilingual guides match local desktop, phone aggregation and independent forwarding setup; 144 links and 32 heading anchors passed |
+
+Headless Linux `even-pilot open` prints a private authenticated manager link with its credential in the URL fragment, avoiding a manual desktop connection editor. Runtime packaging verifies inventories, identical Windows/Linux frontend assets, private credential exclusion and download checksums before publication. The installer lifecycle and old-version migration results below belong to 1.1.4; those scenarios were not repeated for this viewer/UI patch. Physical G2 verification remains pending, and the phone Hub package is installed separately.
+
+## 1.1.4 audit evidence (historical)
 
 1.1.4 fixes monitor restart coordination and stalled HTTP shutdown, simplifies desktop phone pairing, and indents G2 assistant rows. The new HTTP shutdown has a one-second connection drain and is idempotent; it closes only this server's connections before releasing the backend lock. Windows installation stops its own tray before shutdown and blocks competing starts while the installer is active. Older monitors are eligible for bounded process cleanup only after authenticated watcher-only shutdown acknowledgement, listener closure, and verification of their exact process identity and this installation's bundled runtime. Native CLI process trees are never terminated.
 
