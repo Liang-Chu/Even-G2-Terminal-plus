@@ -59,6 +59,25 @@ test("ordinary Claude sessions use official hooks, notify independently and rema
   assert.equal(runtime.store.state.transcript.at(-1)?.text, "Fixed login");
 });
 
+test("ordinary Claude refreshes readable question history without changing lifecycle or enabling control", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit", { prompt: "New prompt not committed yet" }); await f.observer.poll();
+  const runtime = f.host.getRuntime(s.key);
+  assert.equal(runtime.store.state.main.status, "running");
+  const question = { type: "assistant", sessionId: s.id, cwd: f.root, timestamp: new Date(Date.now() + 10).toISOString(),
+    message: { role: "assistant", content: [{ type: "tool_use", name: "AskUserQuestion", input: { questions: [{
+      question: "Which format?", options: [{ label: "Summary" }, { label: "Full" }], multiSelect: false,
+    }] } }] } };
+  await writeFile(s.path, (await readFile(s.path, "utf8")) + JSON.stringify(question) + "\n");
+  await f.observer.poll();
+  assert.match(runtime.store.state.transcript.at(-1)!.text, /Which format\?\n1\. Summary\n2\. Full/);
+  assert.equal(runtime.store.state.interactions?.length || 0, 0);
+  assert.deepEqual(runtime.store.state.capabilities, { prompt: false, interrupt: false });
+  assert.equal(runtime.store.state.main.status, "running"); assert.equal(f.journal.list().length, 0);
+  const count = f.events.length; await f.observer.poll();
+  assert.equal(f.events.length, count, "Unchanged transcript does not publish or rerender history");
+});
+
 test("completion waits for tracked children and authoritative background registries", async t => {
   const f = await fixture(t), s = await f.session();
   await s.emit("UserPromptSubmit", { prompt: "Work in parallel" });

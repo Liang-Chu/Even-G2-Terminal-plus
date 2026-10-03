@@ -39,8 +39,8 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <aside><section class="glasses-card"><div class="panel-heading"><div><span class="section-number">02</span><h2>G2 output</h2></div><span class="tiny-label">G2</span></div><div class="g2-screen"><div class="display-label"><span>LIVE DISPLAY PREVIEW</span><span id="g2-mode">STATUS</span></div><div id="g2-status" class="g2-status"></div><pre id="g2-preview"></pre></div><div class="glasses-footer"><span id="g2-connection">Preview · open in Even Hub for G2</span><button id="toggle-display" class="text-button">Tap / Open ↵</button></div><div class="g2-controls" aria-label="G2 preview controls"><button id="g2-sessions" class="text-button">Sessions</button><button id="g2-previous" class="text-button" aria-label="G2 previous">↑</button><button id="g2-next" class="text-button" aria-label="G2 next">↓</button><button id="g2-back" class="text-button">Back</button></div></section>
   <section class="details-card"><div class="panel-heading"><div><span class="section-number">03</span><h2>Runtime</h2></div></div><dl><div><dt>Activity</dt><dd id="tools">No active tools</dd></div><div><dt>Model</dt><dd id="model">—</dd></div><div><dt>Project</dt><dd id="cwd">—</dd></div><div><dt>Session</dt><dd id="session-id">—</dd></div></dl><div class="session-actions"><button id="manage-sessions" class="outline" disabled>Switch session ↗</button><button id="new-session" class="outline" disabled>＋ New</button></div><p id="monitor-summary" class="caption">Choose a session to open it. History is available separately.</p></section>
   <section class="notification-card"><span class="notification-icon">◌</span><div><h3>JOB DONE. YOU KNOW.</h3><p>Point your Glance watcher at this bridge to get a notification when a session finishes.</p><button id="show-glance" class="text-button">Glance connection details ↗</button></div></section></aside></div>
-  <footer class="page-footer"><span>EVEN-PILOT <span class="version">/ 1.1.1</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
-  <dialog id="settings"><form id="connection-form"><div class="dialog-heading"><div><div class="eyebrow">CONNECT YOUR COCKPIT</div><h2>Desktop bridge</h2></div><button id="close-settings" type="button" class="subtle" aria-label="Close settings">✕</button></div><p>Enter the desktop bridge address and connection key below. Use the desktop LAN or Tailscale address.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste desktop Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">URL and key are saved on this phone and restored when you reopen the app. Forget connection removes them.</p><button class="primary full" type="submit">Save computer ↗</button><div class="glance-details"><h3>Glance notifications</h3><p>Registration / polling URL: <code id="glance-url">http://&lt;PC-IP&gt;:4317/api/glance</code></p><p>Credential: use the <b>same connection key</b> as this app, or scan the same desktop QR in Glance. Choose a unique watcher name.</p><p class="caption">Choose PUSH in Glance, then Save and register. Each watched session returning to zero active agents triggers a push, except the session currently open on G2. POLL remains available at intervals of 15 minutes or longer.</p></div></form></dialog>`;
+  <footer class="page-footer"><span>EVEN-PILOT <span class="version">/ 1.1.2</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
+  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Choose a computer to view its sessions.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connection panel.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -48,22 +48,19 @@ const dialog = $<HTMLDialogElement>("settings");
 const updatesButton = document.createElement("button"); updatesButton.type = "button"; updatesButton.className = "subtle"; updatesButton.textContent = "Updates";
 document.querySelector(".header-right")!.append(updatesButton);
 void import("./updates/settings.js").then(({ UpdateSettings }) => { new UpdateSettings(() => client, updatesButton, desktopMode ? location.origin : undefined); });
-const notificationSettingsButton = document.createElement("button");
-notificationSettingsButton.type = "button"; notificationSettingsButton.className = "outline"; notificationSettingsButton.textContent = "Notification routing";
-document.querySelector(".glance-details")!.append(notificationSettingsButton);
+const notificationSettingsButton = $<HTMLButtonElement>("notification-settings");
 let notificationSettings: import("./notifications/settings.js").NotificationSettings | undefined;
-notificationSettingsButton.onclick = async () => {
+async function openNotificationSettings() {
   notificationSettings ||= new (await import("./notifications/settings.js")).NotificationSettings(() => client);
-  notificationSettings.open();
-};
-dialog.querySelector("h2")!.textContent = "Computers";
-dialog.querySelector("form > p")!.textContent = "Add each computer once. Sessions from all saved computers appear together.";
-dialog.querySelector(".caption")!.textContent = "All computer URLs and keys are saved on this device. Remove only forgets this connection; it does not stop the computer or its sessions.";
-const hostsList = document.createElement("div"); hostsList.className = "connection-hosts"; hostsList.setAttribute("aria-label", "Saved computers");
-const addHostButton = document.createElement("button"); addHostButton.type = "button"; addHostButton.className = "outline"; addHostButton.textContent = "+ Add computer";
-dialog.querySelector('label[for="bridge-url"]')!.before(hostsList, addHostButton);
+  dialog.close(); notificationSettings.open(desktopMode ? location.origin : undefined);
+}
+notificationSettingsButton.onclick = () => { void openNotificationSettings(); };
+const hostsList = $("connected-computers"), connectionEditor = $<HTMLDetailsElement>("connection-editor");
+let editingConnection = false;
 if (desktopMode) {
-  $("open-settings").textContent = "Bridge settings";
+  $("open-settings").textContent = "Connection";
+  dialog.querySelector("h2")!.textContent = "Other computers";
+  $("computers-caption").textContent = "This computer connects automatically. Add other computers to view their sessions here too.";
   document.querySelector(".page-heading")!.setAttribute("hidden", "");
   document.querySelector(".page-heading p")!.textContent = "Monitor sessions. Open a terminal. Send a prompt.";
   document.querySelector(".terminal-panel h2")!.textContent = "Send to selected terminal";
@@ -75,6 +72,8 @@ const hub = desktopMode ? undefined : new HubShell(view => {
   if (view === "sessions") void openSessions("browse");
   else render();
 });
+// Glance has its own device-specific dialog rather than another disclosure.
+if (hub) document.querySelector(".hub-glance")!.replaceWith(notificationSettingsButton);
 let online = false,
   pending = false;
 let client: FleetClient | undefined;
@@ -113,7 +112,7 @@ g2Diagnostics.innerHTML = '<summary>G2 input diagnostics</summary><p class="capt
 document.querySelector(".g2-controls")!.after(g2Diagnostics);
 const diagnosticText = g2Diagnostics.querySelector("textarea")!;
 function refreshInputTrace() {
-  diagnosticText.value = JSON.stringify({ version: "1.1.1", events: inputTrace }, null, 2);
+  diagnosticText.value = JSON.stringify({ version: "1.1.2", events: inputTrace }, null, 2);
 }
 g2Diagnostics.ontoggle = () => { if (g2Diagnostics.open) refreshInputTrace(); };
 g2Diagnostics.querySelector("button")!.onclick = async () => {
@@ -171,14 +170,17 @@ function showVoice(view: VoiceView) {
 }
 voice = new VoiceController({
   config: () => voiceSettings?.config() || { provider: "whisper", key: "", language: "" },
-  target: () => online && state.connected && state.capabilities?.prompt !== false && state.session.key && config && state.monitoring?.sessions.some(s => s.key === state.session.key && s.monitored)
+  target: () => online && state.connected && (state.capabilities?.prompt !== false || glasses.hasInteractionDraft()) && state.session.key && config && state.monitoring?.sessions.some(s => s.key === state.session.key && s.monitored)
     ? { key: state.session.key, connection: config.url } : undefined,
   mic: open => audioBridge ? audioBridge.audioControl(open, AudioInputSource.Glasses) : Promise.resolve(false),
   view: showVoice,
   send: async (text, target) => {
     if (!client || !online || config?.url !== target.connection || state.session.key !== target.key || pending) throw new Error("Session changed");
     pending = true; render();
-    try { await client.request("/api/prompt", { text, sessionKey: target.key, source: "g2" }); }
+    try {
+      if (await glasses.submitInteractionDraft(text, target.key)) return;
+      await client.request("/api/prompt", { text, sessionKey: target.key, source: "g2" });
+    }
     finally { pending = false; render(); }
   },
 });
@@ -206,15 +208,11 @@ let desktopSessions: import("./sessions/desktop.js").DesktopSessions | undefined
 if (desktopMode) {
   const [, { DesktopSessions }] = await Promise.all([import("./desktop.css"), import("./sessions/desktop.js")]);
   desktopSessions = new DesktopSessions(() => client, notice, () => { void openSessions("new"); });
-  const qrButton = document.createElement("button"); qrButton.className = "primary"; qrButton.textContent = "Phone URL & key";
-  document.querySelector(".header-right")!.append(qrButton);
-  qrButton.onclick = async () => {
-    if (!client || !online) { openSettings(); return; }
-    qrButton.disabled = true;
-    try { const { showPairing } = await import("./bridge/desktop-pairing.js"); await showPairing(client); }
-    catch (error) { notice(error instanceof Error ? error.message : "Connection code unavailable"); }
-    finally { qrButton.disabled = false; }
-  };
+  const otherComputers = document.createElement("button"); otherComputers.type = "button";
+  otherComputers.className = "subtle"; otherComputers.textContent = "Other computers"; otherComputers.onclick = openComputers;
+  const glanceButton = document.createElement("button"); glanceButton.type = "button";
+  glanceButton.className = "subtle"; glanceButton.textContent = "Glance"; glanceButton.onclick = () => { void openNotificationSettings(); };
+  document.querySelector(".header-right")!.append(otherComputers, glanceButton);
 }
 
 function notice(message: string) {
@@ -342,17 +340,31 @@ function render() {
   if (state.main.error) add("error", state.main.error);
   if (atBottom) log.scrollTop = log.scrollHeight;
 }
-function openSettings() {
+function openComputers() {
   $("connection-error")?.remove();
-  $<HTMLInputElement>("bridge-url").value = config?.url || "";
-  $<HTMLInputElement>("bridge-token").value = config?.token || "";
-  updateGlanceUrl();
+  clearConnectionEditor();
   renderHosts();
-  dialog.showModal();
+  if (!dialog.open) dialog.showModal();
 }
-function updateGlanceUrl() {
-  const origin = $<HTMLInputElement>("bridge-url").value.replace(/\/$/, "");
-  $("glance-url").textContent = origin ? origin + "/api/glance" : "—";
+function openSettings() {
+  if (!desktopMode) { openComputers(); return; }
+  const button = $<HTMLButtonElement>("open-settings");
+  if (button.disabled) return;
+  button.disabled = true;
+  void (async () => {
+    if (!client?.hosts().some(host => host.url === location.origin && host.online))
+      throw new Error("This computer is reconnecting. Open its Even-Pilot desktop companion to restore the connection.");
+    const { showPairing } = await import("./bridge/desktop-pairing.js");
+    await showPairing({ request: (path, data) => client!.requestFrom(location.origin, path, data) });
+  })().catch(error => notice(error instanceof Error ? error.message : "Phone connection details unavailable"))
+    .finally(() => { button.disabled = false; });
+}
+function clearConnectionEditor() {
+  editingConnection = false; connectionEditor.open = false;
+  connectionEditor.querySelector("summary")!.textContent = "Connect another computer";
+  $<HTMLInputElement>("bridge-url").value = ""; $<HTMLInputElement>("bridge-token").value = "";
+  $("connection-editor-title").textContent = "Connect another computer";
+  $("connection-form").querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent = "Connect computer";
 }
 let connectionAttempt = 0;
 async function restorePhoneConnection(bridge: EvenAppBridge) {
@@ -385,7 +397,7 @@ function fleet() {
   client = candidate; glasses.setStorageScope("computers"); return candidate;
 }
 async function restoreConnections() {
-  const saved = connectionSettings.all(), active = connectionSettings.current()?.url, target = fleet();
+  const saved = connectionSettings.all(), active = desktopMode ? location.origin : connectionSettings.current()?.url, target = fleet();
   for (const existing of target.connections()) if (!saved.some(item => item.url === existing.url)) target.remove(existing.url);
   for (const next of saved) {
     if (!target.connections().some(item => item.url === next.url && item.token === next.token)) await target.add(next, true, false);
@@ -406,41 +418,52 @@ function renderHosts() {
   const hosts = client?.hosts() || [], signature = JSON.stringify([hosts, client?.activeUrl()]);
   if (signature === hostsSignature) return;
   hostsSignature = signature; hostsList.replaceChildren();
+  if (!hosts.length) { const empty = document.createElement("p"); empty.className = "caption";
+    empty.textContent = "No computers connected. Connect a computer below to see its sessions."; hostsList.append(empty); }
   for (const host of hosts) {
     const row = document.createElement("div"); row.className = "connection-host";
     const info = document.createElement("div"), name = document.createElement("strong"), detail = document.createElement("small");
-    name.textContent = `${host.name} · ${host.online ? "Connected" : "Reconnecting"}`;
+    const local = desktopMode && host.url === location.origin;
+    const status = host.online ? "Connected" : host.warning?.startsWith("Connection key rejected.") ? "Key rejected" : "Reconnecting";
+    name.textContent = `${host.name}${local ? " · This computer" : ""} · ${status}`;
     detail.textContent = host.url || ""; info.append(name, detail);
     if (host.warning) { const warning = document.createElement("small"); warning.textContent = host.warning; info.append(warning); }
     const actions = document.createElement("div"); actions.className = "connection-host-actions";
-    const edit = document.createElement("button"); edit.type = "button"; edit.className = "text-button"; edit.textContent = "Settings";
+    const edit = document.createElement("button"); edit.type = "button"; edit.className = "text-button"; edit.textContent = "Edit connection";
     edit.onclick = () => { const saved = client?.connections().find(item => item.url === host.url); if (!saved) return;
-      $<HTMLInputElement>("bridge-url").value = saved.url; $<HTMLInputElement>("bridge-token").value = saved.token; updateGlanceUrl(); };
+      editingConnection = true; $("connection-error")?.remove();
+      connectionEditor.querySelector("summary")!.textContent = "Edit connection";
+      $<HTMLInputElement>("bridge-url").value = saved.url; $<HTMLInputElement>("bridge-token").value = saved.token;
+      $("connection-editor-title").textContent = `Edit ${host.name}`;
+      $("connection-form").querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent = "Save connection";
+      connectionEditor.open = true; $<HTMLInputElement>("bridge-url").focus(); };
     const choose = document.createElement("button"); choose.type = "button"; choose.className = "text-button";
-    choose.textContent = client?.activeUrl() === host.url ? "Selected" : "Select";
-    choose.disabled = client?.activeUrl() === host.url;
-    choose.onclick = () => { voice?.cancel(); client?.choose(host.url!); };
+    choose.textContent = "View sessions"; choose.disabled = !host.online;
+    choose.onclick = () => { voice?.cancel(); client?.choose(host.url!); dialog.close(); void openSessions("browse"); };
     const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button"; remove.textContent = "Remove";
     remove.onclick = () => { void removeConnection(host.url!); };
-    actions.append(choose, edit, remove); row.append(info, actions); hostsList.append(row);
+    actions.append(choose); if (!local) actions.append(edit, remove); row.append(info, actions); hostsList.append(row);
   }
 }
 async function removeConnection(url: string) {
   connectionAttempt++; voice?.cancel();
   const cleared = await connectionSettings.remove(url);
   client?.remove(url); config = client?.activeConnection();
-  $<HTMLInputElement>("bridge-token").value = ""; $<HTMLInputElement>("bridge-url").value = ""; updateGlanceUrl();
+  clearConnectionEditor();
   notice(cleared ? "Computer removed from this device. Its Watch settings and terminals are unchanged." : "Removed here, but saved storage could not be updated. Try again.");
 }
 $("open-settings").onclick = openSettings;
-$("show-glance").onclick = openSettings;
+$("show-glance").onclick = () => { void openNotificationSettings(); };
 $("close-settings").onclick = () => dialog.close();
-dialog.addEventListener("close", () => { $<HTMLInputElement>("bridge-token").value = ""; });
-addHostButton.onclick = () => {
-  $("connection-error")?.remove(); $<HTMLInputElement>("bridge-token").value = ""; $<HTMLInputElement>("bridge-url").value = "";
-  updateGlanceUrl(); $<HTMLInputElement>("bridge-url").focus();
+dialog.addEventListener("close", clearConnectionEditor);
+connectionEditor.ontoggle = () => {
+  if (!connectionEditor.open) { clearConnectionEditor(); return; }
+  if (!editingConnection) {
+    $("connection-error")?.remove(); $<HTMLInputElement>("bridge-token").value = ""; $<HTMLInputElement>("bridge-url").value = "";
+    $<HTMLInputElement>("bridge-url").focus();
+  }
 };
-$("bridge-url").oninput = updateGlanceUrl;
+$("cancel-connection-edit").onclick = clearConnectionEditor;
 $("toggle-display").onclick = () => glasses.toggle();
 $("g2-sessions").onclick = () => { void glasses.openSessions(); };
 $("g2-previous").onclick = () => glasses.scroll(-1);
@@ -476,7 +499,7 @@ $("connection-form").onsubmit = async (event) => {
     message.textContent =
       error instanceof Error ? error.message : "Invalid connection";
     $("connection-form").append(message);
-  } finally { submit.disabled = false; submit.textContent = "Save computer ↗"; }
+  } finally { submit.disabled = false; submit.textContent = editingConnection ? "Save connection" : "Connect computer"; }
 };
 $("prompt-form").onsubmit = async (event) => {
   event.preventDefault();
@@ -529,4 +552,3 @@ void (async () => {
   await restoreConnections();
   if (pairedOnLaunch && launchConnection) await connect(launchConnection);
 })().catch(error => { notice(error.message); openSettings(); });
-$("connection-form").querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent = "Save computer ↗";

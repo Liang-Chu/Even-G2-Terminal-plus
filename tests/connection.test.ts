@@ -35,11 +35,20 @@ test("connection verification checks a real backend before saving and reports fe
   });
   assert.deepEqual(await client.verify(), state);
   mock.mock.mockImplementation(async () => Response.json({ error: "Check key" }, { status: 401 }));
-  await assert.rejects(client.verify(), /Check key/);
+  await assert.rejects(client.verify(), /Connection key rejected.*update this computer’s key/);
   mock.mock.mockImplementation(async () => Response.json({ unrelated: true }));
   await assert.rejects(client.verify(), /did not return an Even-Pilot/);
   mock.mock.mockImplementation(async () => { throw new TypeError("Failed to fetch"); });
   await assert.rejects(client.verify(), error => { assert.match(String(error), /network whitelist/); assert.ok(!String(error).includes(key)); return true; });
+});
+
+test("a rejected stream reports a key repair action without echoing credentials", async t => {
+  const errors: string[] = [];
+  t.mock.method(globalThis, "fetch", async () => Response.json({ error: key }, { status: 401 }));
+  const client = new BridgeClient({ url: "http://100.64.0.2:4317", token: key }, () => {}, (_online, message) => { if (message) errors.push(message); }, () => {});
+  t.after(() => client.disconnect()); client.connect(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(errors.length, 1); assert.match(errors[0], /Connection key rejected.*Open Connection/);
+  assert(!errors[0].includes(key));
 });
 
 test("a superseded stream cannot report old state or reconnecting after the new stream is online", async t => {

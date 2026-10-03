@@ -7,8 +7,17 @@ import { resolveAgent } from "../../../../packages/connectors/command.js";
 import { writeLocalJson } from "../../../../packages/pi-runtime/native-protocol.js";
 import { claudeProcessIdentity } from "./claude-interrupt.js";
 import { executable, shellQuote } from "../../../linux/src/platform.js";
+import { CLAUDE_QUESTION_TIMEOUT_MS } from "./claude-question-relay.js";
 
 const psLiteral = (value: string) => "'" + value.replace(/'/g, "''") + "'";
+export function claudeHookSettings(command: string): { hooks: Record<string, { matcher?: string; hooks: { type: string; command: string; timeout: number }[] }[]> } {
+  const hookNames = ["SessionStart", "UserPromptSubmit", "Stop", "StopFailure", "SubagentStart", "SubagentStop",
+    "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "SessionEnd"];
+  return { hooks: Object.fromEntries(hookNames.map(name => [name, name === "PreToolUse" ? [
+    { matcher: "^(?!AskUserQuestion$).*", hooks: [{ type: "command", command, timeout: 2 }] },
+    { matcher: "AskUserQuestion", hooks: [{ type: "command", command, timeout: CLAUDE_QUESTION_TIMEOUT_MS / 1000 + 10 }] },
+  ] : [{ hooks: [{ type: "command", command, timeout: 2 }] }]])) };
+}
 export async function claudeTerminal(options: { data: string; cwd: string; id?: string; resume?: boolean }) {
   const id = options.id || randomUUID(), runDirectory = join(options.data, "connector-runtime", randomUUID());
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
@@ -19,10 +28,8 @@ export async function claudeTerminal(options: { data: string; cwd: string; id?: 
   const hookScript = "$OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::new(); [Console]::In.ReadToEnd() | & " + hookArgs.map(psLiteral).join(" ");
   const hookCommand = process.platform === "linux" ? hookArgs.map(shellQuote).join(" ")
     : "powershell.exe -NoProfile -NonInteractive -EncodedCommand " + Buffer.from(hookScript, "utf16le").toString("base64");
-  const hookNames = ["SessionStart", "UserPromptSubmit", "Stop", "StopFailure", "SubagentStart", "SubagentStop",
-    "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "SessionEnd"];
   const settings = join(runDirectory, "settings.json"), mcp = join(runDirectory, "mcp.json");
-  writeLocalJson(settings, { hooks: Object.fromEntries(hookNames.map(name => [name, [{ hooks: [{ type: "command", command: hookCommand, timeout: 2 }] }]])) });
+  writeLocalJson(settings, claudeHookSettings(hookCommand));
   writeLocalJson(mcp, { mcpServers: { "even-pilot": { command: process.execPath,
     args: ["--import", loader, channel, options.data, runDirectory, options.cwd, id] } } });
   const command = resolveAgent("claude");

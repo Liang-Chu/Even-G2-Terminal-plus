@@ -87,7 +87,7 @@ export class DesktopSessions {
       identity.append(element("strong", name), element("small", session.cwd));
       identity.append(element("small", (session.source ? session.source.name + " · " : "") + (session.tunnel || "pi").toUpperCase() + " · " + (session.model || "—")));
       const badge = element("span", session.source?.online === false ? "HOST OFFLINE" : session.live ? session.runtimeStatus.toUpperCase() : "NOT CONNECTED", "session-badge");
-      badge.title = session.live ? "Live terminal monitor connected" : "Saved session only. Codex/Claude terminals started directly must be reopened through Even-Pilot while idle to enable live monitoring.";
+      badge.title = session.live ? "Live terminal monitor connected" : "Saved session; no live terminal activity detected.";
       if (session.live && session.runtimeStatus === "running") badge.classList.add("running");
       const detail = element("div", "", "desktop-session-detail"); detail.append(badge);
       if (selected) detail.append(element("span", "SELECTED", "session-badge"));

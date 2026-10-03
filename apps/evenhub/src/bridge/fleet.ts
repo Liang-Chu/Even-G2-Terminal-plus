@@ -72,9 +72,13 @@ export class FleetClient implements BridgeApi {
   private emit() {
     this.revision++;
     const sources = this.hosts(), online = sources.filter(host => host.online).length;
+    const offline = sources.filter(host => !host.online);
+    const rejected = offline.filter(host => host.warning?.startsWith("Connection key rejected."));
+    const retrying = offline.filter(host => !rejected.includes(host));
+    const messages = rejected.map(host => `${host.name}: ${host.warning}`);
+    if (retrying.length) messages.push(`${retrying.map(host => host.name).join(", ")} offline · reconnecting; Watch retained`);
     this.syncPresence(); this.onState(this.snapshot());
-    this.onConnection(online > 0, sources.length && online < sources.length
-      ? `${sources.filter(host => !host.online).map(host => host.name).join(", ")} offline · reconnecting; Watch retained` : undefined);
+    this.onConnection(online > 0, messages.length ? messages.join(" · ") : undefined);
   }
   private async metadata(host: Host) {
     if (Date.now() - host.metadataAt < 60_000) return;

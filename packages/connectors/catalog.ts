@@ -9,6 +9,7 @@ import { readLocalJson, writeLocalJson } from "../pi-runtime/native-protocol.js"
 import { connectorKey } from "./identity.js";
 import { resolveAgent } from "./command.js";
 import { stdioRpc, type AgentRpc } from "./rpc.js";
+import { claudeQuestionText } from "./claude-questions.js";
 
 export function codexHistory(thread: any): SessionHistory {
   const messages: SessionHistory["messages"] = [];
@@ -55,7 +56,9 @@ export function claudeHistory(content: string, path: string, modified: number): 
     if (!message || !["user", "assistant"].includes(message.role)) continue;
     if (typeof message.model === "string" && !message.model.startsWith("<")) model = message.model;
     const text = typeof message.content === "string" ? message.content : Array.isArray(message.content)
-      ? message.content.filter((part: any) => part.type === "text" && typeof part.text === "string").map((part: any) => part.text).join("\n") : "";
+      ? message.content.flatMap((part: any) => part.type === "text" && typeof part.text === "string" ? [part.text]
+        : message.role === "assistant" && part.type === "tool_use" && part.name === "AskUserQuestion"
+          ? [claudeQuestionText(part.input) || ""].filter(Boolean) : []).join("\n") : "";
     if (text) messages.push({ role: message.role, text: text.slice(-32_000), at: Date.parse(row.timestamp) || 0 });
   }
   // Never include subagent files or silently guess a session ID from its path.

@@ -10,7 +10,7 @@ import type { SessionSummary } from "../sessions/panel.js";
 import { shortLine, textPages } from "./text.js";
 import { glassesMessages } from "../../../../packages/cockpit-state/g2-reply.js";
 import { CanvasG2Renderer, G2_READING_PADDING, pngBytes, type G2Renderer, type G2Tile } from "./renderer.js";
-import { BACK_MENU_ID, SEND_MENU_ID, SESSIONS_MENU_ID, STOP_MENU_ID, PREVIOUS_PART_MENU_ID, NEXT_PART_MENU_ID, GESTURE_CONTAINER_ID, CONFIRM_CONTAINER_ID, nativeTexts, nativeBody, nativeLabel, nativeHeading, nativeLayout, nativeLayoutKey, type NativeFrame, type NativeListEntry } from "./native.js";
+import { BACK_MENU_ID, SEND_MENU_ID, SESSIONS_MENU_ID, STOP_MENU_ID, PREVIOUS_PART_MENU_ID, NEXT_PART_MENU_ID, GESTURE_CONTAINER_ID, CONFIRM_CONTAINER_ID, CHOICE_CONTAINER_ID, nativeTexts, nativeBody, nativeLabel, nativeHeading, nativeLayout, nativeLayoutKey, type NativeFrame, type NativeListEntry } from "./native.js";
 import { MessageBrowser, nativeTextPrefix } from "./messages.js";
 import { TapGestures } from "./tap-gestures.js";
 import { bridgeBatch, serialBridge } from "../bridge/serial.js";
@@ -108,6 +108,7 @@ export class G2Display {
   private choiceHidden = false;
   private choiceSending = false;
   private choiceNotice = "";
+  private interactionDraft?: { key: string; requestId: string; questionId: string; sent: boolean };
   private taps = new TapGestures({
     single: () => this.toggle(),
     double: () => {
@@ -220,7 +221,8 @@ export class G2Display {
       this.lastNativeHeading = frame.heading || "";
     }
     if (frame.confirmation && this.draftConfirmation) this.draftConfirmation.selected = 0;
-    if (frame.entries && !frame.conversationList && !frame.confirmation) this.selection = this.sessions.findIndex(session => session.key === frame.entries![0].key);
+    if (frame.choice) this.choiceIndex = 0;
+    if (frame.entries && !frame.conversationList && !frame.confirmation && !frame.choice) this.selection = this.sessions.findIndex(session => session.key === frame.entries![0].key);
     return frame;
   }
   private connectedNotice() { this.connection(this.compatibilityReason ? `G2 connected · basic view${this.compactLabels ? " · compact labels" : ""} (${this.compatibilityReason})`
@@ -298,10 +300,13 @@ export class G2Display {
       state.main.status !== previous?.main.status || !previous || sessionAgentCount(state, online) !== sessionAgentCount(previous, this.online) ||
       state.source?.online !== previous?.source?.online || state.interactions?.[0]?.id !== previous?.interactions?.[0]?.id;
     const changed = state.session.key !== this.state?.session.key;
-    if (changed) { this.taps.reset(); this.stopNotice = undefined; this.resetReading(); this.composer = undefined; this.draftConfirmation = undefined; this.options.input?.cancel?.(); }
+    if (changed) { this.taps.reset(); this.stopNotice = undefined; this.resetReading(); this.composer = undefined; this.draftConfirmation = undefined; this.interactionDraft = undefined; this.options.input?.cancel?.(); }
     this.state = state; this.online = online;
     const choiceId = (state.session.key || "") + ":" + (state.interactions?.[0]?.id || "");
     if (choiceId !== this.choiceId) {
+      if (this.interactionDraft && this.interactionDraft.requestId !== state.interactions?.[0]?.id) {
+        this.options.input?.cancel?.(); this.composer = undefined; this.draftConfirmation = undefined;
+      }
       this.choiceId = choiceId;
       this.choiceIndex = 0; this.choiceHidden = false; this.choiceSending = false; this.choiceNotice = "";
     }
@@ -350,12 +355,13 @@ export class G2Display {
     if (this.state?.capabilities?.prompt === false) {
       this.stopNotice = { key: this.state.session.key!, text: "Continue in the original terminal.", until: Date.now() + 5000 }; this.schedule(); return;
     }
+    this.interactionDraft = undefined;
     this.messages.selectInput(); this.options.input?.open();
   }
   private confirmDraftExit() {
     if (!this.composer || this.draftConfirmation) return;
     if (!(this.options.input?.hasDraft?.() ?? !!this.composer.text.trim())) {
-      this.options.input?.cancel?.(); this.setComposer(); return;
+      this.interactionDraft = undefined; this.options.input?.cancel?.(); this.setComposer(); return;
     }
     this.draftConfirmation = { selected: 0 };
     this.options.input?.stopDeleting?.(); this.options.input?.pause?.();
@@ -367,7 +373,7 @@ export class G2Display {
     const send = this.draftConfirmation.selected === 0;
     this.draftConfirmation = undefined;
     if (send && this.options.input?.finish) this.options.input.finish();
-    else { this.options.input?.cancel?.(); this.setComposer(); }
+    else { this.interactionDraft = undefined; this.options.input?.cancel?.(); this.setComposer(); }
     this.schedule();
   }
   handleEvent(event: EvenHubEvent) {
@@ -394,7 +400,7 @@ export class G2Display {
     if (this.diagnosing && ![4, 5, 6, 7].includes(event.sysEvent?.eventType ?? -1)) return;
     if (this.draftConfirmation && event.menuItemClickEvent && event.menuItemClickEvent.itemID !== BACK_MENU_ID) return;
     if (event.menuItemClickEvent?.itemID === BACK_MENU_ID) {
-      if (this.composer || this.messages.detail) this.back();
+      if (this.composer || this.messages.detail || this.choice()) this.back();
       return;
     }
     if (event.menuItemClickEvent?.itemID === SESSIONS_MENU_ID) { void this.openSessions(); return; }
@@ -426,6 +432,19 @@ export class G2Display {
       return;
     }
     if (event.listEvent?.containerID === CONFIRM_CONTAINER_ID) return;
+    if (this.choice() && this.nativeFrame?.choice && event.listEvent) {
+      if (this.rebuilding) return;
+      const list = event.listEvent, type = list.eventType ?? 0;
+      if (list.containerID !== undefined && list.containerID !== CHOICE_CONTAINER_ID) return;
+      if (type === 3) { this.taps.input(type); return; }
+      const index = list.currentSelectItemIndex ?? 0;
+      if (!this.nativeFrame.entries?.[index]) return;
+      this.choiceIndex = index;
+      // Firmware owns list focus. Scrolling must not rebuild/reset its rows.
+      if (type === 0) this.taps.input(type);
+      return;
+    }
+    if (event.listEvent?.containerID === CHOICE_CONTAINER_ID) return;
     const overview = this.mode === "terminal" && !this.composer && !this.choice() && !this.messages.detail;
     if (overview && event.listEvent) {
       if (this.rebuilding) return;
@@ -492,7 +511,7 @@ export class G2Display {
     }
     const choice = this.choice();
     if (choice) {
-      this.choiceIndex = Math.max(0, Math.min(choice.questions[0].options.length - 1, this.choiceIndex + direction));
+      this.choiceIndex = Math.max(0, Math.min(this.choiceCount(choice) - 1, this.choiceIndex + direction));
       this.schedule(); return;
     }
     if (this.composer) {
@@ -518,7 +537,7 @@ export class G2Display {
       this.resetReading();
       this.schedule(); return;
     }
-    if (this.composer) { this.options.input?.cancel?.(); this.setComposer(); }
+    if (this.composer) { this.interactionDraft = undefined; this.options.input?.cancel?.(); this.setComposer(); }
     this.resetReading();
     this.sessionRequest++; this.sessionLoading = false; this.sessionError = ""; this.mode = "terminal"; this.schedule();
   }
@@ -586,11 +605,30 @@ export class G2Display {
   }
   private choiceBody(request: Interaction, index: number) {
     const q = request.questions[0], option = q.options[index];
-    return [q.text, request.detail, option ? `▶ ${index + 1}/${q.options.length} ${option.label}` : "",
+    return [q.text, request.detail, option ? `▶ ${index + 1}/${this.choiceCount(request)} ${option.label}` : q.allowText ? "▶ Other / enter answer" : "",
       option?.description].filter(Boolean).join("\n");
   }
   private canAnswerChoice(request: Interaction) {
-    return glassesInteraction(request) && request.questions[0].options.every((_, i) => this.lines(this.choiceBody(request, i)).length <= 7);
+    return glassesInteraction(request) && Array.from({ length: this.choiceCount(request) }, (_, i) => i)
+      .every(i => this.lines(this.choiceBody(request, i)).length <= 7);
+  }
+  private choiceCount(request: Interaction) { const q = request.questions[0]; return q.options.length + (q.allowText ? 1 : 0); }
+  /** The editor is bound to a current question, never redirected into a new prompt. */
+  hasInteractionDraft() {
+    const draft = this.interactionDraft, request = this.state?.interactions?.[0];
+    return !!draft && !draft.sent && this.online && !!this.state?.connected && draft.key === this.state.session.key
+      && request?.id === draft.requestId && request.expiresAt > Date.now();
+  }
+  async submitInteractionDraft(text: string, key: string): Promise<boolean> {
+    const draft = this.interactionDraft;
+    if (!draft) return false;
+    if (draft.key !== key || !this.hasInteractionDraft() || !this.options.respond)
+      throw new Error("Question changed or disconnected. Answer was not sent.");
+    if (!text.trim() || text.length > 8000) throw new Error("Enter an answer of at most 8000 characters.");
+    // Claim before sending. An uncertain acknowledgement must not become a retry or prompt.
+    draft.sent = true;
+    await this.options.respond(key, { requestId: draft.requestId, answers: { [draft.questionId]: text.trim() } });
+    return true;
   }
   private hideChoice() { this.choiceHidden = true; this.resetReading(); this.schedule(); }
   private async answerChoice() {
@@ -600,6 +638,10 @@ export class G2Display {
     if (!this.canAnswerChoice(choice)) { this.choiceNotice = "Review and answer on phone."; this.schedule(); return; }
     if (choice.expiresAt <= Date.now()) { this.choiceNotice = "Choice expired. Refresh on phone."; this.schedule(); return; }
     const question = choice.questions[0], option = question.options[this.choiceIndex];
+    if (!option && question.allowText && this.choiceIndex === question.options.length) {
+      this.interactionDraft = { key, requestId: choice.id, questionId: question.id, sent: false };
+      this.choiceHidden = true; this.options.input?.open(); this.schedule(); return;
+    }
     if (!option) return;
     const identity = this.choiceId;
     this.choiceSending = true; this.choiceNotice = "Submitting…"; this.schedule();
@@ -699,6 +741,15 @@ export class G2Display {
         heading: this.sessionSwitching ? "Opening session…" : "Sessions" };
     }
     const key = this.state?.session.key || "";
+    const choice = this.choice();
+    if (choice && choice.kind !== "approval" && this.canAnswerChoice(choice)) {
+      const q = choice.questions[0];
+      const entries: NativeListEntry[] = q.options.map(option => ({ key: option.id,
+        label: nativeLabel(option.label + (option.description ? " — " + option.description : "")) }));
+      if (q.allowText) entries.push({ key: "other-input", label: "Other / enter answer" });
+      return { body: "", entries, picker: true, choice: true, sessionKey: key,
+        heading: nativeHeading(q.text), layoutKey: "choice:" + JSON.stringify([key, choice.id, entries]) };
+    }
     if (this.mode === "terminal" && !key) return { body: parts[2], plain: true, heading: "Even-Pilot", layoutKey: "connection-notice" };
     if (this.mode === "terminal" && !this.composer && !this.choice()) {
       const detail = this.messages.detail;
@@ -797,7 +848,7 @@ export class G2Display {
           if (!accepted) throw new DisplayError("heading update rejected");
           if (epoch === this.displayEpoch) this.lastNativeHeading = frame.heading || "";
         }
-        if (frame.picker && frame.conversationList) {
+        if (frame.picker && (frame.conversationList || frame.choice)) {
           const signature = frame.footer || "";
           if (this.lastNativeTexts.get(7) !== signature) {
             const accepted = await this.bridge.textContainerUpgrade(new TextContainerUpgrade({ containerID: 7, containerName: "pilot-hint", content: signature }));
@@ -854,7 +905,7 @@ export class G2Display {
   private renderPreview(frame: NativeFrame, parts: string[]) {
     const previewKey = JSON.stringify([!!frame.picker, !!frame.plain, frame.footer, ...parts]);
     if (previewKey === this.lastRendered) return;
-    this.renderedTiles = this.renderer!.render({ prefix: parts[0], title: parts[1], body: parts[2], status: parts[3], footer: frame.footer || parts[4], bodyPadding: frame.detail ? G2_READING_PADDING : 0, list: frame.conversationList || frame.confirmation ? { labels: frame.entries!.map(entry => entry.label), selected: frame.confirmation ? this.draftConfirmation?.selected || 0 : this.messages.selectedRow(frame.entries!) } : undefined }, Date.now(), !frame.picker && !frame.plain);
+    this.renderedTiles = this.renderer!.render({ prefix: parts[0], title: parts[1], body: parts[2], status: parts[3], footer: frame.footer || parts[4], bodyPadding: frame.detail ? G2_READING_PADDING : 0, list: frame.conversationList || frame.confirmation || frame.choice ? { labels: frame.entries!.map(entry => entry.label), selected: frame.confirmation ? this.draftConfirmation?.selected || 0 : frame.choice ? this.choiceIndex : this.messages.selectedRow(frame.entries!) } : undefined }, Date.now(), !frame.picker && !frame.plain);
     this.lastRendered = previewKey;
     if (this.renderer!.canvas) this.options.frame?.(this.renderer!.canvas);
   }

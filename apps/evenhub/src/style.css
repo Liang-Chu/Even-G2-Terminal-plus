@@ -628,6 +628,14 @@ dialog {
 .connection-host small { font-size: 11px; margin-top: 5px; }
 .connection-host-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .connection-host-actions button { font-size: 11px; }
+.computer-settings { max-height: 88dvh; overflow-y: auto; }
+.computer-settings #connection-editor { margin-top: 12px; }
+.computer-settings #connection-editor > summary { border: 1px solid #111; padding: 12px; font-size: 13px; cursor: pointer; }
+.computer-settings #connection-form { border: 1px solid #bbb; border-top: 0; padding: 16px; }
+.computer-settings #connection-form h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.connection-editor-actions { display: flex; gap: 10px; margin-top: 16px; }
+.connection-editor-actions button { min-height: 40px; }
+.computer-settings > #notification-settings { width: 100%; margin-top: 16px; }
 .session-source { display: block; font-size: 11px; font-weight: bold; margin-top: 6px; }
 @media (max-width: 600px) { .connection-host { align-items: flex-start; flex-direction: column; } }
 dialog::backdrop {
@@ -670,14 +678,19 @@ dialog input:focus {
 .notification-settings select { display: block; width: 100%; margin-top: 8px; min-height: 42px; padding: 8px; color: #111; background: #fff; border: 1px solid #111; font: inherit; }
 .notification-settings > .primary { width: 100%; margin-top: 16px; }
 .notification-settings .relay-sources p { border-top: 1px solid #ddd; padding-top: 10px; }
+.notification-settings { max-height: 88dvh; overflow-y: auto; }
+.notification-settings [data-notification-destination][hidden] { display: none; }
+.notification-connection { border-block: 1px solid #bbb; padding: 12px 0; margin-top: 16px; }
+.notification-connection h3 { font-size: 14px; font-weight: 600; margin: 0; }
+.notification-connection code { display: block; overflow-wrap: anywhere; font-size: 12px; }
 .full {
   width: 100%;
   margin-top: 12px;
 }
 .glance-details {
   border-top: 1px dashed #111;
-  padding-top: 20px;
-  margin-top: 24px;
+  padding-top: 12px;
+  margin-top: 16px;
 }
 .glance-details code {
   overflow-wrap: anywhere;

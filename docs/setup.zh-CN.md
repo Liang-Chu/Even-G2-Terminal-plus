@@ -1,0 +1,266 @@
+# 首次安装、连接和日常操作
+
+从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Even-Pilot 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
+
+## 先分清四个部分
+
+| 部分 | 安装位置 | 作用 |
+| --- | --- | --- |
+| Windows EXE／Linux `.run` | 每台需要监控的电脑 | 读取本机 CLI 状态、保存 Watch、提供 4317 端口的 API 和管理页 |
+| Even Hub `.ehpk` | 手机的 Even Hub | 同时连接多台电脑，控制 G2 显示和输入 |
+| 原生 Pi／Codex／Claude | 原来的电脑、原来的系统用户 | 执行任务，保存完整输出及模型登录 |
+| Glance，可选 | 手机 | 接收已配置发送端的完成通知 |
+
+Even-Pilot 是监控和简单会话管理端。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
+
+## 安装电脑端
+
+### Windows
+
+1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.2-Setup-x64.exe`。
+2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
+3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
+4. 托盘右键显示运行状态，并提供 **Open Even-Pilot**、**Start with Windows**、更新和 **Quit Even-Pilot**。Quit 只退出托盘，保留独立后台和原生终端。
+
+默认安装目录是 `%LOCALAPPDATA%\Programs\Even-Pilot`；检测到便携安装时，安装器可能在原目录升级。ZIP 是可选便携版，需完整解压到专用文件夹再运行 `Even-Pilot.exe`，不能只复制一个 EXE。Windows 二进制尚未签名。
+
+### Linux（无头或桌面）
+
+本包面向 x64/glibc，实测基准为无头 Ubuntu 26.04 LTS，不适用于 Alpine/musl。以普通用户执行，**不要加 sudo**：
+
+```sh
+sh ./Even-Pilot-1.1.2-Setup-linux-x64.run
+```
+
+程序安装到 `~/.local/lib/even-pilot`，命令位于 `~/.local/bin/even-pilot`；安装器给支持的 shell 添加可移除的 PATH 配置，并启动后台。新开一个 shell 后可直接输入短命令。当前终端先用完整路径，或执行安装器打印的 PATH 命令。这是当前用户的全局命令，不是 npm 全局包。
+
+```sh
+even-pilot status
+even-pilot pair
+```
+
+无桌面时也能完整管理：
+
+```sh
+even-pilot start
+even-pilot sessions
+even-pilot pair
+```
+
+`pair` 只打印 URL/key/Glance 二维码，不负责启动服务器。直接运行 `even-pilot` 等于 `open`：启动后台、应用桌面最近 24 小时的 Watch 默认规则，然后打开浏览器或打印管理地址。只想查看、不重置默认 Watch 时使用 `sessions`。
+
+systemd 机器要在 SSH 登出后、重启后继续运行：
+
+```sh
+even-pilot autostart on
+sudo loginctl enable-linger "$(id -un)"
+```
+
+Lingering 是系统用户服务策略，安装器不会擅自开启。没有用户 systemd 时使用独立后台进程；图形登录可用 XDG autostart，无头环境则需自己的进程管理器处理重启自启动。[Linux 细节](linux.md)
+
+无头打开 CLI 需系统 `tmux`，Claude 远程连接器另需 `python3`。安装器不自动安装这两项；Ubuntu/Debian 可执行 `sudo apt install tmux python3`。
+
+## 让已有 CLI 接入
+
+后台必须与 CLI 使用同一个系统用户和配置目录。列表里有历史记录，不代表已经接入实时输入通道。
+
+| CLI | 首次接入 | 远程能力 |
+| --- | --- | --- |
+| Pi | 已有终端等空闲后 `/reload`；新终端自动加载监控扩展 | 状态、prompt、支持的原生命令和取消 |
+| Codex CLI／Codex Desktop 本地会话 | 无需插件或重开；新会话保存第一条 prompt 后被发现 | 普通会话只读；prompt／控制需要连接器 |
+| Claude Code | 安装时添加官方监控 Hooks；下一次 prompt 开始监控，用 `/hooks` 检查；未加载时等任务结束后重开 | 普通会话只读；远程输入需要实验 Channel 连接器 |
+
+需要远程输入时，在管理页 **+ New terminal** 选择 **Tunnel** 和已有项目目录，创建连接器会话。Linux 也可以：
+
+```sh
+even-pilot new codex --cwd /your/project --name "My task"
+even-pilot new claude --cwd /your/project
+```
+
+替换示例项目路径。Claude 需在原终端确认 **local development channel**，并仍使用原来的工具审批。普通 Claude 只读监控不依赖 Channel；存在可能继续执行的自定义 Stop Hooks 时，完成状态会保持未确认。[完整能力表](connectors.md)
+
+### Pi 多 agent（可选）
+
+监控扩展与 subagent 扩展是两回事。已经加载官方 subagent 示例就直接复用；未安装时：
+
+- Windows 安装器版：按[脚本步骤](pi-extensions.md#第一步添加到-pi-的配置目录)读取 `install.json` 找到当前 payload，脚本在该版本目录内。便携／源码版在解压／checkout 目录使用 `scripts/enable-pi-subagents.ps1`。
+- Linux：执行 `even-pilot enable-pi-subagents`。
+
+然后 Pi 空闲时 `/reload`。脚本获取匹配版本的官方示例，角色继承当前模型和登录；安装后由模型决定何时委派，不会强制每个任务开多个 agent。[验证 prompt 和详细步骤](pi-extensions.md)。未知第三方格式可能只显示 `1+`。
+
+## 先确认网络可达
+
+1. 手机和每台电脑安装 [Tailscale](https://tailscale.com/download)，加入同一 tailnet，或配置彼此访问权限。
+2. 获取每台电脑自己的 IPv4，Linux 可执行 `tailscale ip -4`，Windows 在 Tailscale 界面查看。
+3. 手机浏览器打开 `http://电脑IP:4317`，应能看到页面，再继续 Hub 配置。
+4. 电脑保持开机、不休眠，主机防火墙允许预期私有网络的 TCP 4317。Even-Pilot 不自动改防火墙。
+
+地址属于每台电脑，不写死进包。`0.0.0.0` 是监听地址，手机上的 `127.0.0.1` 是手机自己。无需子网路由、出口节点或公网端口转发；互通的 LAN 也能用，支持 Tailscale 内的 HTTP。
+
+显示名优先读取 Tailscale 设备名（例如 `nuc`）；获取不到时显示系统主机名并提示。名称和连接地址是两回事，数字 Tailscale IP 不依赖 MagicDNS。
+
+## 连接 Hub 与多台电脑
+
+1. Even Hub 安装／上传 `even-pilot-1.1.2.ehpk`，Even App 2.2.10+ 连好 G2。
+2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connection** 打开 **Phone connection**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
+3. 手机 Hub **Connection → Connect another computer** 填写：
+
+   | 字段 | 内容 |
+   | --- | --- |
+   | Bridge URL | `http://电脑IP:4317`，不要加 `/api` |
+   | Connection key | 同一台电脑显示的原始 key，不加 `Bearer` |
+
+4. 点击 **Connect computer**。信息自动保存，下次打开恢复。**Connected computers** 列出保存的设备；**View sessions** 查看会话，**Edit connection** 修改连接。
+5. 第二台电脑展开同一个 **Connect another computer** 表单，填它自己的 URL/key。桌面用 **Other computers** 添加远程设备；**This computer** 会自动连接。每个需要看全部会话的查看端分别添加，列表保存在当前浏览器／手机。
+
+会话按设备分组、按最近更新时间排列。断网保留连接和 Watch，其他电脑继续使用；Remove 只让当前查看端忘记远程电脑，不停后台或终端。**Glance notifications** 单独设置：添加电脑不会注册 watcher，也不会改变通知路由。
+
+### Key 与二维码
+
+| 内容 | 放在哪里 |
+| --- | --- |
+| Connection key | Hub 连接、管理/API，或 Glance Credential；拥有该电脑控制权限 |
+| Firebase 服务账号 JSON | 只给实际发送 FCM 的电脑／中心，不填进 Hub 连接 |
+| OpenAI／ElevenLabs 转写 key | 可选的手机 **Voice** 设置，不是模型 key 或 connection key |
+| Relay credential | 来源向中心注册时自动生成，只用于转发通知 |
+
+二维码包含电脑 URL 和 connection key。Glance 扫描后可自动得到 `/api/glance`，仍要 **Save and register**。Hub 目前手工填写两项。二维码有访问会话和控制的能力，不要放进公开截图或发布资产。
+
+## Watch 与原生终端
+
+桌面有 **Watched / All sessions**，手机有 **All / Watched / Running** 筛选。Watch 只记录监控；选中 live 会话复用现有连接，选中保存的历史可能打开原生终端。只读观察不会自动变成第二个写入端。
+
+- 显式打开桌面管理页默认 Watch 最近 24 小时更新的会话，不弹出关闭的终端。
+- 刷新、后台重启和网络重连不重新应用这个规则。
+- 手动 Unwatch 跨后续任务／重连保留；显式选择、远程输入或下次打开桌面可重新启用。
+- Unwatch、Quit、停止监控都不杀终端；手动关原终端是连接结束，不等于任务成功完成。
+
+SSH 命令里的 `SESSION` 换成 `sessions` 列出的唯一短 KEY，或用引号包住完整标题：
+
+```sh
+even-pilot sessions
+even-pilot sessions --watched
+even-pilot watch SESSION
+even-pilot unwatch SESSION
+even-pilot select SESSION
+```
+
+`select` 打开／复用并 Watch，`new` 新建终端。Linux watcher CLI 不提供发送 prompt 或中断命令。原生交互用：
+
+```sh
+tmux ls
+tmux attach -t 实际会话名
+```
+
+`Ctrl+B` 再按 `D` 脱离，不终止 CLI。[完整命令](linux.md)
+
+## 手机与 G2 操作
+
+手机 **Sessions** 管理会话；**Conversation** 查看消息、折叠工具记录和输入；**G2** 查看预览／诊断。只在支持的连接器提供输入和审批。未支持的 slash 命令与 CLI 菜单回原终端操作。[命令和选择题](connectors.md#phone-commands-and-choices)
+
+| G2 页面 | 操作 |
+| --- | --- |
+| 会话列表 | 滑动选择；点消息展开；点 **New prompt** 请求输入；双击弹正常退出确认 |
+| 展开全文 | 原生滚动；双击回列表；超长文本菜单 **Next part / Previous part** 分段 |
+| 输入 | 单击开始／停止录音；长按立即删上一段，持续按每秒一段 |
+| 空输入 | 双击直接返回，不发送 |
+| 有文字／录音／等待转写 | 双击确认：**Send & exit** 默认、**Exit only** 仅退出；点确认，确认页双击回编辑 |
+| 会话菜单 | **Terminate task** 请求支持的取消；**Sessions** 切换可达的已 Watch 会话 |
+| 支持的提问 | 原生列表滑动选择，单击选项；**Other / enter answer** 打开输入界面 |
+
+列表顶部统一 **New prompt**，只读会话会提示回原终端输入。工作时下一行显示当前会话的活跃 agent 数，再后面最多十条最新消息。浏览期间数量／消息延后更新，保留原生光标；更早历史在手机或电脑。顶部状态包含设备、当前会话数量、Tunnel、模型和标题。
+
+语音是可选项：手机 **Voice** 选择 OpenAI／ElevenLabs，填自己的转写 key 并保存。默认在当前设备保存；手机直接向所选服务上传音频，再把完整 prompt 发到目标电脑。[语音和数据流](voice.md)
+
+普通 Claude 会话能显示问题和选项，回答需要专门的连接器会话。支持的连接器提问最多等待五分钟接收远程回答，手机点 **Cancel** 会立即交回原终端。较长或多个问题在手机处理；多选题保留在原终端。[提问支持范围](connectors.md#phone-commands-and-choices)
+
+## 可选 Glance 通知
+
+未配置推送也能监控。新安装不附带 Firebase 凭据。手机安装兼容的 [Glance](https://github.com/Liang-Chu/Glance)，选择一种方式：
+
+| 方式 | Firebase 设置 | Glance PUSH 注册 |
+| --- | --- | --- |
+| 每台独立发送 | 每个发送端都配置 | 每台各一个 watcher，各用自己的 URL/key |
+| 中心转发 | 只配置中心，其他电脑转发 | 只注册中心 watcher，使用中心 URL/key |
+
+通知按每个已 Watch 会话完成触发，眼镜当前显示的会话在有效查看租约内抑制，其他会话正常通知。只看手机／桌面预览不抑制；断线不算完成。PUSH 使用 FCM，Android 15 分钟轮询限制属于 POLL。
+
+### 1. 配置发送端或中心
+
+使用有权限向当前 Glance Firebase 项目（`even-glance`）发送的服务账号 JSON，放在稳定的私有目录。它不是 connection key，随意创建的 Firebase 项目或安卓 `google-services.json` 不能替代发送凭据。[凭据前提](glance-push.md)
+
+Linux 发送端／中心：
+
+```sh
+even-pilot settings push direct
+even-pilot settings firebase --credentials /private/glance-sender.json
+even-pilot settings
+even-pilot pair
+```
+
+替换为自己的已授权 JSON 路径。命令只保存路径引用并重启监控，不终止 CLI。`settings firebase clear` 只删引用、不删文件；显式 `GOOGLE_APPLICATION_CREDENTIALS`／`EVEN_PILOT_FCM_PROJECT_ID` 环境变量优先，状态会提示。
+
+Windows 给现有 `<安装目录>\.local\bridge-config.json` 添加下面两个字段，**保留原 connection keys，不要用这段替换整个文件**：
+
+```json
+{
+  "firebaseProjectId": "even-glance",
+  "firebaseCredentialsPath": "C:\\Private\\glance-sender.json"
+}
+```
+
+Quit 托盘，按[认证停止后台步骤](development.md#更新已有安装)只停这台监控后台，然后重开快捷方式。仅 Quit 托盘不会重载 Firebase 设置。[Windows 发送端说明](glance-push.md#windows-setup)
+
+### 2. 给 Glance 注册发送端
+
+1. 发送端／中心显示二维码：Windows **Connection**，或 Linux `even-pilot pair`。
+2. Glance 扫码，或手填完整 `http://发送端IP:4317/api/glance`，Credential 填同一发送端 connection key。
+3. 选择 **PUSH**，**Save and register**。独立发送每台注册一次，中心模式只注册中心。
+
+发送端需保持运行。配置成功或 Firebase 接受不代表手机已显示，最后用真实已 Watch 会话完成验证。换到中心时 URL 和 Credential 一起换，不能沿用旧电脑 key。
+
+### 3. 其他电脑转发到中心
+
+中心配置并注册完成后，在当前查看端保存来源和中心：手机 **Connection**，桌面 **Other computers**。打开独立的 **Glance notifications**：
+
+1. **Computer** 选择执行任务的来源电脑。
+2. **Send notifications** 选 **Through a central computer**。
+3. **Central computer** 选择中心设备。
+4. **Save notification settings** 保存，其他来源重复。中心本身选择 **Directly from this computer**。下方 **Glance watcher** URL 会对应实际发送端／中心；仍需到 Glance 单独注册该 URL 和它的 key。
+
+Linux 来源电脑也可以在 SSH 执行：
+
+```sh
+even-pilot settings push forward --url http://CENTER_IP:4317 --key-file /private/center-key.txt
+even-pilot settings
+```
+
+替换中心 IP，私有文件 `center-key.txt` 只放中心原始 connection key，由用户自己创建。Key 不放命令参数；注册后来源保存专用 relay 凭据，不需要 Firebase，也不会把中心控制 key 存进路由配置。
+
+切回独立模式用 `even-pilot settings push direct`，或 GUI **Directly from this computer → Save notification settings**；这台现在需要自己的 Firebase 和 Glance watcher。仅打开弹窗是读取，明确保存后才修改路由。转发由电脑间完成，不依赖 Hub 常开；不支持转发链或转发给自己。[队列和重试规则](notification-routing.md)
+
+## 更新和移除
+
+Windows 托盘 **Check for updates → Update to …**；Linux `even-pilot update` 后 `even-pilot update status`。管理页 **Updates** 更新提供当前页面的电脑，手机 Hub 更新打开弹窗时的当前电脑。托盘／Updates 或 `even-pilot update off` 可停自动检查。
+
+**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.2.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+
+Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `even-pilot stop`。
+
+## 常见问题
+
+| 问题 | 先检查 |
+| --- | --- |
+| 手机浏览器打不开 | 两端 Tailscale 在线、电脑 IP 正确、后台运行、电脑未休眠、防火墙 TCP 4317 |
+| 浏览器能开但 Hub fetch 失败 | 当前 Hub 包、纯 origin 无 `/api` 路径、Even App 网络权限；保留完整错误／origin 供诊断 |
+| Connection key 被拒绝 | 用当前运行安装的 **Connection**／`pair` 获取 key。同一台电脑新装到另一个目录可能生成不同 key；正常原目录更新会保留 |
+| Tailscale DNS unavailable | 先用数字 IP 验证，它不需要 MagicDNS |
+| 手机在线但 G2 reconnecting | Even App 的 G2／蓝牙连接及 G2 页状态，显示连接与后端连接不同 |
+| 新 CLI 不在列表 | 同用户／配置目录、首次保存 prompt、Pi `/reload`、Claude `/hooks`、桌面 **All sessions** 再 Watch |
+| Codex／Claude 提示回原终端 | 当前是只读观察；需要远程输入才创建连接器 |
+| Linux 找不到命令 | 重开支持的 shell，或用 `~/.local/bin/even-pilot`，检查 PATH 提示 |
+| Linux 打不开终端 | CLI 已安装登录、无头已装 tmux，从能找到 CLI 的 shell 重启后台 |
+| Glance 没推送 | Watch、正确发送端/中心、Firebase 权限、PUSH 保存注册、会话没有正显示在 G2 |
+| 电脑更新后 G2 没变 | 单独安装匹配 `.ehpk` |
+
+Linux 日志：`journalctl --user -u even-pilot.service`。Windows 启动诊断：`<安装目录>\.local\desktop-startup.log`。普通重连问题不用清运行数据，那里面有 key、主机身份、Watch 和订阅。交给没有历史记忆的操作者／agent 时，请从[运行手册](agent-runbook.md)开始。

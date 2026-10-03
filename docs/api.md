@@ -2,7 +2,7 @@
 
 All `/api/*` routes require `Authorization: Bearer <key>`. JSON requests use `Content-Type: application/json`. Query-string credentials are rejected. Body limit: 128 KB; prompt limit: 32,000 characters. The shared QR key can access every route. The legacy notification-only key can access only Glance/completion routes.
 
-Multi-computer clients keep one connection/key per backend. Namespaced session keys in the UI are client-side only: each request still goes directly to its source backend with that backend's original 32-character key. Never send a different computer's credential or the UI-scoped key to these endpoints. `/api/host` reports only this computer, not the Tailscale peer list.
+Multi-computer clients keep one connection credential per backend. Namespaced session keys in the UI are client-side only: each request goes directly to its source backend using the original session key and that backend's own connection credential. Never send a different computer's credential or the UI-scoped session key to these endpoints. `/api/host` reports only this computer, not the Tailscale peer list.
 
 | Method / path | Purpose |
 | --- | --- |

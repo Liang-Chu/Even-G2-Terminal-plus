@@ -1,20 +1,44 @@
 # Notification routing
 
-Each computer can send directly to Glance or forward completion events to one center. This works on Windows and Linux; use matching 1.1.1 companions.
+Each computer can send directly to Glance or forward completion events to one center. This works on Windows and Linux. Start with [first-time notification setup](setup.md#optional-glance-notifications) / [中文配置](setup.zh-CN.md#可选-glance-通知).
+
+Adding a computer in phone **Connection** or desktop **Other computers** only saves access to its sessions on that viewer. It does not register Glance or change any notification route. **Glance notifications** is a separate dialog; **Computer** selects the source whose route you are changing.
 
 ## Independent sending
 
 1. Configure FCM credentials on every sending computer, following [Glance push](glance-push.md).
 2. Add a PUSH watcher in Glance for each computer's `http://<address>:4317/api/glance` URL and its connection key.
-3. In Even-Pilot, open **Connection / Bridge settings → Glance notifications → Notification routing**. Select each computer and choose **Send directly from this computer**.
+3. Open **Glance notifications**. Select **Computer**, set **Send notifications → Directly from this computer**, then **Save notification settings**. Repeat for each source.
+
+On a Linux sender:
+
+```sh
+even-pilot settings push direct
+even-pilot settings firebase --credentials /private/glance-sender.json
+even-pilot settings
+even-pilot pair
+```
+
+The service-account JSON must authorize FCM sending for Glance's `even-glance` Firebase project. The command saves a file reference and restarts only monitoring; native CLIs keep running. The final `pair` displays this sender's URL/key/QR for Glance registration, which is still a separate phone operation.
 
 ## One center
 
 1. Install/update Even-Pilot on the server and other computers. Keep the center reachable from every source, for example through Tailscale.
-2. Configure FCM credentials only on the center. The center uses **Send directly from this computer** and can still monitor its own sessions.
-3. Save both the center and the source in Hub or the desktop management page's Connection settings.
-4. Open **Notification routing**, select a source computer, choose **Forward via <center name>**, then save. Repeat for other source computers.
+2. Configure FCM credentials only on the center using the commands above or [Windows sender setup](glance-push.md#windows-setup). The center uses **Directly from this computer** and can still monitor its own sessions.
+3. Save both center and source on this viewer: phone **Connection** or desktop **Other computers**.
+4. Open **Glance notifications**. Choose the source in **Computer**, set **Send notifications → Through a central computer**, select **Central computer**, then **Save notification settings**. Repeat for other source computers.
 5. In Glance, edit the old watcher or create one PUSH watcher with the center's complete `/api/glance` URL and **the center's connection key**, then **Save and register**. Disable/remove other independent watchers if they are no longer needed. No Android APK update is needed for this routing feature.
+
+On each Linux source, after the center is ready:
+
+```sh
+even-pilot settings push forward --url http://CENTER_IP:4317 --key-file /private/center-key.txt
+even-pilot settings
+```
+
+Replace `CENTER_IP`. The private file contains only the center's plain connection key; do not place it on the command line or in shared files. Registration obtains a dedicated relay credential. The source does not need Firebase credentials or a Glance registration of its own. To switch back, use `even-pilot settings push direct`; then configure and register this computer as an independent sender.
+
+The **Glance watcher** URL in the dialog follows the source for direct delivery or the selected center for forwarding. It is information to enter in Glance, not an automatic registration. Opening settings only reads configuration; routing changes require an explicit save.
 
 The source keeps monitoring even when the phone is closed. Forwarding is server-to-server; the phone is not a relay. Notifications include the source device and session name. G2 viewing suppression is decided on the source before forwarding. Temporary disconnects do not cancel Watch or create completion events.
 

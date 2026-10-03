@@ -49,7 +49,8 @@ export class BridgeClient {
     }); } catch (error) { throw connectionFailure(this.connection, error); }
     const result = await response.json();
     if (!response.ok)
-      throw new Error(result.error || `Bridge returned ${response.status}`);
+      throw new Error(response.status === 401 ? "Connection key rejected. Open Connection and update this computer’s key."
+        : result.error || `Bridge returned ${response.status}`);
     return result;
   }
   async verify(): Promise<RuntimeState> {
@@ -103,7 +104,7 @@ export class BridgeClient {
       if (!response.ok || !response.body)
         throw new Error(
           response.status === 401
-            ? "Check your control token"
+            ? "Connection key rejected. Open Connection and update this computer’s key."
             : `Bridge returned ${response.status}`,
         );
       if (!current()) return;

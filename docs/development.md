@@ -1,5 +1,7 @@
 # 更新与源码构建
 
+安装用户先看[安装连接指南](setup.zh-CN.md)；接手已有环境的操作者／agent 先看[运行手册](agent-runbook.md)，确认安装目录、数据和后台归属，再执行以下维护命令。
+
 ## 更新已有安装
 
 Windows 安装器用户：再次运行新版 **Setup-x64.exe**，点击 **Install** 即可。安装器只关闭该目录的托盘和原生监控后台，不终止 CLI；新代码存放在 `versions/<版本>-<内容标识>`，`.local` 保持在安装根目录。原生终端可继续使用旧版本文件，等任务完成后再重开／Pi `/reload`。整个安装过程不需要 npm、系统 Node 或管理员权限。Linux 再次执行新版 `.run`，详见 [Linux 更新](linux.md)。
@@ -61,7 +63,7 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 
 ## 发布文件与私有文件
 
-`release/1.1.1/` 是准备上传的文件夹：Windows EXE/ZIP、Linux RUN/TAR.GZ、Hub EHPK、`SHA256SUMS.txt` 和简短发布说明。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
+`release/1.1.2/` 是准备上传的文件夹：Windows EXE/ZIP、Linux RUN/TAR.GZ、Hub EHPK、`SHA256SUMS.txt` 和简短发布说明。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 

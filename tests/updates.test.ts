@@ -1,16 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, unlinkSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, generateKeyPairSync, sign } from "node:crypto";
 import { spawn } from "node:child_process";
+import { createServer as createHttpsServer, request as httpsRequest } from "node:https";
+import { EventEmitter } from "node:events";
+import type { ClientRequest, IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { UpdateService, parseUpdateRelease, newerVersion, updateRepository } from "../apps/windows/src/updates.js";
 import { createBridgeServer } from "../apps/windows/src/server.js";
 import { NotificationJournal } from "../apps/windows/src/notifications.js";
 import { CockpitStore } from "../packages/cockpit-state/store.js";
+import { windowsUpdateFetch } from "../apps/windows/src/update-fetch.js";
 
 const bytes = Buffer.from("verified installer fixture, never executed");
 const metadata = () => ({ tag_name: "v2.0.0", draft: false, prerelease: false, assets: [{
@@ -27,6 +31,111 @@ function fixture(t: any, override: Partial<ConstructorParameters<typeof UpdateSe
   return { service, directory, options };
 }
 async function until(check: () => boolean) { for (let n = 0; n < 100; n++) { if (check()) return; await delay(10); } throw new Error("Update fixture timeout"); }
+
+// A generated, local-only certificate avoids external services or changes to
+// the machine's trust store. Only fixture requests receive this private CA.
+function localCertificate() {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const der = (tag: number, ...parts: Buffer[]) => {
+    const content = Buffer.concat(parts), length = content.length;
+    const size = length < 128 ? Buffer.from([length]) : length < 256 ? Buffer.from([0x81, length]) : Buffer.from([0x82, length >> 8, length & 255]);
+    return Buffer.concat([Buffer.from([tag]), size, content]);
+  };
+  const seq = (...parts: Buffer[]) => der(0x30, ...parts);
+  const algorithm = seq(der(6, Buffer.from("2a864886f70d01010b", "hex")), der(5));
+  const name = seq(der(0x31, seq(der(6, Buffer.from("550403", "hex")), der(0x0c, Buffer.from("localhost")))));
+  const date = (offset: number) => der(0x18, Buffer.from(new Date(Date.now() + offset).toISOString().replace(/[-:T]/g, "").replace(/\.\d+Z/, "Z")));
+  const tbs = seq(der(0xa0, der(2, Buffer.from([2]))), der(2, Buffer.from([1])), algorithm, name,
+    seq(date(-86400_000), date(86400_000)), name, publicKey.export({ type: "spki", format: "der" }),
+    der(0xa3, seq(seq(der(6, Buffer.from("551d11", "hex")), der(4, seq(der(0x82, Buffer.from("localhost"))))),
+      seq(der(6, Buffer.from("551d13", "hex")), der(4, seq(der(1, Buffer.from([255]))))))));
+  const certificate = seq(tbs, algorithm, der(3, Buffer.from([0]), sign("sha256", tbs, privateKey)));
+  return { key: privateKey.export({ type: "pkcs8", format: "pem" }),
+    cert: "-----BEGIN CERTIFICATE-----\n" + certificate.toString("base64").match(/.{1,64}/g)!.join("\n") + "\n-----END CERTIFICATE-----\n" };
+}
+async function httpsFixture(t: any, handler: (request: IncomingMessage, response: ServerResponse) => void) {
+  const credentials = localCertificate(), server = createHttpsServer(credentials, handler);
+  server.on("tlsClientError", () => {});
+  await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
+  t.after(() => new Promise<void>(done => { server.closeAllConnections(); server.close(() => done()); }));
+  const url = `https://localhost:${(server.address() as any).port}`;
+  const request: NonNullable<Parameters<typeof windowsUpdateFetch>[2]> = (target, options, receive) =>
+    httpsRequest(target, { ...options, ca: credentials.cert }, receive);
+  return { url, request, cert: credentials.cert };
+}
+
+test("Windows update HTTPS streams data with explicit family resolution and unchanged TLS identity", async t => {
+  const f = await httpsFixture(t, (_request, response) => { response.setHeader("X-Fixture", "streamed"); response.write("first"); response.end("second"); });
+  let requested: any;
+  const response = await windowsUpdateFetch(f.url, { redirect: "manual" }, (url, options, receive) => {
+    requested = { hostname: url.hostname, ...options }; return f.request(url, options, receive);
+  });
+  assert.equal(requested.hostname, "localhost"); assert.equal(requested.servername, "localhost");
+  assert.equal(requested.family, 4); assert.equal(requested.rejectUnauthorized, true);
+  assert.equal(requested.lookup, undefined, "No pinned address replaces normal DNS");
+  assert.equal(response.headers.get("x-fixture"), "streamed");
+  assert.equal(await response.text(), "firstsecond");
+});
+
+test("Windows update HTTPS rejects untrusted and mismatched certificates without a retry", async t => {
+  const f = await httpsFixture(t, (_request, response) => response.end("must not be accepted"));
+  let requests = 0;
+  await assert.rejects(windowsUpdateFetch(f.url, {}, (url, options, receive) => {
+    requests++; return httpsRequest(url, options, receive);
+  }), (error: any) => error.code === "DEPTH_ZERO_SELF_SIGNED_CERT");
+  assert.equal(requests, 1);
+  requests = 0;
+  await assert.rejects(windowsUpdateFetch(f.url.replace("localhost", "wrong.test"), {}, (url, options, receive) => {
+    requests++; return httpsRequest(url, { ...options, ca: f.cert, lookup: (_host, _options, done) => done(null, "127.0.0.1", 4) }, receive);
+  }), (error: any) => error.code === "ERR_TLS_CERT_ALTNAME_INVALID");
+  assert.equal(requests, 1);
+});
+
+test("Windows update HTTPS leaves redirects to the updater and rejects metadata redirects", async t => {
+  let requests = 0;
+  const f = await httpsFixture(t, (_request, response) => { requests++; response.writeHead(302, { Location: "https://evil.example/installer" }); response.end(); });
+  const response = await windowsUpdateFetch(f.url, { redirect: "manual" }, f.request);
+  assert.equal(response.status, 302); assert.equal(response.headers.get("location"), "https://evil.example/installer");
+  await response.body?.cancel(); assert.equal(requests, 1, "The transport never follows an unchecked destination");
+  await assert.rejects(windowsUpdateFetch(f.url, { redirect: "error" }, f.request), /redirect was rejected/);
+  assert.equal(requests, 2);
+});
+
+test("Windows update HTTPS cancels active bodies and releases their server connections", async t => {
+  let closed = 0;
+  const f = await httpsFixture(t, (_request, response) => { response.on("close", () => closed++); response.write("chunk"); });
+  const cancelled = await windowsUpdateFetch(f.url, {}, f.request);
+  await cancelled.body!.cancel(); await until(() => closed === 1);
+  const controller = new AbortController(), aborted = await windowsUpdateFetch(f.url, { signal: controller.signal }, f.request);
+  const reader = aborted.body!.getReader(); assert.equal((await reader.read()).done, false);
+  controller.abort(); await assert.rejects(reader.read()); await until(() => closed === 2);
+});
+
+test("Windows update HTTPS aborts before headers without leaving a connection or retry", async t => {
+  let entered = false, closed = false, requests = 0;
+  const f = await httpsFixture(t, (_request, response) => { entered = true; response.on("close", () => { closed = true; }); });
+  const controller = new AbortController();
+  const pending = windowsUpdateFetch(f.url, { signal: controller.signal }, (url, options, receive) => { requests++; return f.request(url, options, receive); });
+  const rejected = assert.rejects(pending, (error: any) => error.name === "AbortError");
+  await until(() => entered); controller.abort(); await rejected; await until(() => closed);
+  assert.equal(requests, 1);
+});
+
+test("Windows update HTTPS retries IPv6 only for an unavailable IPv4 route", async t => {
+  const f = await httpsFixture(t, (_request, response) => response.end("available"));
+  const families: (number | undefined)[] = [];
+  const response = await windowsUpdateFetch(f.url, {}, (url, options, receive) => {
+    families.push(options.family);
+    if (options.family === 4) {
+      const unavailable = new EventEmitter() as ClientRequest;
+      unavailable.end = (() => { queueMicrotask(() => unavailable.emit("error", Object.assign(new Error("No IPv4 route"), { code: "ENETUNREACH" }))); return unavailable; }) as ClientRequest["end"];
+      return unavailable;
+    }
+    // Simulate a working alternate family on this loopback fixture.
+    return f.request(url, { ...options, family: 4 }, receive);
+  });
+  assert.deepEqual(families, [4, 6]); assert.equal(await response.text(), "available");
+});
 
 test("release comparison and installer selection reject unsafe, incomplete and downgrade metadata", () => {
   assert.equal(newerVersion("1.10.0", "1.9.99"), true);
@@ -78,6 +187,43 @@ test("a verified installer is downloaded once and only explicit install starts i
   await Promise.all([service.check(), service.check()]); assert.equal(installed, 0);
   service.install("2.0.0"); assert.throws(() => service.install("2.0.0"));
   await until(() => installed === 1); assert.equal(service.status().progress, 100);
+});
+
+test("an unopenable staging file cancels its response and permits a repaired explicit retry", async t => {
+  let installed = 0, cancelled = 0, blocked = true;
+  let downloadSignal: AbortSignal | undefined;
+  const { service, directory } = fixture(t, { fetch: async (input, init) => {
+    if (String(input).includes("api.github.com")) return Response.json(metadata());
+    downloadSignal = init?.signal || undefined;
+    return blocked ? new Response(new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(bytes); }, cancel() { cancelled++; },
+    })) : new Response(bytes);
+  }, install: async path => { assert.deepEqual(readFileSync(path), bytes); installed++; } });
+  await service.check();
+  const staging = join(directory, "updates/installer-2.0.0.run.part"); mkdirSync(staging, { recursive: true });
+  service.install("2.0.0"); await until(() => cancelled === 1);
+  assert.equal(service.status().phase, "idle"); assert.ok(service.status().error);
+  assert.equal(downloadSignal?.aborted, true); assert.equal(installed, 0);
+  rmdirSync(staging); blocked = false;
+  await service.check(); service.install("2.0.0"); await until(() => installed === 1);
+  await until(() => downloadSignal?.aborted === true);
+  assert.equal(service.status().phase, "idle");
+});
+
+test("staging directory and status persistence failures return idle without running an installer", async t => {
+  let installed = 0, downloads = 0;
+  const { service, directory } = fixture(t, { fetch: async input => {
+    if (String(input).includes("api.github.com")) return Response.json(metadata());
+    downloads++; return new Response(bytes);
+  }, install: async () => { installed++; } });
+  await service.check();
+  const staging = join(directory, "updates"), pendingStatus = join(directory, "update-settings.json.tmp");
+  writeFileSync(staging, "Blocks staging directory creation"); mkdirSync(pendingStatus);
+  service.install("2.0.0"); await until(() => service.status().phase === "idle");
+  assert.ok(service.status().error); assert.equal(installed, 0); assert.equal(downloads, 0);
+  unlinkSync(staging); rmdirSync(pendingStatus);
+  await service.check(); service.install("2.0.0"); await until(() => installed === 1);
+  assert.equal(downloads, 1);
 });
 
 test("checksum failure and untrusted redirects never execute an installer", async t => {

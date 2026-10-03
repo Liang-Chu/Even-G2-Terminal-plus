@@ -14,6 +14,7 @@ import { writeLocalJson, readLocalJson, type NativeCommand } from "../../../../p
 import { G2_SUMMARY_OPEN, G2_SUMMARY_CLOSE } from "../../../../packages/cockpit-state/g2-reply.js";
 import { claudeInterruptAvailable, validClaudeOwner, hasClaudeInterruption, interruptClaude } from "./claude-interrupt.js";
 import { slashCommand, unsupportedCommand } from "../../../../packages/connectors/slash-commands.js";
+import { ClaudeQuestionRelay } from "./claude-question-relay.js";
 
 const [data, runDirectory, cwd, initialId] = process.argv.slice(2);
 let id = initialId;
@@ -52,6 +53,7 @@ const monitor = new ConnectorMonitor(join(data, "native"), { key: connectorKey("
   } } : {}),
 });
 const events = new ClaudeEvents(monitor);
+const questions = new ClaudeQuestionRelay(monitor);
 function refreshOwner() {
   let supported = false;
   try {
@@ -81,7 +83,9 @@ function accept(event: any) {
     if (seenEvents.size > 1000) seenEvents.delete(seenEvents.values().next().value!);
   }
   if (!event.agent_id && typeof event.transcript_path === "string") transcriptPath = event.transcript_path;
-  if (!event.agent_id && ["PreToolUse", "Stop", "SessionEnd", "UserPromptSubmit", "SessionStart"].includes(event.hook_event_name)) monitor.interactions.clear();
+  if (!event.agent_id && ["PreToolUse", "Stop", "SessionEnd", "UserPromptSubmit", "SessionStart"].includes(event.hook_event_name)) {
+    questions.cancel(); monitor.interactions.clear();
+  }
   events.receive(event);
 }
 function drainEvents() {
@@ -98,14 +102,17 @@ function drainEvents() {
 }
 const http = createServer(async (req, res) => {
   const received = Buffer.from(req.headers.authorization || ""), expected = Buffer.from("Bearer " + token);
-  if (req.method !== "POST" || req.url !== "/event" || received.length !== expected.length || !timingSafeEqual(received, expected)
+  if (req.method !== "POST" || !["/event", "/question"].includes(req.url || "") || received.length !== expected.length || !timingSafeEqual(received, expected)
     || req.headers.origin) { res.writeHead(403); res.end(); return; }
   try {
     let body = "";
     for await (const part of req) { body += part; if (body.length > 256_000) throw new Error("Too large"); }
     const event = JSON.parse(body);
     drainEvents();
-    accept(event); res.writeHead(204); res.end();
+    accept(event);
+    if (req.url === "/question") {
+      if (!ready || !questions.handle(event, res)) { res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end("{}"); }
+    } else { res.writeHead(204); res.end(); }
   } catch { res.writeHead(400); res.end(); }
 });
 http.headersTimeout = 5000; http.requestTimeout = 5000;
@@ -119,7 +126,7 @@ lines.on("line", line => {
   if (!message || typeof message !== "object" || Array.isArray(message)) return;
   const respond = (result: unknown) => send({ jsonrpc: "2.0", id: message.id, result });
   if (message.method === "initialize") respond({ protocolVersion: message.params?.protocolVersion || "2024-11-05",
-    serverInfo: { name: "even-pilot", version: "1.1.1" },
+    serverInfo: { name: "even-pilot", version: "1.1.2" },
     capabilities: { experimental: { "claude/channel": {}, "claude/channel/permission": {} }, tools: {} },
     instructions: "Even-Pilot forwards the user's G2 prompts to this same session. Respond normally in the terminal. Preserve requested <g2-summary> summary markers. The reply tool may additionally send a concise glasses reply; it does not replace the full terminal response.",
   });
@@ -182,4 +189,4 @@ const timer = setInterval(async () => {
   } catch { /* Native transcript may be between writes; retry without changing run state. */ }
   finally { reading = false; }
 }, 1000);
-lines.on("close", () => { ready = false; clearInterval(timer); monitor.stop(); http.close(); });
+lines.on("close", () => { ready = false; questions.cancel(); clearInterval(timer); monitor.stop(); http.close(); });

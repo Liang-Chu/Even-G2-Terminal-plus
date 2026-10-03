@@ -34,6 +34,7 @@ const allowlist = [
   'scripts/enable-pi-subagents.ps1',
   'docs/architecture.md', 'docs/connectors.md', 'docs/linux.md', 'docs/glance-push.md', 'docs/glance-qr-v1.md',
   'docs/g2-output-contract.md', 'docs/pi-extensions.md', 'docs/voice.md', 'docs/release-status.md', 'docs/README.md', 'docs/api.md', 'docs/development.md', 'docs/notification-routing.md', 'docs/updates.md', 'docs/publishing.md', 'docs/even-hub-description.md',
+  'docs/setup.md', 'docs/setup.zh-CN.md', 'docs/agent-runbook.md',
 ];
 const secretValues = [];
 const configPath = join(root, '.local/bridge-config.json');

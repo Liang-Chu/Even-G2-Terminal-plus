@@ -11,9 +11,10 @@ import { setTimeout as delay } from "node:timers/promises";
 const a = "http://100.64.0.1:4317", b = "http://100.64.0.2:4317", key = "a".repeat(32);
 function fixture() {
   const calls: { url: string; token: string; path: string; data?: any }[] = [];
-  const endpoints = new Map<string, { state: RuntimeState; online: (value: boolean) => void; update: (value: RuntimeState) => void; viewed?: string; closed: boolean }>();
+  const endpoints = new Map<string, { state: RuntimeState; online: (value: boolean, error?: string) => void; update: (value: RuntimeState) => void; viewed?: string; closed: boolean }>();
   const states: RuntimeState[] = [];
-  const fleet = new FleetClient(state => states.push(state), () => {}, () => {}, () => {}, (connection, update, online) => {
+  const connectionMessages: (string | undefined)[] = [];
+  const fleet = new FleetClient(state => states.push(state), (_online, message) => connectionMessages.push(message), () => {}, () => {}, (connection, update, online) => {
     const state = initialState("/project"); state.connected = true; state.main.status = "running";
     state.session = { key, id: "same-native-id", name: "Same title", cwd: "/project", model: "test-model", tunnel: "pi" };
     state.monitoring = { running: 1, watched: 1, since: 1000, sessions: [{ key, name: "Same title", cwd: "/project", status: "running", monitored: true, current: true, updatedAt: connection.url === a ? 1000 : 2000 }] };
@@ -41,7 +42,7 @@ function fixture() {
     };
   });
   const add = async () => { await fleet.add({ url: a, token: "token-for-laptop" }); await fleet.add({ url: b, token: "token-for-nuc" }, false, false); };
-  return { fleet, calls, endpoints, states, add };
+  return { fleet, calls, endpoints, states, connectionMessages, add };
 }
 
 test("fleet combines identical native session keys with distinct source names and globally recent ordering", async () => {
@@ -98,6 +99,18 @@ test("G2 viewing suppression transfers between hosts without leaking a native ke
   f.fleet.setViewedSession(scopedKey(b, key));
   assert.equal(f.endpoints.get(b)!.viewed, key);
   f.endpoints.get(b)!.online(false); assert.equal(f.endpoints.get(b)!.viewed, undefined);
+  f.fleet.disconnect();
+});
+
+test("fleet names the host with a rejected key instead of hiding authentication behind offline", async () => {
+  const f = fixture(); await f.add();
+  f.endpoints.get(b)!.online(false, "Connection key rejected. Open Connection and update this computer’s key.");
+  assert.match(f.connectionMessages.at(-1)!, /^nuc: Connection key rejected/);
+  assert.doesNotMatch(f.connectionMessages.at(-1)!, /nuc offline/);
+  assert.match(f.fleet.hosts().find(host => host.url === b)!.warning!, /Connection key rejected/);
+  assert.equal(f.fleet.snapshot().monitoring!.watched, 2);
+  assert.equal(f.endpoints.get(a)!.closed, false);
+  f.endpoints.get(b)!.online(true); assert.equal(f.connectionMessages.at(-1), undefined);
   f.fleet.disconnect();
 });
 

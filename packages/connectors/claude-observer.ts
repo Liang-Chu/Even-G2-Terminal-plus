@@ -35,6 +35,7 @@ class InvalidQueuedEvent extends Error {}
  * adapter never controls the CLI and never guesses completion from silence,
  * transcript text, process loss or SessionEnd. */
 export class ClaudeObserver {
+  private historyStats = new Map<string, { modified: number; size: number }>();
   readonly directory: string;
   readonly root: string;
   private statePath: string;
@@ -142,21 +143,29 @@ export class ClaudeObserver {
     }
   }
   private async history(session: Session) {
-    if (session.historyLoaded) return;
-    session.historyLoaded = true;
     try {
       if (!await this.validPath(session.path, session.id)) return;
-      const info = await lstat(session.path), data = claudeHistory(await readFile(session.path, "utf8"), session.path, info.mtimeMs);
+      const info = await lstat(session.path), cached = this.historyStats.get(session.id);
+      if (session.historyLoaded && cached?.modified === info.mtimeMs && cached.size === info.size) return;
+      const data = claudeHistory(await readFile(session.path, "utf8"), session.path, info.mtimeMs);
       if (!data) return;
+      this.historyStats.set(session.id, { modified: info.mtimeMs, size: info.size }); session.historyLoaded = true;
       session.name ||= data.session.name || promptLabel(data.messages.find(row => row.role === "user")?.text || "") || undefined;
       session.model ||= data.session.model;
       let budget = 60_000;
-      const transcript = data.messages.slice(-40).reverse().flatMap((row, index) => {
+      // Hooks can arrive before their text is committed to the transcript.
+      // Keep that recent display tail; history never controls completion state.
+      const latestAt = Math.max(0, ...data.messages.map(row => row.at || 0));
+      const tail = session.store.state.transcript.filter(row => (row.at || 0) > latestAt
+        && !data.messages.some(saved => saved.role === row.role && saved.text === row.text));
+      const transcript = [...data.messages, ...tail].slice(-40).reverse().flatMap((row, index) => {
         if (!budget) return [];
         const text = row.text.slice(-Math.min(budget, 12_000)); budget -= text.length;
         return [{ id: index + 1, role: row.role, text, at: row.at || 0 }];
       }).reverse();
       session.store.dispatch({ type: "session.history", transcript });
+      this.dirty = true;
+      return true;
     } catch { /* History is display data, not a lifecycle authority. */ }
   }
   private background(session: Session, value: unknown) {
@@ -217,6 +226,7 @@ export class ClaudeObserver {
           .sort((a, b) => a.lastAt - b.lastAt)[0];
         if (!disposable) return false;
         this.sessions.delete(disposable.id);
+        this.historyStats.delete(disposable.id);
         this.pending.push({ state: disposable.store.state, updatedAt: disposable.updatedAt, activity: false, retired: true });
       }
       const store = new CockpitStore(raw.cwd);
@@ -364,7 +374,7 @@ export class ClaudeObserver {
     for (const session of this.sessions.values()) {
       const online = !session.ended && await this.alive(session.owner);
       if (online !== session.online) { session.online = online; this.announce(session); }
-      else if (!session.historyLoaded) { await this.history(session); this.announce(session); }
+      else if (session.online && await this.history(session)) this.announce(session);
     }
     if (this.dirty) {
       try { this.save(); } catch { return; }

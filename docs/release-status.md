@@ -1,19 +1,24 @@
-# Release status — 1.1.1
+# Release status — 1.1.2
 
-1.1.1 is a normal patch release. G2 uses a consistent New prompt label and an active-agent count row immediately underneath for the selected session. Native list focus is preserved by deferring count changes while browsing; expanded messages retain their existing native text view. Windows tray updates show clearer progress, lock overlapping requests and poll progress more frequently. Updating a companion does not update the phone Hub package; install the matching `.ehpk` separately.
+1.1.2 is a normal patch release. Desktop phone pairing, saved remote viewing connections and Glance notification routes have separate controls. Rejected connection keys identify the affected computer. Windows updater HTTPS uses explicit address-family resolution with normal certificate validation; failed staging returns to idle and releases its download. Claude question history refreshes; explicit connector questions can use remote single-choice/free-text answers, with native G2 option lists and an Other editor. Updating a companion does not update the phone Hub package; install the matching `.ehpk` separately.
 
-## 1.1.1 validation
+## 1.1.2 validation
 
 Checked 2026-10-03:
 
 | Check | Result |
 | --- | --- |
-| Windows source | 311 passed, 6 Linux-only tests skipped; type checking and web build passed |
-| Linux source | 314 passed, 3 Windows-only tests skipped; type checking and web build passed |
+| Windows source | 339 passed, 6 Linux-only tests skipped; type checking and web build passed |
+| Linux source | 342 passed, 3 Windows-only tests skipped; type checking and web build passed |
 | Windows desktop | Startup, installer-support and direct tray update tests passed; authenticated exact-version installation, progress and errors exercised with isolated transport |
-| G2 behavior | Active count uses the selected session; informational taps cannot invoke input; message indices remain correct; browsing and first-reply arrival preserve native focus; idle/offline removes the activity row on safe refresh |
+| G2 choices | Native options retain firmware focus without rebuilding on scroll; Other opens the editor; stale or uncertain answers cannot become new prompts; existing conversation/activity fixtures pass |
+| Claude questions | Ordinary transcript question/options display and mtime/size refresh; connector hook/channel/mailbox returns the documented updatedInput; cancellation, timeout, disconnect, stale run and duplicate-answer guards pass without a model call |
+| Updater HTTPS | 21 updater tests pass, including real local HTTPS trust/hostname failures, streaming, redirects, abort/cancel, family fallback and failed-staging retry; actual public GitHub metadata and allowed installer HEAD redirect succeed on Windows |
+| Connection UI | Isolated desktop pairing stays local while a remote session is selected; phone saved/add/edit and central-routing preview verified at 390 px with no horizontal overflow; settings GET/readback and authentication fixtures pass |
+| Documentation | Bilingual quickstarts/setup and operator runbook added; local links and heading anchors checked; runtime packages include the guides |
+| Packaged installation | Windows portable runtime and offline installer pass without system Node/npm; isolated 1.1.1-to-1.1.2 installation retains keys and a running native process, and guarded uninstall retains user data. Linux offline installation/reinstallation, non-systemd daemon, autostart, Firebase settings, key retention and native-process survival pass |
 
-Release packaging verifies payload inventories, matching Windows/Linux frontend assets, credentials exclusion and download checksums before publication. Physical G2 acceptance of this patch is still pending. The historical installation and rollback results below apply to 1.1.0; those full installation scenarios were not repeated for this UI patch.
+Release packaging verifies payload inventories, matching Windows/Linux frontend assets, credentials exclusion and download checksums before publication. Physical G2 and real logged-in Claude question acceptance of this patch are still pending. The systemd, automatic-update and failed-health rollback results below apply to 1.1.0; those scenarios were not repeated for this patch.
 
 ## 1.1.0 audit evidence (historical)
 
@@ -48,6 +53,7 @@ The folded phone diagnostic keeps 60 gesture metadata entries in memory, exclude
 - **Full-width labels still need hardware acceptance.** The container and item width are 560 px. Both normal and basic pages first use pixel-measured labels under the documented 64-character limit. Compact 63-byte labels are retained only if shortening them succeeds on that same layout; a failed attempt does not carry that restriction into basic view. Earlier reports did not isolate a firmware byte limit. The text heading has its own pixel budget and does not inherit list-label byte limits.
 - **G2 hardware acceptance remains pending for the latest changes:** scrolling, gestures, microphone/ASR latency and Bluetooth responsiveness need a physical-device pass. The native list owns scrolling and focus; expanded text also uses native scrolling. Native list rebuilds cannot restore a scroll position. Automatic new-message refresh therefore runs at most once every two seconds while at the input row; scrolling, reading and editing defer it until returning. Firmware that emits no scroll callback cannot be distinguished from an untouched list until it reports an index. Oversized messages require explicit menu navigation between parts because the public Hub API has bounded text payloads and no scroll-position setter. Each part is limited to 900 UTF-8 bytes and sent during page creation; this also stays below the simulator's 999-byte creation limit. No throughput or latency guarantee is made.
 - **Claude is experimental.** Official hook tests cover ordinary-terminal observation, owner/start identity, background/cron blockers, custom Stop uncertainty, queue gaps, restarts and settings preservation. Its next prompt after hook activation establishes monitoring. Known additional Stop hooks and unreadable metadata fail closed; dynamically registered skill/runtime hooks and remote policies cannot be fully enumerated. A crash between committed observer metadata and journal delivery can lose a notification. A synthetic ordinary Windows hook measured about 0.55 seconds including about 0.1 seconds for owner lookup; tool-heavy turns can incur overhead. Real model response/cancellation still need acceptance. A delivered Escape means “Stop requested,” not “Stopped.”
+- **Claude question answering is connector-only.** Ordinary monitored questions are readable but cannot be answered remotely. Supported connector questions wait up to five minutes; phone Cancel returns immediately to native handling without an answer. Multi-select stays native. G2 answers only short single-question forms; larger/multiple forms use phone/native review. Real CLI application of the answer and physical G2 interaction remain acceptance checks.
 - **Ordinary Codex CLI/Desktop observation is read-only.** It depends on local rollout files and was checked against Codex 0.159.1. Remote/cloud-only sessions are not covered. Remote prompt/control requires a connector-backed session. Future Codex format changes may require updates.
 - **Linux packages are x64/glibc.** ARM64 is not hardware-tested; Alpine/musl is unsupported by these binaries. Terminal launch adapters have automated coverage, but Linux graphical desktops were not physically tested.
 - **Windows binaries are unsigned.** Installation checks do not imply signing or store certification.

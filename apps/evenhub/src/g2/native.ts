@@ -13,12 +13,13 @@ export const PREVIOUS_PART_MENU_ID = 5;
 export const NEXT_PART_MENU_ID = 6;
 export const GESTURE_CONTAINER_ID = 8;
 export const CONFIRM_CONTAINER_ID = 9;
+export const CHOICE_CONTAINER_ID = 10;
 
 export interface NativeListEntry { key?: string; page?: number; label: string }
 export interface NativeFrame {
   body: string; entries?: NativeListEntry[]; layoutKey: string; picker?: boolean; heading?: string; sessionKey?: string;
   detail?: { previous: boolean; next: boolean };
-  conversationList?: boolean; confirmation?: boolean; plain?: boolean; footer?: string;
+  conversationList?: boolean; confirmation?: boolean; choice?: boolean; plain?: boolean; footer?: string;
 }
 export interface NativeText { id: number; name: string; content: string; color?: number }
 export function nativeTexts(frame: NativeFrame): NativeText[] {
@@ -55,18 +56,18 @@ export function nativeLayout(frame: NativeFrame) {
     ? [new MenuItemProperty({ itemID: BACK_MENU_ID, itemName: "Back" })] : [
     // Firmware adds its own menu rows; keep interruption first among app actions.
     ...(!composer && (!frame.picker || frame.conversationList) ? [terminate] : []),
-    new MenuItemProperty({ itemID: composer || frame.detail ? BACK_MENU_ID : SESSIONS_MENU_ID, itemName: composer || frame.detail ? "Back" : "Sessions" }),
+    new MenuItemProperty({ itemID: composer || frame.detail || frame.choice ? BACK_MENU_ID : SESSIONS_MENU_ID, itemName: composer || frame.detail || frame.choice ? "Back" : "Sessions" }),
     ...(composer ? [new MenuItemProperty({ itemID: SEND_MENU_ID, itemName: "Send" })] : []),
     ...(frame.detail?.previous ? [new MenuItemProperty({ itemID: PREVIOUS_PART_MENU_ID, itemName: "Previous part" })] : []),
     ...(frame.detail?.next ? [new MenuItemProperty({ itemID: NEXT_PART_MENU_ID, itemName: "Next part" })] : []),
-    ...(composer || frame.detail ? [new MenuItemProperty({ itemID: SESSIONS_MENU_ID, itemName: "Sessions" })] : []),
+    ...(composer || frame.detail || frame.choice ? [new MenuItemProperty({ itemID: SESSIONS_MENU_ID, itemName: "Sessions" })] : []),
   ] });
   const common = { xPosition: 8, yPosition: 38, width: LIST_ROW_WIDTH, height: 222, borderWidth: 0, paddingLength: 0 };
   if (frame.picker) return {
     containerTotalNum: 3, menuObject,
     ...(frame.entries ? { listObject: [new ListContainerProperty({ ...common,
-      containerID: frame.confirmation ? CONFIRM_CONTAINER_ID : frame.conversationList ? GESTURE_CONTAINER_ID : 1,
-      containerName: frame.confirmation ? "pilot-confirm" : frame.conversationList ? "pilot-messages" : "pilot-sessions",
+      containerID: frame.confirmation ? CONFIRM_CONTAINER_ID : frame.choice ? CHOICE_CONTAINER_ID : frame.conversationList ? GESTURE_CONTAINER_ID : 1,
+      containerName: frame.confirmation ? "pilot-confirm" : frame.choice ? "pilot-choices" : frame.conversationList ? "pilot-messages" : "pilot-sessions",
       zOrderIndex: 0, isEventCapture: 1, itemContainer: new ListItemContainerProperty({ itemCount: frame.entries.length,
         itemWidth: LIST_ROW_WIDTH, isItemSelectBorderEn: 1, itemName: frame.entries.map(entry => entry.label) }) })] } : {}),
     textObject: [

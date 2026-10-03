@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { processAlive, readLocalJson, uuidPattern } from "../../../packages/pi-runtime/native-protocol.js";
+import { fetchUpdateResource } from "./update-fetch.js";
 
 export const updateRepository = "Liang-Chu/Even-Pilot";
 const day = 24 * 60 * 60_000;
@@ -152,11 +153,14 @@ export class UpdateService {
     return this.task as Promise<ReturnType<UpdateService["status"]>>;
   }
   private async metadata(signal: AbortSignal) {
-    const response = await (this.options.fetch || fetch)(`https://api.github.com/repos/${updateRepository}/releases/latest`, {
+    const response = await (this.options.fetch || fetchUpdateResource)(`https://api.github.com/repos/${updateRepository}/releases/latest`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]), redirect: "error",
       headers: { Accept: "application/vnd.github+json", "User-Agent": "Even-Pilot/" + this.options.version }, credentials: "omit" });
-    if (response.status === 404) throw new UpdateError("No public release is available yet", 503);
-    if (!response.ok) throw new UpdateError(`Update check returned HTTP ${response.status}. Try again later.`, 503);
+    if (!response.ok) {
+      await response.body?.cancel();
+      if (response.status === 404) throw new UpdateError("No public release is available yet", 503);
+      throw new UpdateError(`Update check returned HTTP ${response.status}. Try again later.`, 503);
+    }
     const text = await response.text(); if (text.length > 1_000_000) throw new UpdateError("Release metadata is too large");
     return parseUpdateRelease(JSON.parse(text), this.options.version, this.options.platform || process.platform, this.options.arch || process.arch);
   }
@@ -185,22 +189,27 @@ export class UpdateService {
     void this.task.catch(() => {}); return this.status();
   }
   private async downloadAndInstall(version: string) {
-    this.abort = new AbortController();
-    const directory = join(this.options.directory, "updates"); mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const abort = new AbortController(); this.abort = abort;
+    const directory = join(this.options.directory, "updates");
     const path = join(directory, "installer-" + version + ((this.options.platform || process.platform) === "win32" ? ".exe" : ".run"));
+    let response: Response | undefined;
     try {
-      const release = await this.metadata(this.abort.signal);
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const release = await this.metadata(abort.signal);
       if (!release || release.version !== version) throw new UpdateError("The latest release changed. Check updates again before installing.");
-      let url = release.url, response: Response | undefined;
-      const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(10 * 60_000)]);
+      let url = release.url;
+      const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(10 * 60_000)]);
       for (let redirects = 0; redirects < 5; redirects++) {
         if (!allowedDownload(url)) throw new UpdateError("Unexpected installer download host");
-        response = await (this.options.fetch || fetch)(url, { redirect: "manual", signal, credentials: "omit" });
+        response = await (this.options.fetch || fetchUpdateResource)(url, { redirect: "manual", signal, credentials: "omit" });
         if (![301, 302, 303, 307, 308].includes(response.status)) break;
         const next = response.headers.get("location"); await response.body?.cancel();
         if (!next) throw new UpdateError("Invalid installer redirect"); url = new URL(next, url).href; response = undefined;
       }
-      if (!response?.ok || !response.body) throw new UpdateError("Installer download failed. Try again later.", 503);
+      if (!response?.ok || !response.body) {
+        await response?.body?.cancel();
+        throw new UpdateError("Installer download failed. Try again later.", 503);
+      }
       const file = await open(path + ".part", "w", 0o600), hash = createHash("sha256"); let bytes = 0;
       try {
         for await (const chunk of response.body as any as AsyncIterable<Uint8Array>) {
@@ -219,8 +228,17 @@ export class UpdateService {
         try { if (readLocalJson(join(directory, "job.json"))?.id === this.installJob.id) unlinkSync(join(directory, "job.json")); } catch { }
         this.installJob = undefined;
       }
-      this.save();
-    } finally { await rm(path + ".part", { force: true }).catch(() => {}); }
+      // A staging permission failure can also prevent saving the status. Keep
+      // the runtime idle/error result available so it can be repaired and retried.
+      try { this.save(); } catch { }
+    } finally {
+      // Release responses even when opening the staging file failed before its
+      // stream was consumed. This controller belongs only to the download; the
+      // detached installer worker never receives it.
+      abort.abort();
+      await response?.body?.cancel().catch(() => {});
+      await rm(path + ".part", { force: true }).catch(() => {});
+    }
   }
   private async launch(path: string, release: UpdateRelease) {
     const worker = fileURLToPath(new URL("./update-worker.mjs", import.meta.url));

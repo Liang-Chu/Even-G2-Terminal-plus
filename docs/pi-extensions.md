@@ -26,7 +26,16 @@ Linux：执行 `~/.local/bin/even-pilot enable-pi-subagents`，安装同一套�
 
 Windows 前提：Windows PowerShell 5.1 或更新版本、已安装稳定版 Pi 0.87.1 或更新版本，并能通过 HTTPS 访问 `api.github.com` 和 `raw.githubusercontent.com`。脚本不会安装 Pi 本体，也不会配置模型或 API key。
 
-把 `enable-pi-subagents.ps1` 发给其他用户即可。在脚本所在目录打开 PowerShell，执行：
+**Windows 安装器版**在 PowerShell 执行以下命令。使用自定义安装目录时，把第一行换成自己的安装根目录；这些命令只读取版本记录，不读取 connection key：
+
+```powershell
+$pilotRoot = Join-Path $env:LOCALAPPDATA 'Programs\Even-Pilot'
+$pilotInstall = Get-Content -Raw (Join-Path $pilotRoot 'install.json') | ConvertFrom-Json
+$pilotScript = Join-Path $pilotRoot ('versions\' + $pilotInstall.current + '\scripts\enable-pi-subagents.ps1')
+powershell -NoProfile -ExecutionPolicy Bypass -File $pilotScript
+```
+
+**便携／源码版**在完整解压／checkout 目录运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\enable-pi-subagents.ps1`。也可以把 `enable-pi-subagents.ps1` 单独发给其他用户，在脚本所在目录打开 PowerShell，执行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\enable-pi-subagents.ps1

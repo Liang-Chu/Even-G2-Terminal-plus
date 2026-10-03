@@ -30,7 +30,7 @@ The updater uses the fixed public repository over HTTPS, an exact platform/versi
 
 Installers retain old payload directories because working native terminals may still use them. The installer starts the new backend and checks its version. If startup fails, it restores the previous selection and attempts to restart it. Configuration, pairing keys, Watch and notification settings remain in their existing data directory. Existing terminals load connector changes when reopened, or Pi when reloaded while idle.
 
-**Updating a Windows/Linux companion does not replace the phone Hub package.** To receive the 1.1.1 G2 changes, upload/install `even-pilot-1.1.1.ehpk` separately through Even Hub. Existing phone connection and voice settings remain saved.
+**Updating a Windows/Linux companion does not replace the phone Hub package.** To receive the 1.1.2 G2 changes, upload/install `even-pilot-1.1.2.ehpk` separately through Even Hub. Existing phone connection and voice settings remain saved.
 
 ## Control API
 
