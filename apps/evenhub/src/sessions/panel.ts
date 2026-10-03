@@ -62,7 +62,9 @@ export class SessionsPanel {
   private historyView = element("div", undefined, "session-history");
   private project = element("select");
   private search = element("input");
-  private device = element("select");
+  private selectedDevice = "";
+  private devices = element("div", undefined, "session-devices");
+  private devicesSignature = "";
   private scope: SessionScope = "all";
   private scopeControls = element("nav", undefined, "session-scopes");
   private collapsed = new Set<string>();
@@ -97,11 +99,12 @@ export class SessionsPanel {
     projectLabel.append(this.project);
     const searchLabel = element("label", "SEARCH"); this.search.type = "search"; this.search.placeholder = "Name, model or project";
     this.search.setAttribute("aria-label", "Search sessions"); searchLabel.append(this.search);
-    const deviceLabel = element("label", "DEVICE"); this.device.setAttribute("aria-label", "Filter sessions by device"); deviceLabel.append(this.device);
-    this.device.onchange = () => { this.limits.clear(); this.renderList(); };
+    const deviceField = element("div", undefined, "session-device-filter");
+    deviceField.append(element("span", "DEVICE", "session-filter-label"), this.devices);
+    this.devices.setAttribute("role", "group"); this.devices.setAttribute("aria-label", "Filter sessions by device");
     this.project.onchange = () => this.renderList(); this.search.oninput = () => this.renderList();
     this.refresh.textContent = "Refresh";
-    this.refresh.type = "button"; this.refresh.onclick = () => void this.load(); filters.append(searchLabel, deviceLabel, projectLabel, this.refresh);
+    this.refresh.type = "button"; this.refresh.onclick = () => void this.load(); filters.append(searchLabel, projectLabel, this.refresh, deviceField);
     this.scopeControls.setAttribute("aria-label", "Session filters");
     for (const [value, label] of [["all", "All"], ["watched", "Watched"], ["running", "Running"]] as const) {
       const button = element("button", label, "outline"); button.type = "button"; button.dataset.scope = value;
@@ -231,11 +234,23 @@ export class SessionsPanel {
     const focused = this.list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.focusKey : undefined;
     this.list.replaceChildren();
     const hosts = this.options.client()?.hosts?.() || this.state?.hosts || [];
-    const all = sessionGroups(this.sessions, hosts), selectedDevice = this.device.value;
-    this.device.replaceChildren(new Option("All devices", ""), ...all.map(group => new Option(`${group.name} (${group.sessions.length})`, group.key)));
-    this.device.value = all.some(group => group.key === selectedDevice) ? selectedDevice : "";
+    const all = sessionGroups(this.sessions, hosts);
+    if (!all.some(group => group.key === this.selectedDevice)) this.selectedDevice = "";
+    const devicesSignature = JSON.stringify(all.map(group => [group.key, group.name, group.sessions.length]));
+    if (devicesSignature !== this.devicesSignature) {
+      const focusedDevice = this.devices.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.device : undefined;
+      this.devicesSignature = devicesSignature;
+      this.devices.replaceChildren();
+      for (const [key, label] of [["", "All devices"], ...all.map(group => [group.key, `${group.name} (${group.sessions.length})`])]) {
+        const button = element("button", label, "outline"); button.type = "button"; button.dataset.device = key;
+        button.onclick = () => { this.selectedDevice = key; this.limits.clear(); this.renderList(); };
+        this.devices.append(button);
+        if (key === focusedDevice) button.focus({ preventScroll: true });
+      }
+    }
+    this.devices.querySelectorAll<HTMLButtonElement>("button").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.device === this.selectedDevice)));
     this.scopeControls.querySelectorAll<HTMLButtonElement>("button").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.scope === this.scope)));
-    const groups = sessionGroups(this.sessions, hosts, { device: this.device.value, search: this.search.value, project: this.project.value, scope: this.scope });
+    const groups = sessionGroups(this.sessions, hosts, { device: this.selectedDevice, search: this.search.value, project: this.project.value, scope: this.scope });
     if (!groups.length) {
       this.list.append(element("p", !hosts.length && !this.online ? "Connect a computer to see its sessions." : this.loading ? "Loading sessions…" : "No matching sessions.", "caption"));
       if (!hosts.length && !this.online && this.options.connect) {

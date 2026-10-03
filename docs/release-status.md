@@ -1,8 +1,12 @@
-# Release status — 1.1.2
+# Release status — 1.1.3
+
+1.1.3 updates the session device filter to native HTML buttons using the existing black-and-white pixel theme. It changes no backend protocol or lifecycle behavior. Type checking and the production build pass; browser verification at 320 px and 390 px covers selected styling, wrapping, filtering and retaining the device selection after refresh. Independent code review confirms that filtering does not change connections, Watch, terminals or prompt targets. Unchanged device options retain their DOM/focus during status updates. Runtime packaging and credential/checksum validation are repeated for the new release; the full source, installer and updater results below belong to 1.1.2 and were not rerun for this UI patch.
+
+## 1.1.2 audit evidence (historical)
 
 1.1.2 is a normal patch release. Desktop phone pairing, saved remote viewing connections and Glance notification routes have separate controls. Rejected connection keys identify the affected computer. Windows updater HTTPS uses explicit address-family resolution with normal certificate validation; failed staging returns to idle and releases its download. Claude question history refreshes; explicit connector questions can use remote single-choice/free-text answers, with native G2 option lists and an Other editor. Updating a companion does not update the phone Hub package; install the matching `.ehpk` separately.
 
-## 1.1.2 validation
+### 1.1.2 validation
 
 Checked 2026-10-03:
 

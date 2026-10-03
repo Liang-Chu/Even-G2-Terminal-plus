@@ -2,7 +2,7 @@
 
 A lightweight watcher for Pi, Codex and Claude Code on Windows/Linux. Keep working in your native CLI; see watched sessions on your phone and Even G2. The phone/G2 can send prompts only to input-capable sessions. Glance completion notifications are optional.
 
-**1.1.2** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**1.1.3** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Download](https://github.com/Liang-Chu/Even-Pilot/releases) · [中文](README.zh-CN.md) · [Release notes](RELEASE_NOTES.md)
 
@@ -12,11 +12,11 @@ A lightweight watcher for Pi, Codex and Claude Code on Windows/Linux. Keep worki
 
 Keep your existing CLI installation and model login. Run Even-Pilot as the same operating-system user as that CLI.
 
-- **Windows:** run `Even-Pilot-1.1.2-Setup-x64.exe` and choose **Install**. The manager opens; later use the desktop shortcut or double-click the tray. Right-click the tray to enable **Start with Windows**.
+- **Windows:** run `Even-Pilot-1.1.3-Setup-x64.exe` and choose **Install**. The manager opens; later use the desktop shortcut or double-click the tray. Right-click the tray to enable **Start with Windows**.
 - **Linux / SSH:** download the Linux installer, then run as your normal user:
 
   ```sh
-  sh ./Even-Pilot-1.1.2-Setup-linux-x64.run
+  sh ./Even-Pilot-1.1.3-Setup-linux-x64.run
   ```
 
   Open a new shell, then run `even-pilot status` and `even-pilot pair`. Until then, use `~/.local/bin/even-pilot`. The offline installer includes Node and backend dependencies; no global npm install is needed. [Headless service and reboot setup](docs/setup.md#linux-headless-or-desktop)
@@ -41,7 +41,7 @@ No subnet router or exit node is needed. `127.0.0.1` reaches the device you are 
 
 ### 4. Install the phone app and save the connection
 
-1. Install/upload `even-pilot-1.1.2.ehpk` in Even Hub; connect G2 in Even App.
+1. Install/upload `even-pilot-1.1.3.ehpk` in Even Hub; connect G2 in Even App.
 2. On Windows open **Connection** to see this computer's phone URL/key. On Linux run `even-pilot pair`.
 3. In the phone Hub app, open **Connection → Connect another computer**. Paste the computer's **Bridge URL** and **Connection key**, then **Connect computer**. Enter the plain key without `Bearer`.
 4. The connection saves on this phone. Add each additional machine the same way with its own URL/key. On desktop use **Other computers** to combine remote sessions with local ones.

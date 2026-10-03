@@ -26,6 +26,10 @@
 .hub-session-manager .session-filters label { font-size: 0; }
 .hub-session-manager .session-filters input, .hub-session-manager .session-filters select { width: 100%; min-height: 42px; margin-top: 0; font: 13px/1.4 "Cascadia Mono", Consolas, monospace; padding: 10px; background: #fff; }
 .hub-session-manager .session-filters button { min-height: 42px; padding: 10px; font-size: 12px; }
+.hub-session-manager .session-device-filter { grid-column: 1; grid-row: 2; }
+.hub-session-manager .session-filters > button { grid-column: 2; grid-row: 2; }
+.hub-session-manager .session-device-filter .session-filter-label { display: none; }
+.hub-session-manager .session-devices button { font: 10px/1.5 var(--pixel); padding: 10px 12px; }
 .session-scopes { display: flex; gap: 8px; margin: 0 0 18px; }
 .session-scopes button { min-height: 36px; padding: 7px 12px; font-size: 12px; }
 .session-scopes button[aria-pressed="true"] { background: #111; color: #fff; }

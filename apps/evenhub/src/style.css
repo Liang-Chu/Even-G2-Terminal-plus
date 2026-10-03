@@ -25,6 +25,11 @@
 .session-filters label { margin: 0; }
 .session-filters input, .session-filters select { margin-top: 7px; }
 .session-filters select { display: block; width: 100%; max-width: 100%; min-height: 42px; background: #fff; border: 1px solid #111; color: #111; font: inherit; border-radius: 0; padding: 10px; }
+.session-device-filter { grid-column: 1 / -1; min-width: 0; }
+.session-filter-label { display: block; font: 10px/1.5 var(--pixel); margin-bottom: 7px; }
+.session-devices { display: flex; flex-wrap: wrap; gap: 8px; }
+.session-devices button { min-width: 0; max-width: 100%; min-height: 42px; padding: 10px 12px; font: 10px/1.5 var(--pixel); text-align: left; overflow-wrap: anywhere; }
+.session-devices button[aria-pressed="true"] { color: #fff; background: #111; }
 .session-columns { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 22px; }
 .session-list, .session-history { min-height: 300px; max-height: 52vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #111 #fff; }
 .session-list { padding-right: 7px; }
