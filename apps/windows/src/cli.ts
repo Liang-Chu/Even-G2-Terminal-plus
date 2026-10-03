@@ -6,7 +6,7 @@ import { createBridgeServer, type ServerOptions } from "./server.js";
 import { hostInfo } from "./host-info.js";
 import { preferredPairOrigin } from "./pairing.js";
 import { GlancePush } from "./push.js";
-import { FcmSender } from "./fcm.js";
+import { FcmSender, validateFirebaseProjectId } from "./fcm.js";
 import { ensureLocalConfig, dataDirectory } from "./config.js";
 import { acquireBackendLock, BackendAlreadyRunning } from "./backend-lock.js";
 import { NativeHost } from "../../../packages/pi-runtime/native-host.js";
@@ -99,7 +99,7 @@ try {
     resolve(dataDirectory(), "notifications.json"),
   );
   const projectId = process.env.EVEN_PILOT_FCM_PROJECT_ID || localConfig.firebaseProjectId;
-  if (projectId && projectId !== "even-glance") throw new Error("The installed Glance APK requires Firebase project even-glance");
+  if (projectId) validateFirebaseProjectId(projectId);
   const serverOptions: ServerOptions = {
     token,
     notificationToken,

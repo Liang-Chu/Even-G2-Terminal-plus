@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { open, realpath, stat, mkdir, rename, unlink } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createPrivateKey, randomUUID } from "node:crypto";
+import { validateFirebaseProjectId } from "../../windows/src/fcm.js";
 
 type Request = (path: string, body?: object, timeoutMs?: number) => Promise<Response>;
 type RemoteRequest = (origin: string, path: string, token: string, body: object) => Promise<Response>;
@@ -16,7 +17,7 @@ export const settingsHelp = `Headless notification settings:
   settings push direct                        Send from this computer
   settings push forward --url URL --key-file FILE
                                               Forward to one configured center
-  settings firebase --credentials FILE        Use an even-glance service-account JSON
+  settings firebase --credentials FILE        Use a Firebase service-account JSON
   settings firebase clear                     Remove the saved credentials reference
 
 The center connection key is read from FILE, never a command-line token.
@@ -61,15 +62,16 @@ async function credentials(path: string) {
   const file = await privateFile(path, 128_000, "Firebase credentials");
   try {
     const value = JSON.parse(file.text);
-    if (value?.type !== "service_account" || value.project_id !== "even-glance" ||
+    const projectId = validateFirebaseProjectId(value?.project_id);
+    if (value?.type !== "service_account" ||
       typeof value.client_email !== "string" || !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(value.client_email) ||
       typeof value.private_key !== "string" || value.private_key.length > 16_000 ||
       value.token_uri !== undefined && value.token_uri !== "https://oauth2.googleapis.com/token" ||
       value.universe_domain !== undefined && value.universe_domain !== "googleapis.com") throw new Error();
     const key = createPrivateKey(value.private_key);
     if (key.asymmetricKeyType !== "rsa" || (key.asymmetricKeyDetails?.modulusLength || 0) < 2048) throw new Error();
-    return file.path;
-  } catch { throw new Error("Choose a valid even-glance Firebase service-account JSON with its RSA private key."); }
+    return { path: file.path, projectId };
+  } catch { throw new Error("Choose a valid Firebase service-account JSON with its project ID and RSA private key."); }
 }
 async function savedConfig(directory: string): Promise<Record<string, unknown>> {
   const path = join(resolve(directory), "bridge-config.json");
@@ -152,12 +154,12 @@ export async function runSettingsCommand(args: string[], context: SettingsContex
     await api("/api/glance/routing", { mode: "relay", target: { id: peer.id, name: peer.name, url: origin, key: peer.key } });
     context.write("Notification forwarding saved. Register Glance PUSH on the center."); return;
   }
-  const path = action === "firebase" ? await credentials(values.credentials as string) : undefined;
+  const credential = action === "firebase" ? await credentials(values.credentials as string) : undefined;
   const config = await savedConfig(context.directory);
-  if (path) { config.firebaseProjectId = "even-glance"; config.firebaseCredentialsPath = path; }
+  if (credential) { config.firebaseProjectId = credential.projectId; config.firebaseCredentialsPath = credential.path; }
   else { delete config.firebaseProjectId; delete config.firebaseCredentialsPath; }
   await saveConfig(context.directory, config);
-  context.write(path ? "Firebase credential reference saved." : "Saved Firebase credential reference removed; the key file was retained.");
+  context.write(credential ? "Firebase credential reference saved." : "Saved Firebase credential reference removed; the key file was retained.");
   environmentNote(context);
   try { await context.restart(); }
   catch { throw new Error("Settings were saved, but monitoring restart was not confirmed. Run `even-pilot restart`; native CLI sessions were not stopped."); }

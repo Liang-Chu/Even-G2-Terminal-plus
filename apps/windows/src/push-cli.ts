@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { buildPushPayload, type PushSubscription } from "./push.js";
 import { loadLocalConfig } from "./config.js";
 import { GoogleAuth } from "google-auth-library";
+import { validateFirebaseProjectId } from "./fcm.js";
 
 const { values, positionals } = parseArgs({ allowPositionals: true, options: {
   url: { type: "string", default: "http://127.0.0.1:4317" },
@@ -29,13 +30,14 @@ async function main() {
   if (!["status", "test", "check-auth"].includes(command)) throw new Error("Use dry-run, check-auth, status or test");
   const local = loadLocalConfig();
   if (command === "check-auth") {
-    const project = process.env.EVEN_PILOT_FCM_PROJECT_ID || local.firebaseProjectId;
-    if (project !== "even-glance") throw new Error("Set Firebase project to even-glance");
+    const configuredProject = process.env.EVEN_PILOT_FCM_PROJECT_ID || local.firebaseProjectId;
+    if (!configuredProject) throw new Error("Set EVEN_PILOT_FCM_PROJECT_ID or save a Firebase project in bridge configuration");
+    const project = validateFirebaseProjectId(configuredProject);
     const timeout = setTimeout(() => { console.error("Firebase authentication timed out; no notification sent."); process.exit(1); }, 15_000);
     try {
       const token = await new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/firebase.messaging"] }).getAccessToken();
       if (!token) throw new Error();
-      console.log("Firebase OAuth authentication succeeded for sending to even-glance. No notification sent; project sending permission and phone delivery still need a selected-subscription test.");
+      console.log(`Firebase OAuth authentication succeeded for sending to ${project}. No notification sent; project sending permission and phone delivery still need a selected-subscription test.`);
     } catch { throw new Error("Firebase authentication failed. Check the server credential file and access to Google; raw credential errors are suppressed."); }
     finally { clearTimeout(timeout); }
     return;

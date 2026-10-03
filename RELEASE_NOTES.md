@@ -1,12 +1,13 @@
-# Even-Pilot 1.1.7
+# Even-Pilot 1.1.8
 
-Fixes device-name recovery and missing Codex prompts after large tool output.
+Fixes accumulated Claude agent counts and removes generated context from G2 questions.
 
-- The phone/desktop retries device-name lookup even when a session is idle. Temporary lookup failures keep the last verified Tailscale name; disconnected or removed devices stop retrying.
-- Unchanged device-name polls do not refresh the display or add Bluetooth writes.
-- Codex startup history now retains conversation messages encountered by its existing lifecycle backscan. Large tool-output gaps no longer discard those earlier prompts and replies. The fix adds no whole-history scan and does not replay old completion notifications.
-- Current Codex user-input events distinguish your prompts from CLI context and instructions. Repeated records and rereading a truncated file no longer duplicate retained prompts.
+- Missing transcripts from other Claude sessions no longer block valid completion events. Independent child timestamps handle delayed stops without clearing a restarted agent or sending a false completion notification.
+- Select the running-agent row on G2 to open task details. Pi exposes explicit subagent tasks; Codex exposes verified child identities. Missing descriptions and uncertain counts are shown honestly.
+- Expanded G2 questions show your actual request, without recognized Codex browser/attachment metadata or a missing-summary notice. Original CLI histories stay intact.
+- Voice settings retain the newest saved keys across delayed native storage operations and reconnects.
+- Glance senders accept your own Firebase project and reject registrations for a different project. Removed unused Hub UI and shortened the documentation.
 
-Native CLI sessions keep running during companion updates; pairing keys, Watch and notification settings are retained. Automatic updates remain enabled by default, with existing opt-outs respected.
+Update the Windows/Linux companion and install `even-pilot-1.1.8.ehpk` separately in Even Hub. Existing connections, Watch, voice and notification settings are retained; native CLI sessions keep running.
 
-Install `even-pilot-1.1.7.ehpk` separately in Even Hub for the device-name retry fix. Existing saved connections remain valid. Recent-history limits and ordinary Codex's read-only monitoring still apply.
+Older unresolved Claude state may show `?` until a fresh trusted parent completion confirms that its acknowledged children have finished. Claude remains experimental; physical G2 acceptance of the new detail view is pending.

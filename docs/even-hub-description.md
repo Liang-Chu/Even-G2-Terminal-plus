@@ -1,17 +1,16 @@
-# Even Hub description — Even-Pilot 1.1.7
+# Even Hub description — Even-Pilot 1.1.8
 
-Even-Pilot brings your coding sessions to Even G2. Monitor Pi, Codex and Claude Code sessions across multiple computers, see the source computer, model, agent count and running status, and switch between watched sessions.
+Even-Pilot is a lightweight watcher for your native Pi, Codex and Claude Code sessions. On Even G2, see the computer, model, agent count and running status; switch watched sessions and expand the latest ten messages from a native list. Your phone combines sessions from multiple computers. Unwatch never stops a terminal or task.
 
-Read the latest ten messages in a native list, with New prompt at the top and the selected session's active-agent count directly underneath while working. Tap to expand a message, and use voice input to reply to supported sessions. Complete output stays in your original terminal. Manage Watch on your phone or computer; Unwatch does not stop the session. Optional Glance notifications report completion, with one sender per computer or a central forwarding server.
+**Requires the free companion on Windows 10/11 x64 or Linux x64/glibc, plus Even App 2.2.10+.** Existing CLI installations and model logins stay with your CLI.
 
-**Requires the free Even-Pilot companion on Windows 10/11 x64 or Linux x64/glibc.** Download it and follow setup here:
+[Download companions](https://github.com/Liang-Chu/Even-Pilot/releases) · [Repository and full setup](https://github.com/Liang-Chu/Even-Pilot#readme)
 
-https://github.com/Liang-Chu/Even-Pilot/releases
+1. Install the companion on each computer as the same user who runs the CLI. On Linux, run the downloaded `.run` installer with `sh`.
+2. Connect phone and computer to the same Tailscale network. Keep the companion running and the computer awake.
+3. Install this Hub app. Get the computer's URL/key from Windows **Connect phone** or Linux `even-pilot pair`. In phone **Connection → Connect another computer**, paste **Bridge URL** and **Connection key**, then choose **Connect computer**. Details save automatically; repeat for other computers.
+4. In **Sessions**, enable **Watch**, then open Even-Pilot on G2. Existing Pi needs `/reload` while idle; Claude monitoring begins with its next prompt. The repository guide covers setup and troubleshooting.
 
-https://github.com/Liang-Chu/Even-Pilot#readme
+Voice replies are optional and require your own OpenAI or ElevenLabs transcription key in **Voice**. Ordinary Codex CLI/Desktop and Claude sessions are read-only; remote replies require a connector session. Claude support remains experimental. Complete output stays in your original terminal.
 
-Connect your phone and computer through Tailscale or a reachable local network. On the phone open Connection, expand Connect another computer, enter that computer's Bridge URL and Connection key, then Connect computer. Saved computers appear together in Sessions. CLI model login stays with your existing CLI. Voice transcription is optional and requires your own OpenAI or ElevenLabs API key.
-
-Installed companions automatically check and install verified updates by default, with an opt-out on each computer. This phone app has no companion update controls; install its matching Even Hub package separately to receive G2 changes.
-
-Known limitations: ordinary Codex CLI/Desktop and Claude Code sessions support observation and completion notifications; remote reply/control requires a connector session. The companion installs Claude's official monitor hooks; its next prompt establishes monitoring. Custom Stop hooks can leave completion unconfirmed, and Claude support remains experimental. G2 behavior can vary with firmware; Windows binaries are unsigned. See the setup guide for the current requirements and limitations.
+Optional Android completion notifications use [Glance](https://github.com/Liang-Chu/Glance#readme). For direct delivery, configure each sender; for central delivery, configure one center and forward other computers through **Glance notifications**. In Glance, scan the sender/center's **Connect phone** QR (Linux `even-pilot pair`), choose **SAVE AND REGISTER**, then enable Glance in Even App **Notifications**; its README covers installation and importing your own Firebase project.

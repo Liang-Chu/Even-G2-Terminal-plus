@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validateEvenHubPageContainer } from "@evenrealities/even_hub_sdk";
-import { MessageBrowser, messageLabel, listLabel, LIST_ROW_WIDTH, LIST_TEXT_WIDTH, messageParts, NATIVE_TEXT_BYTES } from "../apps/evenhub/src/g2/messages.js";
+import { MessageBrowser, activityDetails, messageLabel, listLabel, LIST_ROW_WIDTH, LIST_TEXT_WIDTH, messageParts, NATIVE_TEXT_BYTES } from "../apps/evenhub/src/g2/messages.js";
 import { getTextWidth, measureTextWrap } from "@evenrealities/pretext";
 import { nativeLayout } from "../apps/evenhub/src/g2/native.js";
 import { G2Display } from "../apps/evenhub/src/g2/display.js";
-import { glassesMessages, type G2Message } from "../packages/cockpit-state/g2-reply.js";
+import { g2Prompt, glassesMessages, type G2Message } from "../packages/cockpit-state/g2-reply.js";
 import { initialState } from "../packages/cockpit-state/types.js";
 const message = (id: string, role: G2Message["role"] = "assistant", text = id): G2Message => ({ id, role, text });
 const wait = () => new Promise(resolve => setTimeout(resolve, 140));
@@ -108,6 +108,62 @@ test("the first reply cannot replace a selected activity row until returning to 
   assert.equal(browser.refresh(), false);
   browser.selectInput();
   assert.deepEqual(browser.rows().map(row => row.label), ["New prompt", "\u3000\u3000← first"]);
+});
+
+test("activity details distinguish reported tasks from unavailable child data and never infer tasks from parent tools", () => {
+  const state = { ...initialState(), connected: true, main: { status: "running" as const },
+    tools: { active: { parent: { name: "Parent-only tool", startedAt: 0 } } },
+    transcript: [{ id: 1, at: 1, role: "user" as const, text: "Inspect the task" }],
+    subagents: { active: 3, tasks: [{ id: "child", name: "reviewer", tools: ["read"] }] } };
+  const detail = activityDetails(state, true);
+  assert.match(detail, /^Agents: 4[\s\S]*Main agent · running[\s\S]*Task: Inspect the task[\s\S]*Tools: Parent-only tool/);
+  assert.match(detail, /Sub-agent 1 · reviewer\n\nTask details unavailable\.\n\nTools: read/);
+  assert.match(detail, /2 sub-agents: task details unavailable\./);
+  assert.equal(detail.match(/Parent-only tool/g)?.length, 1);
+  assert.equal(detail.match(/Task: Inspect the task/g)?.length, 1);
+  const ids = ["019a0b1c-1111-2222-3333-444444444441", "019a0b1c-1111-2222-3333-444444444442"];
+  const unnamed = activityDetails({ ...state, subagents: { active: 2,
+    tasks: [{ id: ids[0] }, { id: ids[1], name: " \n " }] } }, true);
+  assert.ok(unnamed.includes("Sub-agent 1 · " + ids[0]));
+  assert.ok(unnamed.includes("Sub-agent 2 · " + ids[1]), "IDs sharing a short prefix remain distinguishable and blank names fall back to their identity");
+  assert.equal(unnamed.match(/Task details unavailable\./g)?.length, 2, "verified identities do not imply child task text");
+  const boundedId = "id".repeat(100);
+  const bounded = activityDetails({ ...state, subagents: { active: 1, tasks: [{ id: boundedId }] } }, true);
+  const identity = bounded.match(/^Sub-agent 1 · (.+)$/m)![1];
+  assert.equal(identity.length, 64); assert.ok(identity.endsWith("...")); assert.ok(!bounded.includes(boundedId));
+  for (const offline of [{ ...state, connected: false }, { ...state, subagents: { active: 3, uncertain: true } }]) {
+    const unknown = activityDetails(offline, true);
+    assert.match(unknown, /^Agents: \?\n\nCurrent activity unavailable/);
+    assert.doesNotMatch(unknown, /Inspect the task|Parent-only tool|reviewer/);
+  }
+  assert.match(activityDetails(state, false), /^Agents: \?/);
+  assert.match(activityDetails({ ...state, main: { status: "idle" }, subagents: { active: 0 } }, true), /^Agents: 0\n\nNo agents running\.$/);
+  const lowerBound = activityDetails({ ...state, subagents: undefined,
+    tools: { active: { task: { name: "subagent", startedAt: 0 } } } }, true);
+  assert.match(lowerBound, /^Agents: 1\+/); assert.match(lowerBound, /Exact sub-agent count and task details unavailable\./);
+  const ambient = '<in-app-browser-context source="ambient-ui-state">\nThis block is automatically supplied ambient UI state, not part of the user\'s request.\n</in-app-browser-context>\n\n## My request:\nFix the page';
+  const projected = activityDetails({ ...state, transcript: [{ id: 1, at: 1, role: "user", text: g2Prompt(ambient) }] }, true);
+  assert.match(projected, /Task: Fix the page/);
+  assert.doesNotMatch(projected, /ambient-ui|in-app-browser|source=g2|No G2 summary|My request/);
+});
+
+test("agent details stay bounded and use complete UTF-8 pages with native part navigation", () => {
+  const state = { ...initialState(), connected: true, main: { status: "running" as const },
+    subagents: { active: 20, tasksTruncated: true, tasks: Array.from({ length: 20 }, (_, index) => ({
+      id: String(index), name: "worker".repeat(100), task: "中文😀".repeat(1000), tools: Array(10).fill("read".repeat(100)),
+    })) } };
+  const text = activityDetails(state, true);
+  assert.equal(text.match(/^Sub-agent /gm)?.length, 16);
+  assert.match(text, /4 sub-agents: task details unavailable\./);
+  assert.match(text, /More agent details: view in the original terminal\./);
+  assert.ok(text.length < 14000);
+  const browser = new MessageBrowser(); browser.updateActivity("… agents: 21"); browser.selectActivity(); browser.openActivity(text);
+  assert.equal(browser.detail!.parts.join(""), text); assert.ok(browser.detail!.parts.length > 1);
+  for (const part of browser.detail!.parts) {
+    assert.ok(Buffer.byteLength(part) <= NATIVE_TEXT_BYTES); assert.equal(Buffer.from(part).toString(), part);
+  }
+  browser.part(1); assert.equal(browser.detail!.part, 1);
+  browser.updateActivity(); assert.equal(browser.detail!.message.text, text, "incoming counts cannot rewrite the native long-text snapshot");
 });
 
 test("long Chinese and emoji replies open with visible content in the first page operation", async t => {

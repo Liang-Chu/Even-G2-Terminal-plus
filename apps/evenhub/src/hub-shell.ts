@@ -35,10 +35,6 @@ export class HubShell {
     document.querySelector<HTMLElement>(".page-heading")!.hidden = true;
     document.querySelector<HTMLElement>(".workspace")!.hidden = true;
     main.prepend(nav); document.getElementById("notice")!.after(contents);
-    const glance = document.querySelector<HTMLElement>(".glance-details")!;
-    const disclosure = document.createElement("details"); disclosure.className = "hub-glance";
-    const glanceSummary = document.createElement("summary"); glanceSummary.textContent = "Glance notifications";
-    glance.before(disclosure); disclosure.append(glanceSummary, glance);
     this.show("sessions");
   }
   show(view: HubView) {

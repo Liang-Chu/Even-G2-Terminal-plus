@@ -8,9 +8,9 @@ The desktop observes native Pi, Codex and Claude sessions. Existing Pi terminals
 
 ## Windows setup
 
-The installed Glance APK uses Firebase project **`even-glance`**, Android package **`dev.liamchu.glance`**. The server needs ADC or a service account authorized to send FCM for that project. The Android `google-services.json` cannot authorize a server.
+Use **your own Firebase project**, configured/imported on the phone through the [Glance setup guide](https://github.com/Liang-Chu/Glance#readme). The sender's target project ID must match that phone configuration. Glance supports user-configured projects; you do not need to rebuild its APK. The sender needs ADC or a service account authorized to send FCM for the target project. Android `google-services.json` configures the client and cannot authorize a server.
 
-A new installation generates its own bridge credentials but has **no Firebase sending credentials**. Core monitoring works without them; push sending does not. Do not ship your service account to other users. Each sender needs credentials authorized for the installed Glance app's Firebase project. This is a prerequisite for distributing push functionality beyond an authorized test group.
+A new installation generates its own bridge credentials but has **no Firebase sending credentials**. Core monitoring works without them; push sending does not. Configure credentials only on each direct sender or the central sender, and never distribute private service-account JSON in release assets. Each user supplies credentials authorized for their phone's target Firebase project.
 
 For an installed Windows companion, add the Firebase fields shown below to its existing `.local/bridge-config.json` at the installation root, preserving the keys. Use an absolute credential-file path. Restart the monitoring backend using the [manual update shutdown steps](development.md#更新已有安装), then open Even-Pilot again; quitting only the tray does not reload the backend. No system Node or npm is required. In the current payload folder, the optional credential check uses the bundled runtime:
 
@@ -18,7 +18,7 @@ For an installed Windows companion, add the Firebase fields shown below to its e
 .\runtime\node.exe --import tsx .\apps\windows\src\push-cli.ts check-auth
 ```
 
-Linux users can configure the sender with `even-pilot settings firebase --credentials /private/service-account.json`, which restarts only monitoring. See [Linux settings](linux.md#推送与-firebase-设置).
+Linux users can configure the sender with `even-pilot settings firebase --credentials /private/service-account.json`. It saves the JSON's `project_id` as the target and the private file path as the credential reference, then restarts only monitoring. That project must match the phone's Glance configuration. See [Linux settings](linux.md#推送与-firebase-设置).
 
 The following npm commands are **source-checkout diagnostics**, requiring the development Node/npm environment:
 
@@ -32,8 +32,8 @@ The desktop session picker selects the original session in its native terminal. 
 For a source checkout or another explicitly managed process environment, use these overrides:
 
 ```powershell
-$env:EVEN_PILOT_FCM_PROJECT_ID = 'even-glance'
-$env:GOOGLE_APPLICATION_CREDENTIALS = 'C:\private\even-glance-service-account.json'
+$env:EVEN_PILOT_FCM_PROJECT_ID = 'YOUR_FIREBASE_PROJECT_ID'
+$env:GOOGLE_APPLICATION_CREDENTIALS = 'C:\private\firebase-service-account.json'
 $env:EVEN_PILOT_TOKEN = '<existing-control-token-at-least-24-characters>'
 $env:EVEN_PILOT_NOTIFICATION_TOKEN = '<different-glance-token-at-least-24-characters>'
 $env:EVEN_PILOT_PUSH_TTL_SECONDS = '30' # Optional, default 30; integer 1–3600
@@ -46,19 +46,19 @@ Or add the Firebase fields to the generated `.local/bridge-config.json`, preserv
 {
   "controlToken": "<your-control-token>",
   "notificationToken": "<your-different-glance-token>",
-  "firebaseProjectId": "even-glance",
-  "firebaseCredentialsPath": "C:\\private\\even-glance-service-account.json"
+  "firebaseProjectId": "YOUR_FIREBASE_PROJECT_ID",
+  "firebaseCredentialsPath": "C:\\private\\firebase-service-account.json"
 }
 ```
 
-Environment variables take precedence. `.env` files are not auto-loaded. On hosted Google infrastructure you may omit the credential path and use workload identity/ADC. Without a Firebase project configuration, registration remains available but sends are disabled and jobs record `FCM_NOT_CONFIGURED`.
+Replace `YOUR_FIREBASE_PROJECT_ID` with the actual project ID imported/configured in Glance, not its display name. Environment variables take precedence; `.env` files are not auto-loaded. On hosted Google infrastructure you may omit the credential path and use workload identity/ADC. A service account from a different project also works if authorized to send for the target; explicitly set `firebaseProjectId` or `EVEN_PILOT_FCM_PROJECT_ID` to that target. Without a Firebase project configuration, registration remains available but sends are disabled and jobs record `FCM_NOT_CONFIGURED`.
 
-Enable the Firebase Cloud Messaging API and grant the sending service account FCM send permission on `even-glance` (the Firebase Cloud Messaging API Admin role is Google's documented option). `check-auth` verifies OAuth credential authentication without exposing the token; it does **not** prove project-level send permission or phone delivery.
+Enable the Firebase Cloud Messaging API in the target project and grant the sending service account FCM send permission there (the Firebase Cloud Messaging API Admin role is Google's documented option). `check-auth` verifies OAuth credential authentication without exposing the token; it does **not** prove project-level send permission or phone delivery.
 
 ## Glance connection
 
-1. Install a Glance build that supports this FCM push contract.
-2. Keep the phone and Windows PC reachable over Tailscale or the trusted local test network.
+1. Install compatible Glance and configure/import your Firebase project using its [README](https://github.com/Liang-Chu/Glance#readme). Configure the sender for that same target project.
+2. Keep the phone and sender/center reachable over Tailscale or a trusted local network.
 3. Create/edit a watcher and choose **DELIVERY: PUSH**.
 4. Registration URL: your current **Bridge URL** plus **`/api/glance`**, for example `http://<PC-IP>:4317/api/glance`. Enter the complete URL; Glance appends nothing.
 5. Credential: the same **connection key** used by Even Hub, without `Bearer ` in the field. The [shared v1 QR](glance-qr-v1.md) fills the URL and key. Existing notification-only credentials also remain valid. Never use a Firebase private key as this field.
@@ -76,6 +76,7 @@ The same exact **POST `/api/glance`** URL handles registration and removal. Both
   "operation": "register_push",
   "subscription_id": "watcher-subscription-id",
   "installation_id": "phone-firebase-installation-id",
+  "firebase_project_id": "YOUR_FIREBASE_PROJECT_ID",
   "watcher": "Pi on my PC",
   "max_length": 80,
   "title_max_length": 32,
@@ -85,6 +86,8 @@ The same exact **POST `/api/glance`** URL handles registration and removal. Both
 ```
 
 Registration upserts only that subscription ID, including its installation ID, name and limits. Several watchers can share a phone; one registration never replaces the other watchers. Successful registration returns **204 with no body**, never notification content. No polling interval is needed. New subscriptions start with future completion events, without replaying old completions.
+
+For PUSH registration, Glance supplies `firebase_project_id` from its imported phone configuration. When a sender project is configured, this field is required and must match it; a missing or different project is rejected. An unconfigured sender still accepts registration but cannot send until Firebase is configured. Use the phone's actual project ID in the example, not the placeholder.
 
 ```json
 { "operation": "unregister_push", "subscription_id": "watcher-subscription-id", "client": "Glance" }
@@ -122,7 +125,7 @@ After a successful explicit test, run a harmless prompt through Even-Pilot and o
 
 ## Delivery behavior and failures
 
-The sender uses authenticated HTTP v1 at `https://fcm.googleapis.com/v1/projects/even-glance/messages:send`. The data-only payload contains `message.fid`, `data.subscription_id`, `data.title`, `data.text`, and Android priority/TTL. All data values are strings. There is no `notification` object, topic routing, registration-token substitution, or second push to clear a notification.
+The sender uses authenticated HTTP v1 at `https://fcm.googleapis.com/v1/projects/YOUR_FIREBASE_PROJECT_ID/messages:send`, with the configured target project ID. The data-only payload contains `message.fid`, `data.subscription_id`, `data.title`, `data.text`, and Android priority/TTL. All data values are strings. There is no `notification` object, topic routing, registration-token substitution, or second push to clear a notification.
 
 Explicit title/body inputs must be nonempty and fit the subscription's UTF-16 code-unit limits, including emoji. Oversize explicit inputs are rejected without changing their content. The entire JSON envelope must fit 4096 UTF-8 bytes. Since 0.4.1, automatic completion messages are composed within each watcher's limits: long session names use a shortened label and short session ID, small title budgets use `Pi` or `π`, and very small body budgets retain a compact outcome. Unicode surrogate pairs are preserved. The final FCM boundary remains strict for both generated and explicit content.
 

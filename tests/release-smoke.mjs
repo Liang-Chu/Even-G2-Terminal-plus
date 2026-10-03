@@ -31,7 +31,7 @@ assert.equal(runtimePackage.scripts.proof, undefined);
 const env = { ...process.env, EVEN_PILOT_DATA_DIR: join(install, '.local'),
   PATH: join(process.env.WINDIR, 'System32') + ';' + process.env.WINDIR,
   CODEX_HOME: join(directory, 'fixture-codex'),
-  EVEN_PILOT_TOKEN: '', EVEN_PILOT_NOTIFICATION_TOKEN: '', EVEN_PILOT_FCM_PROJECT_ID: '', GOOGLE_APPLICATION_CREDENTIALS: '',
+  EVEN_PILOT_TOKEN: '', EVEN_PILOT_NOTIFICATION_TOKEN: '', EVEN_PILOT_FCM_PROJECT_ID: 'pilot-fixture-project', GOOGLE_APPLICATION_CREDENTIALS: '',
   PI_CODING_AGENT_DIR: join(directory, 'fixture-pi'), PI_CODING_AGENT_SESSION_DIR: '', CLAUDE_CONFIG_DIR: join(directory, 'fixture-claude'),
   EVEN_PILOT_CODEX: join(directory, 'not-installed-codex.exe') };
 const setup = spawnSync('cmd.exe', ['/d', '/c', 'Setup.cmd'], { cwd: install, env, windowsHide: true,
@@ -78,6 +78,11 @@ try {
   const state = await (await request('/api/monitoring')).json();
   assert.equal(state.nativeTerminals, true);
   assert.equal(state.running, 0);
+  const push = await (await request('/api/glance/push')).json();
+  assert.equal(push.configured, true, 'A user-owned Firebase project allows the packaged backend to start');
+  assert.equal(push.projectId, 'pilot-fixture-project');
+  assert.equal(push.jobs.length, 0, 'No sender authentication or FCM job is requested');
+  assert.equal(push.subscriptions.length, 0);
   const hostInfo = await (await request('/api/host')).json();
   assert.equal(typeof hostInfo.name, 'string'); assert.ok(['tailscale', 'hostname'].includes(hostInfo.nameSource));
   assert.equal((await request('/')).status, 200, 'Packaged frontend served');

@@ -64,22 +64,41 @@ test("native conversation taps select every row without any JavaScript swipe eve
  display.handleEvent({listEvent:{containerID:8}} as any);assert.equal(opens,1,"omitted protobuf index is input row zero");
 });
 
-test("working count is below New prompt, inert on tap, and does not shift message actions", async t => {
+test("working count below New prompt opens real agent task details and returns to the latest native list", async t => {
   const { bridge, layouts } = bridgeRecorder(); let opens = 0;
   const display = new G2Display(() => {}, () => {}, undefined, { renderer,
     input: { open: () => opens++, toggleRecording() {} } });
   t.after(() => display.dispose());
-  display.update({ ...runtime("Latest reply"), main: { status: "running" },
-    subagents: { active: 3, mainDelegated: true },
-    monitoring: { running: 12, watched: 12, since: 0, sessions: [] } }, true);
+  const state = { ...runtime(""), main: { status: "running" as const },
+    transcript: [{ id: 1, at: 1, role: "user" as const, text: "Review the project" },
+      { id: 2, at: 2, role: "assistant" as const, text: "Latest reply" }],
+    subagents: { active: 3, mainDelegated: true, tasks: [
+      { id: "a", name: "reviewer", task: "Review authentication", tools: ["read"] },
+      { id: "b", name: "worker", task: "Check sessions" },
+      { id: "c", name: "worker", task: "Check rendering" },
+    ] },
+    monitoring: { running: 12, watched: 12, since: 0, sessions: [] } };
+  display.update(state, true);
   await display.init(bridge as any); await wait();
   assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName,
-    ["New prompt", "… agents: 3", "\u3000\u3000← Latest reply"]);
+    ["New prompt", "… agents: 3", "\u3000\u3000← Latest reply", "→ Review the project"]);
   display.handleEvent({ listEvent: { containerID: 8, currentSelectItemIndex: 1 } } as any);
   display.handleEvent({ sysEvent: { eventType: 0 } } as any); await wait();
-  assert.equal(opens, 0, "system click duplicates cannot act through the informational row");
-  assert.ok(layouts.at(-1).listObject, "the count never opens an empty message page");
-  display.handleEvent({ listEvent: { containerID: 8, currentSelectItemIndex: 2 } } as any); await wait();
+  assert.equal(opens, 0, "system click duplicates cannot open input through the activity detail");
+  const detail = layouts.at(-1), text = pageText(detail);
+  assert.equal(detail.textObject.find((item: any) => item.containerID === 1).isEventCapture, 1);
+  assert.match(text, /^Agents: 3/); assert.match(text, /Main agent · coordinating[\s\S]*Task: Review the project/);
+  assert.match(text, /Sub-agent 1 · reviewer[\s\S]*Task: Review authentication[\s\S]*Tools: read/);
+  assert.match(text, /Sub-agent 2 · worker[\s\S]*Task: Check sessions/);
+  assert.match(text, /Sub-agent 3 · worker[\s\S]*Task: Check rendering/);
+  assert.doesNotMatch(text, /Agents: 12|waiting for reply/i);
+  const before = layouts.length;
+  display.handleEvent({ textEvent: { containerID: 1, eventType: 2 } } as any);
+  display.update({ ...state, main: { status: "idle" }, subagents: { active: 0 } }, true); await wait();
+  assert.equal(layouts.length, before, "activity detail is a stable native long-text snapshot while reading");
+  display.handleEvent({ sysEvent: { eventType: 3 } } as any); await wait();
+  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName, ["New prompt", "\u3000\u3000← Latest reply", "→ Review the project"]);
+  display.handleEvent({ listEvent: { containerID: 8, currentSelectItemIndex: 1 } } as any); await wait();
   assert.equal(pageText(layouts.at(-1)), "Latest reply");
   assert.equal(opens, 0);
 });

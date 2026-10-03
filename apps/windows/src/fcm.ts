@@ -17,6 +17,11 @@ export interface PushSender {
   send(payload: FcmPayload, signal: AbortSignal, expiresAt?: number): Promise<{ name: string }>;
 }
 
+export function validateFirebaseProjectId(value: unknown): string {
+  if (typeof value !== "string" || !/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(value)) throw new Error("Invalid Firebase project ID");
+  return value;
+}
+
 export class FcmSender implements PushSender {
   private auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/firebase.messaging"] });
   constructor(
@@ -24,7 +29,7 @@ export class FcmSender implements PushSender {
     private http: typeof fetch = fetch,
     private accessToken: () => Promise<string | null | undefined> = () => this.auth.getAccessToken(),
   ) {
-    if (!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(projectId)) throw new Error("Invalid Firebase project ID");
+    validateFirebaseProjectId(projectId);
   }
   async send(payload: FcmPayload, signal: AbortSignal, expiresAt?: number) {
     let token: string | null | undefined;

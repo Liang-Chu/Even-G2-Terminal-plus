@@ -6,6 +6,7 @@ import type { RuntimeState } from "../cockpit-state/types.js";
 import { promptLabel } from "../cockpit-state/selectors.js";
 import { connectorKey } from "./identity.js";
 import { canonicalPath } from "../pi-runtime/sessions.js";
+import { boundedAgentTask, MAX_AGENT_TASKS, type AgentTask } from "../cockpit-state/agent-tasks.js";
 
 type Outcome = "completed" | "interrupted";
 interface ConversationMessage { role: "user" | "assistant"; text: string; userItem?: string }
@@ -126,10 +127,16 @@ export class CodexObserver {
     if (this.stopped) return;
     const byId = new Map([...this.files.values()].filter(f => f.id).map(f => [f.id!, f]));
     const childCounts = new Map<string, number>();
+    const childTasks = new Map<string, AgentTask[]>();
     for (const child of byId.values()) if (child.busy) {
       let parent = child.parent; const visited = new Set<string>();
       while (parent && !visited.has(parent)) {
         visited.add(parent); childCounts.set(parent, (childCounts.get(parent) || 0) + 1);
+        const tasks = childTasks.get(parent) || [];
+        // Child rollouts can contain copied parent prompts. Expose only their
+        // verified identity/index name, never infer a task from that history.
+        if (tasks.length < MAX_AGENT_TASKS) tasks.push(boundedAgentTask(child.id!, { name: this.names.get(child.id!) }));
+        childTasks.set(parent, tasks);
         parent = byId.get(parent)?.parent;
       }
     }
@@ -141,9 +148,12 @@ export class CodexObserver {
       }
       if (file.parent) continue;
       const children = childCounts.get(file.id!) || 0;
+      const tasks = childTasks.get(file.id!) || [], tasksTruncated = children > tasks.length;
       const name = this.names.get(file.id!);
       if (name && name !== file.store.state.session.name) { file.store.state.session.name = name; file.changed = true; }
-      const changed = file.changed || children !== file.children;
+      const changed = file.changed || children !== file.children ||
+        JSON.stringify(tasks) !== JSON.stringify(file.store.state.subagents?.tasks || []) ||
+        tasksTruncated !== !!file.store.state.subagents?.tasksTruncated;
       file.children = children;
       if (!changed) continue;
       file.changed = false;
@@ -157,7 +167,7 @@ export class CodexObserver {
       const completion = completions.at(-1);
       file.store.publish({ ...state, connected: file.available,
         main: { ...state.main, status, ...(completion ? { settledAt: completion.at, statusSince: completion.at, outcome: completion.outcome } : {}) },
-        subagents: { active: children, mainDelegated: !file.busy }, capabilities: { prompt: false, interrupt: false },
+        subagents: { active: children, mainDelegated: !file.busy, tasks, ...(tasksTruncated ? { tasksTruncated: true } : {}) }, capabilities: { prompt: false, interrupt: false },
       }, { type: "monitoring.updated" });
       for (const [index, done] of (completions.length ? completions : [undefined]).entries()) {
         this.receive({ state: file.store.state, updatedAt: file.updatedAt, activity: index === 0 && file.activity,

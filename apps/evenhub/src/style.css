@@ -573,24 +573,9 @@ dd {
 .details-card > .caption {
   margin: 10px 16px 14px;
 }
-.notification-card {
-  display: flex;
-  gap: 14px;
-  border: 1px dashed #111;
-  padding: 16px;
-}
-.notification-icon {
-  font: 22px var(--pixel);
-}
 h3 {
   font: 400 12px/1.5 var(--pixel);
   margin: 0 0 8px;
-}
-.notification-card p {
-  color: #555;
-  font-size: 11px;
-  line-height: 1.8;
-  margin: 0 0 10px;
 }
 .page-footer {
   margin-top: 34px;
@@ -698,12 +683,6 @@ dialog input:focus {
   border-top: 1px dashed #111;
   padding-top: 12px;
   margin-top: 16px;
-}
-.glance-details code {
-  overflow-wrap: anywhere;
-}
-.glance-details p {
-  font-size: 11px;
 }
 #connection-error {
   color: #fff;

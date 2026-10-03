@@ -44,6 +44,7 @@ export function elapsedTime(since: number | undefined, now = Date.now()): string
 /** Current session only: main Pi plus any independently reported sub-agents. */
 export function sessionAgentCount(state: RuntimeState, online: boolean): string {
   if (!online || !state.connected) return "?";
+  if (state.subagents?.uncertain) return "?";
   const main = state.main.status === "running" ? 1 : 0;
   const children = state.subagents?.active;
   if (Number.isSafeInteger(children) && children! >= 0)

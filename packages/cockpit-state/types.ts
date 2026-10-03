@@ -24,8 +24,9 @@ export interface RuntimeState {
     outcome?: "completed" | "interrupted" | "failed";
   };
   tools: { active: Record<string, { name: string; startedAt: number }> };
-  /** Optional exact count supplied by a sub-agent integration; never a session/tool count. */
-  subagents?: { active: number; mainDelegated?: boolean };
+  /** Observed agent activity; uncertainty prevents presenting an exact count. */
+  subagents?: { active: number; mainDelegated?: boolean; uncertain?: boolean;
+    tasks?: { id: string; name?: string; task?: string; tools?: string[] }[]; tasksTruncated?: boolean };
   session: { id?: string; key?: string; name?: string; cwd: string; model?: string; tunnel?: Tunnel; resumedFrom?: string };
   capabilities?: { interrupt: boolean; prompt?: boolean };
   interactions?: import("./interactions.js").Interaction[];

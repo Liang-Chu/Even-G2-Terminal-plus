@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Completion, NotificationJournal } from "./notifications.js";
-import { FcmFailure, type FcmPayload, type PushPriority, type PushSender } from "./fcm.js";
+import { FcmFailure, validateFirebaseProjectId, type FcmPayload, type PushPriority, type PushSender } from "./fcm.js";
 
 export class PushError extends Error {
   constructor(message: string, public statusCode = 400) { super(message); }
@@ -165,6 +165,12 @@ export class GlancePush {
       expiresAfterSeconds: integer(data.expires_after_seconds, "expires_after_seconds", 86_400) };
   }
   register(data: Record<string, unknown>) {
+    if (this.options.projectId) {
+      let projectId: string;
+      try { projectId = validateFirebaseProjectId(data.firebase_project_id); }
+      catch { throw new PushError("firebase_project_id is required and must be a valid Firebase project ID"); }
+      if (projectId !== this.options.projectId) throw new PushError("firebase_project_id does not match this sender's configured Firebase project", 409);
+    }
     const input = this.registration(data);
     if (this.data.retired.includes(input.id)) throw new PushError("This subscription ID was retired; create a new watcher subscription", 410);
     const previous = this.data.subscriptions.find(s => s.id === input.id);

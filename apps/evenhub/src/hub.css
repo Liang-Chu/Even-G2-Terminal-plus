@@ -80,7 +80,7 @@
 .hub-mode .composer-bottom > span { font-size: 11px; }
 .hub-mode .composer-bottom button { min-height: 40px; padding: 8px 12px; font-size: 12px; }
 .hub-runtime { margin-top: 16px; background: #fff; border: 1px solid #bbb; }
-.hub-runtime > summary, .hub-glance > summary { padding: 14px 12px; cursor: pointer; font-size: 12px; }
+.hub-runtime > summary { padding: 14px 12px; cursor: pointer; font-size: 12px; }
 .hub-runtime .details-card { border: 0; }
 .hub-runtime .panel-heading, .hub-runtime .session-actions, .hub-runtime #monitor-summary { display: none; }
 .hub-runtime dl { padding: 0 12px 12px; }
@@ -90,9 +90,6 @@
 .hub-mode .g2-controls { padding: 0 12px 12px; }
 .hub-mode .g2-controls button { min-height: 40px; min-width: 40px; }
 .hub-mode .g2-diagnostics { margin: 0 12px 12px; }
-.hub-mode .glance-details h3 { display: none; }
-.hub-glance { border-top: 1px solid #bbb; margin-top: 18px; }
-.hub-glance .glance-details { border: 0; margin: 0; padding-top: 0; }
 @media (max-width: 380px) {
   .hub-mode main { padding: 0 10px; }
   .hub-nav { margin-left: -10px; margin-right: -10px; }

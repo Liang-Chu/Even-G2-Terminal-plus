@@ -1,6 +1,6 @@
 # Notification routing
 
-Each computer can send directly to Glance or forward completion events to one center. This works on Windows and Linux. Start with [first-time notification setup](setup.md#optional-glance-notifications) / [中文配置](setup.zh-CN.md#可选-glance-通知).
+Each computer can send directly to Glance or forward completion events to one center. This works on Windows and Linux. Configure/import your own Firebase project in the phone's Glance app using the [Glance README](https://github.com/Liang-Chu/Glance#readme). Every sender must target that same project. Start with [first-time notification setup](setup.md#optional-glance-notifications) / [中文配置](setup.zh-CN.md#可选-glance-通知).
 
 Adding a computer in phone **Connection** saves phone access to its sessions. The desktop manager controls only its own computer. Neither action registers Glance or changes notification routing. **Glance notifications** is a separate dialog: desktop settings affect only the local source; on the phone, **Computer** selects a saved source.
 
@@ -19,7 +19,7 @@ even-pilot settings
 even-pilot pair
 ```
 
-The service-account JSON must authorize FCM sending for Glance's `even-glance` Firebase project. The command saves a file reference and restarts only monitoring; native CLIs keep running. The final `pair` displays this sender's URL/key/QR for Glance registration, which is still a separate phone operation.
+The service-account JSON must authorize FCM sending for the phone's Glance project. The Linux command derives the target from its `project_id`, saves that project and a private file reference, and restarts only monitoring; native CLIs keep running. For an authorized cross-project service account or ADC, set `EVEN_PILOT_FCM_PROJECT_ID` to the phone's target in the monitoring process/service environment. Android `google-services.json` is not a sending credential, and no private Firebase credentials are included in Even-Pilot packages. The final `pair` displays this sender's URL/key/QR for Glance registration, which is still a separate phone operation.
 
 ## One center
 

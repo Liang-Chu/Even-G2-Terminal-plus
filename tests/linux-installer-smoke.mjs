@@ -119,15 +119,15 @@ try {
   assert.equal((await (await request('/api/glance/routing')).json()).mode, 'direct');
   const credentialPath = join(fixture, 'synthetic-firebase-service-account.json');
   const syntheticPrivateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
-  writeFileSync(credentialPath, JSON.stringify({ type: 'service_account', project_id: 'even-glance',
-    client_email: 'fixture@even-glance.iam.gserviceaccount.com', private_key: syntheticPrivateKey,
+  writeFileSync(credentialPath, JSON.stringify({ type: 'service_account', project_id: 'pilot-fixture-project',
+    client_email: 'fixture@pilot-fixture-project.iam.gserviceaccount.com', private_key: syntheticPrivateKey,
     token_uri: 'https://oauth2.googleapis.com/token', universe_domain: 'googleapis.com' }), { mode: 0o600 });
   const configureOutput = command('settings', 'firebase', '--credentials', credentialPath);
   assert.match(configureOutput, /credential reference saved.*Monitoring restarted/s);
   assert.ok(!configureOutput.includes(syntheticPrivateKey) && !configureOutput.includes(token), 'Settings output keeps credentials private');
   const firebaseConfig = JSON.parse(readFileSync(join(data, 'bridge-config.json'), 'utf8'));
   assert.equal(firebaseConfig.firebaseCredentialsPath, credentialPath);
-  assert.equal(firebaseConfig.firebaseProjectId, 'even-glance');
+  assert.equal(firebaseConfig.firebaseProjectId, 'pilot-fixture-project');
   const originalConfig = JSON.parse(original);
   assert.equal(firebaseConfig.controlToken, originalConfig.controlToken, 'Firebase setup preserves the control key');
   assert.equal(firebaseConfig.notificationToken, originalConfig.notificationToken, 'Firebase setup preserves the notification key');

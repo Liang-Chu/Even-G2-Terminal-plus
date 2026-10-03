@@ -17,7 +17,7 @@ The companion is a watcher and lightweight session manager. Its desktop manager 
 
 ### Windows
 
-1. Download `Even-Pilot-1.1.7-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
+1. Download `Even-Pilot-1.1.8-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Even-Pilot**, **Start with Windows**, update controls and **Quit Even-Pilot**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -29,7 +29,7 @@ The ZIP is an optional portable alternative: extract the whole archive to a dedi
 The supplied binary targets x64/glibc Linux. The tested baseline is headless Ubuntu 26.04 LTS; Alpine/musl is not supported by this package. Install as a normal user, without `sudo`:
 
 ```sh
-sh ./Even-Pilot-1.1.7-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
 ```
 
 It installs its bundled runtime under `~/.local/lib/even-pilot`, creates `~/.local/bin/even-pilot`, starts monitoring and adds a removable PATH block for supported shells. Open a new shell before using the short command; in the current shell use the full path or the PATH command printed by the installer. This is a per-user global command, not an npm package installation.
@@ -101,7 +101,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install/upload `even-pilot-1.1.7.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
+1. Install/upload `even-pilot-1.1.8.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `even-pilot pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -168,7 +168,7 @@ Phone **Sessions** finds/manages sessions; **Conversation** shows messages, fold
 | Conversation menu | **Terminate task** requests supported cancellation; **Sessions** switches among reachable watched sessions |
 | Supported question | Swipe through native options; tap to choose; **Other / enter answer** opens the input editor |
 
-The list begins with **New prompt**, even when the session is read-only; in that case input tells you to continue in the original terminal. While working, a native active-agent row appears directly underneath. The latest ten messages follow; earlier history stays on phone/computer. Counts and message updates defer during browsing to preserve native focus. The header shows source computer, selected-session count, tunnel, model and title.
+The list begins with **New prompt**, even when the session is read-only; in that case input tells you to continue in the original terminal. While working, a native active-agent row appears directly underneath. Tap it to open a snapshot of the main requested task and reported sub-agent tasks/tools; connectors without those details show them as unavailable. Double tap returns to the list. The latest ten messages follow; earlier history stays on phone/computer. Counts and message updates defer during browsing to preserve native focus. The header shows source computer, selected-session count, tunnel, model and title.
 
 Voice is optional: open phone **Voice**, select OpenAI or ElevenLabs, enter your own transcription key and save. It persists on that device. The phone sends audio directly to the chosen transcription provider, then sends the finished prompt to the target companion. [Voice models, privacy and gestures](voice.md)
 
@@ -176,7 +176,7 @@ Ordinary Claude questions can be read in history; answering requires an explicit
 
 ## Optional Glance notifications
 
-Monitoring works before push is configured. A new companion does not ship Firebase credentials. Install a compatible [Glance](https://github.com/Liang-Chu/Glance) app on the phone and choose a delivery arrangement:
+Monitoring works before push is configured. A new companion does not ship Firebase credentials. Install compatible Glance and configure/import your own Firebase project on the phone using its [setup guide](https://github.com/Liang-Chu/Glance#readme), then choose a delivery arrangement:
 
 | Mode | Firebase setup | Glance PUSH registration |
 | --- | --- | --- |
@@ -187,7 +187,7 @@ Completion is per watched session. A session displayed on G2 is suppressed while
 
 ### Configure the sender
 
-Use a service-account JSON authorized to send for the installed Glance Firebase project, currently `even-glance`. Keep it readable in a private, stable location. Its private key is not a connection key; an arbitrary Firebase project or Android `google-services.json` is not a sender credential. Follow the [Glance sending prerequisites](glance-push.md).
+Use a service-account JSON authorized to send for **the same Firebase project configured/imported in the phone's Glance app**. Keep it readable in a private, stable location. Its private key is not a connection key; Android `google-services.json` is client configuration, not a sender credential. Each user supplies their own project/credentials; no APK rebuild is needed. Follow the [Glance sending prerequisites](glance-push.md).
 
 On a Linux sender/center:
 
@@ -198,18 +198,18 @@ even-pilot settings
 even-pilot pair
 ```
 
-Replace the credential path with your existing authorized JSON. The command saves a path reference and restarts only monitoring. `settings firebase clear` removes that reference, not the file. Explicit `GOOGLE_APPLICATION_CREDENTIALS` / `EVEN_PILOT_FCM_PROJECT_ID` environment variables take precedence; status warns if they are set.
+Replace the credential path with your own authorized JSON. The command derives the target from its `project_id`, saves that project and a private path reference, and restarts only monitoring. This target must match the phone's Glance project. `settings firebase clear` removes that saved configuration, not the file. Explicit `GOOGLE_APPLICATION_CREDENTIALS` / `EVEN_PILOT_FCM_PROJECT_ID` environment variables take precedence; status warns if they are set. For cross-project service accounts or ADC, set `EVEN_PILOT_FCM_PROJECT_ID` to the phone's target in the monitoring process/service environment and authorize the sender there.
 
 On Windows, add `firebaseProjectId` and `firebaseCredentialsPath` to the **existing** `<installation>\.local\bridge-config.json`, preserving its connection keys:
 
 ```json
 {
-  "firebaseProjectId": "even-glance",
+  "firebaseProjectId": "YOUR_FIREBASE_PROJECT_ID",
   "firebaseCredentialsPath": "C:\\Private\\glance-sender.json"
 }
 ```
 
-This is a two-field fragment to merge, not a replacement file. Quit the tray, stop only that monitoring backend using the [authenticated shutdown steps](development.md#更新已有安装), then reopen the shortcut. Tray Quit alone does not reload Firebase settings. [Windows sender details](glance-push.md#windows-setup)
+Replace `YOUR_FIREBASE_PROJECT_ID` with the phone's imported/configured project ID and the path with your private service-account file. Merge these two fields into the existing file, preserving its connection keys. Quit the tray, stop only that monitoring backend using the [authenticated shutdown steps](development.md#更新已有安装), then reopen the shortcut. Tray Quit alone does not reload Firebase settings. [Windows sender details](glance-push.md#windows-setup)
 
 ### Register Glance on the sender/center
 
@@ -245,7 +245,7 @@ To return a source to independent delivery use `even-pilot settings push direct`
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `even-pilot update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `even-pilot update`, then `even-pilot update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.7.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.8.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Even-Pilot**. Linux uses `even-pilot uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `even-pilot stop`; native terminals keep working.
 

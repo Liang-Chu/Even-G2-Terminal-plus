@@ -11,7 +11,7 @@ import { shortLine, textPages } from "./text.js";
 import { glassesMessages } from "../../../../packages/cockpit-state/g2-reply.js";
 import { CanvasG2Renderer, G2_READING_PADDING, pngBytes, type G2Renderer, type G2Tile } from "./renderer.js";
 import { BACK_MENU_ID, SEND_MENU_ID, SESSIONS_MENU_ID, STOP_MENU_ID, PREVIOUS_PART_MENU_ID, NEXT_PART_MENU_ID, GESTURE_CONTAINER_ID, CONFIRM_CONTAINER_ID, CHOICE_CONTAINER_ID, nativeTexts, nativeBody, nativeLabel, nativeHeading, nativeLayout, nativeLayoutKey, type NativeFrame, type NativeListEntry } from "./native.js";
-import { MessageBrowser, nativeTextPrefix } from "./messages.js";
+import { MessageBrowser, activityDetails, nativeTextPrefix } from "./messages.js";
 import { TapGestures } from "./tap-gestures.js";
 import { bridgeBatch, serialBridge } from "../bridge/serial.js";
 import { glassesInteraction, type Interaction, type InteractionAnswer } from "../../../../packages/cockpit-state/interactions.js";
@@ -346,7 +346,10 @@ export class G2Display {
     if (this.choice()) { void this.answerChoice(); return; }
     if (this.composer) { this.options.input?.toggleRecording(); return; }
     if (this.messages.detail) return;
-    if (this.messages.activitySelected) return;
+    if (this.messages.activitySelected) {
+      if (this.state) this.messages.openActivity(activityDetails(this.state, this.online && this.state.source?.online !== false));
+      this.schedule(); return;
+    }
     if (this.messages.inputSelected) this.openInput();
     else { this.messages.open(); this.schedule(); }
   }
@@ -458,7 +461,9 @@ export class G2Display {
         if (!entry) return;
         if (entry.key === "working-agents") {
           this.messages.selectActivity(); this.browsingMessages = true; this.messageNavigationAt = Date.now();
-          this.schedule(); return;
+          if (type === 0) this.taps.input(type);
+          else this.schedule();
+          return;
         }
         const target = entry?.key === "input" ? 0 : this.messages.messages.findIndex(message => message.id === entry?.key) + 1;
         if (entry.key !== "input" && target <= 0) return;

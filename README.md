@@ -2,7 +2,7 @@
 
 A lightweight watcher for Pi, Codex and Claude Code on Windows/Linux. Each desktop manager controls its own computer; the phone combines watched sessions from your computers for viewing on phone and Even G2. Keep working in your native CLI. The phone/G2 can send prompts only to input-capable sessions. Glance completion notifications are optional.
 
-**1.1.7** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**1.1.8** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Download](https://github.com/Liang-Chu/Even-Pilot/releases) · [中文](README.zh-CN.md) · [Release notes](RELEASE_NOTES.md)
 
@@ -12,11 +12,11 @@ A lightweight watcher for Pi, Codex and Claude Code on Windows/Linux. Each deskt
 
 Keep your existing CLI installation and model login. Run Even-Pilot as the same operating-system user as that CLI.
 
-- **Windows:** run `Even-Pilot-1.1.7-Setup-x64.exe` and choose **Install**. The manager opens; later use the desktop shortcut or double-click the tray. Right-click the tray to enable **Start with Windows**.
+- **Windows:** run `Even-Pilot-1.1.8-Setup-x64.exe` and choose **Install**. The manager opens; later use the desktop shortcut or double-click the tray. Right-click the tray to enable **Start with Windows**.
 - **Linux / SSH:** download the Linux installer, then run as your normal user:
 
   ```sh
-  sh ./Even-Pilot-1.1.7-Setup-linux-x64.run
+  sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
   ```
 
   Open a new shell, then run `even-pilot status` and `even-pilot pair`. Until then, use `~/.local/bin/even-pilot`. The offline installer includes Node and backend dependencies; no global npm install is needed. [Headless service and reboot setup](docs/setup.md#linux-headless-or-desktop)
@@ -41,7 +41,7 @@ No subnet router or exit node is needed. `127.0.0.1` reaches the device you are 
 
 ### 4. Install the phone app and save the connection
 
-1. Install/upload `even-pilot-1.1.7.ehpk` in Even Hub; connect G2 in Even App.
+1. Install/upload `even-pilot-1.1.8.ehpk` in Even Hub; connect G2 in Even App.
 2. On Windows open **Connect phone** to see this computer's phone URL/key. On Linux run `even-pilot pair`.
 3. In the phone Hub app, open **Connection → Connect another computer**. Paste the computer's **Bridge URL** and **Connection key**, then **Connect computer**. Enter the plain key without `Bearer`.
 4. The connection saves on this phone. Add each additional machine here with its own URL/key; the phone combines their sessions. Each desktop manager shows only its own computer.
@@ -59,7 +59,7 @@ Find the session in **Sessions** and enable **Watch**. If it is missing on deskt
 
 ## Everyday controls
 
-G2 uses a native list: **New prompt**, the selected session's active-agent row while working, then the latest ten messages. Swipe to select; tap a message to expand native long text; double tap returns. In the list, double tap requests normal app exit. **Terminate task** is in the menu and requires an input-capable connector. [G2/input controls](docs/setup.md#phone-and-g2-controls)
+G2 uses a native list: **New prompt**, the selected session's active-agent row while working, then the latest ten messages. Tap the agent row for current task details; unavailable connector details are labeled. Swipe to select; tap a message to expand native long text; double tap returns. In the list, double tap requests normal app exit. **Terminate task** is in the menu and requires an input-capable connector. [G2/input controls](docs/setup.md#phone-and-g2-controls)
 
 Optional voice: save your own OpenAI/ElevenLabs transcription key in the phone's **Voice** settings. Tap starts/stops recording; hold deletes the last segment once per second. Double tap returns directly for an empty draft; otherwise choose **Send & exit** or **Exit only**. [Voice details](docs/voice.md)
 

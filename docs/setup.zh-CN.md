@@ -17,7 +17,7 @@ Even-Pilot 是监控和简单会话管理端。桌面管理页只控制提供这
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.7-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.8-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Even-Pilot**、**Start with Windows**、更新和 **Quit Even-Pilot**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -29,7 +29,7 @@ Even-Pilot 是监控和简单会话管理端。桌面管理页只控制提供这
 本包面向 x64/glibc，实测基准为无头 Ubuntu 26.04 LTS，不适用于 Alpine/musl。以普通用户执行，**不要加 sudo**：
 
 ```sh
-sh ./Even-Pilot-1.1.7-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
 ```
 
 程序安装到 `~/.local/lib/even-pilot`，命令位于 `~/.local/bin/even-pilot`；安装器给支持的 shell 添加可移除的 PATH 配置，并启动后台。新开一个 shell 后可直接输入短命令。当前终端先用完整路径，或执行安装器打印的 PATH 命令。这是当前用户的全局命令，不是 npm 全局包。
@@ -101,7 +101,7 @@ even-pilot new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. Even Hub 安装／上传 `even-pilot-1.1.7.ehpk`，Even App 2.2.10+ 连好 G2。
+1. Even Hub 安装／上传 `even-pilot-1.1.8.ehpk`，Even App 2.2.10+ 连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -168,7 +168,7 @@ tmux attach -t 实际会话名
 | 会话菜单 | **Terminate task** 请求支持的取消；**Sessions** 切换可达的已 Watch 会话 |
 | 支持的提问 | 原生列表滑动选择，单击选项；**Other / enter answer** 打开输入界面 |
 
-列表顶部统一 **New prompt**，只读会话会提示回原终端输入。工作时下一行显示当前会话的活跃 agent 数，再后面最多十条最新消息。浏览期间数量／消息延后更新，保留原生光标；更早历史在手机或电脑。顶部状态包含设备、当前会话数量、Tunnel、模型和标题。
+列表顶部统一 **New prompt**，只读会话会提示回原终端输入。工作时下一行显示当前会话的活跃 agent 数，点开查看主任务和连接器实际报告的子 agent 任务／工具快照；缺少详情时明确提示不可用。双击返回列表。再后面最多十条最新消息。浏览期间数量／消息延后更新，保留原生光标；更早历史在手机或电脑。顶部状态包含设备、当前会话数量、Tunnel、模型和标题。
 
 语音是可选项：手机 **Voice** 选择 OpenAI／ElevenLabs，填自己的转写 key 并保存。默认在当前设备保存；手机直接向所选服务上传音频，再把完整 prompt 发到目标电脑。[语音和数据流](voice.md)
 
@@ -176,7 +176,7 @@ tmux attach -t 实际会话名
 
 ## 可选 Glance 通知
 
-未配置推送也能监控。新安装不附带 Firebase 凭据。手机安装兼容的 [Glance](https://github.com/Liang-Chu/Glance)，选择一种方式：
+未配置推送也能监控。新安装不附带 Firebase 凭据。手机安装兼容的 Glance，按其[安装指南](https://github.com/Liang-Chu/Glance#readme)配置／导入自己的 Firebase 项目，再选择一种方式：
 
 | 方式 | Firebase 设置 | Glance PUSH 注册 |
 | --- | --- | --- |
@@ -187,7 +187,7 @@ tmux attach -t 实际会话名
 
 ### 1. 配置发送端或中心
 
-使用有权限向当前 Glance Firebase 项目（`even-glance`）发送的服务账号 JSON，放在稳定的私有目录。它不是 connection key，随意创建的 Firebase 项目或安卓 `google-services.json` 不能替代发送凭据。[凭据前提](glance-push.md)
+使用有权限向**手机 Glance 已配置／导入的同一个 Firebase 项目**发送的服务账号 JSON，放在稳定的私有目录。私钥不是 connection key；安卓 `google-services.json` 只是客户端配置，不能授权后端发送。每位用户使用自己的项目和凭据，无需重编 APK。[凭据前提](glance-push.md)
 
 Linux 发送端／中心：
 
@@ -198,18 +198,18 @@ even-pilot settings
 even-pilot pair
 ```
 
-替换为自己的已授权 JSON 路径。命令只保存路径引用并重启监控，不终止 CLI。`settings firebase clear` 只删引用、不删文件；显式 `GOOGLE_APPLICATION_CREDENTIALS`／`EVEN_PILOT_FCM_PROJECT_ID` 环境变量优先，状态会提示。
+替换为自己的已授权 JSON 路径。命令从 JSON 的 `project_id` 取得发送目标，保存项目和私有文件路径引用，只重启监控、不终止 CLI。目标必须与手机 Glance 的项目一致。`settings firebase clear` 只删保存配置、不删文件；显式 `GOOGLE_APPLICATION_CREDENTIALS`／`EVEN_PILOT_FCM_PROJECT_ID` 环境变量优先，状态会提示。使用跨项目服务账号或 ADC 时，在监控后台／服务的环境中将 `EVEN_PILOT_FCM_PROJECT_ID` 指向手机的目标项目，并授权发送账号访问该项目。
 
 Windows 给现有 `<安装目录>\.local\bridge-config.json` 添加下面两个字段，**保留原 connection keys，不要用这段替换整个文件**：
 
 ```json
 {
-  "firebaseProjectId": "even-glance",
+  "firebaseProjectId": "YOUR_FIREBASE_PROJECT_ID",
   "firebaseCredentialsPath": "C:\\Private\\glance-sender.json"
 }
 ```
 
-Quit 托盘，按[认证停止后台步骤](development.md#更新已有安装)只停这台监控后台，然后重开快捷方式。仅 Quit 托盘不会重载 Firebase 设置。[Windows 发送端说明](glance-push.md#windows-setup)
+把 `YOUR_FIREBASE_PROJECT_ID` 替换成手机已导入／配置的项目 ID，路径换成自己的私有服务账号文件。将这两个字段合并到现有文件，保留 connection key。Quit 托盘，按[认证停止后台步骤](development.md#更新已有安装)只停这台监控后台，然后重开快捷方式。仅 Quit 托盘不会重载 Firebase 设置。[Windows 发送端说明](glance-push.md#windows-setup)
 
 ### 2. 给 Glance 注册发送端
 
@@ -245,7 +245,7 @@ even-pilot settings
 
 已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `even-pilot update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `even-pilot update`，再用 `even-pilot update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.7.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.8.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
 Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `even-pilot stop`。
 

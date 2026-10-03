@@ -1,4 +1,6 @@
-import type { G2Message, G2Messages } from "../../../../packages/cockpit-state/g2-reply.js";
+import { glassesMessages, type G2Message, type G2Messages } from "../../../../packages/cockpit-state/g2-reply.js";
+import type { RuntimeState } from "../../../../packages/cockpit-state/types.js";
+import { sessionAgentCount } from "../../../../packages/cockpit-state/selectors.js";
 import { readableText } from "./text.js";
 import { getTextWidth } from "@evenrealities/pretext";
 
@@ -53,6 +55,39 @@ export function messageParts(text: string): string[] {
     parts.push(text.slice(start, end)); start = end;
   }
   return parts.length ? parts : [" "];
+}
+
+/** Report only current connector data; tools are never inferred to be child agents. */
+export function activityDetails(state: RuntimeState, online: boolean): string {
+  const count = sessionAgentCount(state, online);
+  const lines = [`Agents: ${count}`];
+  if (count === "?") return lines.concat("Current activity unavailable. Check the original terminal.").join("\n\n");
+  const clipped = (text: string, limit: number) => {
+    const chars = Array.from(readableText(text).trim());
+    return chars.length > limit ? chars.slice(0, limit - 3).join("") + "..." : chars.join("");
+  };
+  const active = state.subagents?.active;
+  const children = Number.isSafeInteger(active) && active! >= 0 ? active! : 0;
+  if (state.main.status === "running" || state.main.status === "waiting") {
+    const prompt = glassesMessages(state).messages.filter(message => message.role === "user").at(-1)?.text;
+    const tools = Object.values(state.tools.active).slice(0, 4).map(tool => clipped(tool.name, 64)).filter(Boolean);
+    lines.push(`Main agent · ${state.subagents?.mainDelegated && children > 0 ? "coordinating" : state.main.status}`);
+    lines.push(prompt ? `Task: ${clipped(prompt, 256)}` : "Task details unavailable.");
+    if (tools.length) lines.push("Tools: " + tools.join(", "));
+  }
+  const tasks = children > 0 ? state.subagents?.tasks?.slice(0, Math.min(children, 16)) || [] : [];
+  for (const [index, task] of tasks.entries()) {
+    const identity = clipped(task.name?.replace(/\s+/g, " ") || "", 64) || clipped(task.id.replace(/\s+/g, " "), 64);
+    lines.push(`Sub-agent ${index + 1}${identity ? " · " + identity : ""}`);
+    lines.push(task.task?.trim() ? `Task: ${clipped(task.task, 256)}` : "Task details unavailable.");
+    const tools = task.tools?.slice(0, 4).map(tool => clipped(tool, 64)).filter(Boolean);
+    if (tools?.length) lines.push("Tools: " + tools.join(", "));
+  }
+  if (children > tasks.length) lines.push(`${children - tasks.length} sub-agent${children - tasks.length === 1 ? "" : "s"}: task details unavailable.`);
+  if (state.subagents?.tasksTruncated) lines.push("More agent details: view in the original terminal.");
+  if (count === "0") lines.push("No agents running.");
+  else if (count.endsWith("+")) lines.push("Exact sub-agent count and task details unavailable.");
+  return lines.join("\n\n");
 }
 
 export class MessageBrowser {
@@ -111,6 +146,12 @@ export class MessageBrowser {
     if (!message) return;
     this.hold();
     this.detail = { message, parts: messageParts(readableText(message.text) || "No text to display. View this message on your phone or computer."), part: 0, revision: ++this.revision };
+  }
+  openActivity(text: string) {
+    if (!this.activityFocus) return;
+    this.hold();
+    this.detail = { message: { id: "working-agents", role: "assistant", text },
+      parts: messageParts(text), part: 0, revision: ++this.revision };
   }
   back() { this.detail = undefined; }
   part(direction: number) {

@@ -50,6 +50,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     if (!values.url) throw new Error("Usage: npm run pair -- --url http://<PC-LAN-or-Tailscale-IP>:4317; set EVEN_PILOT_TOKEN to the running bridge's control token first");
     const output = savePairingQr(values.url, process.env.EVEN_PILOT_TOKEN || "", resolve(values.output!));
-    console.log(`Pairing QR saved: ${output}\nScan with the Even app's development QR scanner to open this bridge.\nThe image contains your control token; keep it private.`);
+    console.log(`Connection QR saved: ${output}\nScan in Glance or another compatible app. In Even Hub, enter the Bridge URL and Connection key manually.\nThe image contains your connection key; keep it private.`);
   } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
 }

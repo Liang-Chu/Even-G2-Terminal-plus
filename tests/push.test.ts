@@ -4,13 +4,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { GlancePush, buildPushPayload, type PushSubscription } from "../apps/windows/src/push.js";
-import { FcmFailure, FcmSender, type FcmPayload, type PushSender } from "../apps/windows/src/fcm.js";
+import { FcmFailure, FcmSender, validateFirebaseProjectId, type FcmPayload, type PushSender } from "../apps/windows/src/fcm.js";
 import { NotificationJournal } from "../apps/windows/src/notifications.js";
 import { TestRuntime, completeSession } from "./fixtures/runtime.js";
 import { createBridgeServer } from "../apps/windows/src/server.js";
 
 const registration = { operation: "register_push", subscription_id: "watcher-a", installation_id: "phone-fid",
-  watcher: "Build alerts", max_length: 80, title_max_length: 32, expires_after_seconds: 3, client: "Glance" };
+  watcher: "Build alerts", max_length: 80, title_max_length: 32, expires_after_seconds: 3, client: "Glance", firebase_project_id: "even-glance" };
 const subscription: PushSubscription = { id: "watcher-a", installationId: "phone-fid", watcher: "Build alerts",
   maxLength: 80, titleMaxLength: 32, expiresAfterSeconds: 3, registeredAt: 0, lastCompletionId: 0 };
 const control = "push-test-control-123456789";
@@ -92,6 +92,32 @@ test("push payload uses FID/data-only, preserves emoji at UTF-16 limits, and rej
   assert.throws(() => buildPushPayload(small, { title: "x", text: "\uD800" }, 30), /Unicode/);
   assert.throws(() => buildPushPayload({ ...subscription, maxLength: 10_000 }, { title: "x", text: "中".repeat(1400) }, 30), /4096/);
   assert.equal(buildPushPayload(subscription, { title: "x", text: "y" }, 10, "NORMAL").message.android.priority, "NORMAL");
+});
+
+test("configured senders require the phone's matching Firebase project before changing a watcher", async t => {
+  const { runtime, journal, path } = fixture(t);
+  const push = new GlancePush(journal, { path, automatic: false, projectId: "my-glance-beta" });
+  t.after(() => push.close());
+  const bridge = createBridgeServer(runtime, journal, { token: control, notificationToken: credential, push });
+  await new Promise<void>(resolve => bridge.server.listen(0, "127.0.0.1", resolve));
+  t.after(() => bridge.close());
+  const address = bridge.server.address(); assert.ok(address && typeof address !== "string");
+  const post = (data: unknown) => fetch(`http://127.0.0.1:${address.port}/api/glance`, {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}` }, body: JSON.stringify(data),
+  });
+  assert.equal((await post({ ...registration, firebase_project_id: "my-glance-beta" })).status, 204);
+  const unchanged = readFileSync(path, "utf8");
+  for (const [project, expected] of [[undefined, 400], ["invalid/project", 400], ["even-glance", 409]] as const) {
+    const response = await post({ ...registration, firebase_project_id: project, installation_id: "credential-must-not-be-reflected" });
+    assert.equal(response.status, expected);
+    const body = await response.text(); assert.match(body, /firebase_project_id/); assert(!body.includes("credential-must-not-be-reflected"));
+    assert.equal(readFileSync(path, "utf8"), unchanged);
+  }
+  const restored = new GlancePush(journal, { path, automatic: false, projectId: "my-glance-beta" });
+  assert.equal(restored.status().subscriptions.length, 1); await restored.close();
+  const unconfigured = new GlancePush(journal, { automatic: false });
+  unconfigured.register({ ...registration, firebase_project_id: undefined });
+  assert.equal(unconfigured.status().subscriptions.length, 1); await unconfigured.close();
 });
 
 test("only settled completion events trigger pushes; shared-device watchers each route once and restarts do not replay", async t => {
@@ -177,13 +203,13 @@ test("a restart during send records uncertain and never retries an ambiguous acc
 
 test("HTTP v1 sender authenticates exact project/FID payload and classifies sanitized errors", async () => {
   const payload = buildPushPayload(subscription, { title: "Test", text: "OK" }, 30);
-  const sender = new FcmSender("even-glance", (async (url: any, init: any) => {
-    assert.equal(url, "https://fcm.googleapis.com/v1/projects/even-glance/messages:send");
+  const sender = new FcmSender("my-glance-beta", (async (url: any, init: any) => {
+    assert.equal(url, "https://fcm.googleapis.com/v1/projects/my-glance-beta/messages:send");
     assert.equal(init.headers.Authorization, "Bearer test-oauth");
     assert.equal(init.redirect, "error"); assert.deepEqual(JSON.parse(init.body), payload);
-    return new Response(JSON.stringify({ name: "projects/even-glance/messages/test" }));
+    return new Response(JSON.stringify({ name: "projects/my-glance-beta/messages/test" }));
   }) as typeof fetch, async () => "test-oauth");
-  assert.equal((await sender.send(payload, new AbortController().signal)).name, "projects/even-glance/messages/test");
+  assert.equal((await sender.send(payload, new AbortController().signal)).name, "projects/my-glance-beta/messages/test");
   for (const [status, code, expected] of [[404, "UNREGISTERED", "destination"], [403, "SENDER_ID_MISMATCH", "auth"], [503, "UNAVAILABLE", "transient"], [400, "INVALID_ARGUMENT", "permanent"]] as const) {
     const bad = new FcmSender("even-glance", (async () => new Response(JSON.stringify({ error: { message: "secret-token-do-not-log", details: [{ "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", errorCode: code }] } }), { status, headers: { "Retry-After": "15" } })) as typeof fetch, async () => "token");
     await assert.rejects(bad.send(payload, new AbortController().signal), (e: any) => e.kind === expected && !e.message.includes("secret-token") && (expected !== "transient" || e.retryAfterMs === 15_000));
@@ -192,6 +218,17 @@ test("HTTP v1 sender authenticates exact project/FID payload and classifies sani
   await assert.rejects(network.send(payload, new AbortController().signal), (e: any) => e.kind === "uncertain");
   const credentials = new FcmSender("even-glance", fetch, async () => { throw new Error("private-key"); });
   await assert.rejects(credentials.send(payload, new AbortController().signal), (e: any) => e.code === "FCM_CREDENTIALS_UNAVAILABLE" && !e.message.includes("private-key"));
+});
+
+test("Firebase project validation rejects malformed values before any authentication or request", () => {
+  let calls = 0;
+  for (const project of [undefined, null, "", "short", "UPPERCASE", "project/path", "project?token=secret", "project-name-", "a".repeat(64)]) {
+    assert.throws(() => validateFirebaseProjectId(project), error => error instanceof Error && error.message === "Invalid Firebase project ID");
+    assert.throws(() => new FcmSender(project as string, (async () => { calls++; return Response.json({}); }) as typeof fetch,
+      async () => { calls++; return "token"; }), /Invalid Firebase project ID/);
+  }
+  assert.equal(validateFirebaseProjectId("my-glance-beta"), "my-glance-beta");
+  assert.equal(calls, 0);
 });
 
 test("working-to-zero automatically queues once even with an open companion; idle, tools and session changes stay quiet", async t => {

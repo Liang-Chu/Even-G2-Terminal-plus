@@ -21,6 +21,7 @@ interface SavedSession {
   id: string; path: string; cwd: string; owner: ClaudeOwner; model?: string; name?: string;
   turn?: string; turnAt?: number; mainBusy: boolean; pendingDone: boolean; outcome: Outcome;
   children: string[]; background: string[]; crons?: string[]; unknownChildren?: boolean; waiting?: boolean; warning?: string;
+  childEvents?: { id: string; at: number; startAt?: number; stopTrusted?: boolean; ambiguous?: boolean }[];
   ended: boolean; lastAt: number; updatedAt: number;
 }
 interface Session extends SavedSession { store: CockpitStore; online: boolean; historyLoaded: boolean }
@@ -29,7 +30,9 @@ const names = new Set(["SessionStart", "UserPromptSubmit", "Stop", "StopFailure"
 const ownerValid = (value: any): value is ClaudeOwner => value && Number.isSafeInteger(value.pid) && value.pid > 0 && typeof value.started === "string" && /^\d{1,20}$/.test(value.started);
 const sameOwner = (a: ClaudeOwner, b: ClaudeOwner) => a.pid === b.pid && a.started === b.started;
 const terminalTask = new Set(["completed", "failed", "cancelled", "canceled", "done", "stopped"]);
+const ambiguousChildWarning = "Claude child lifecycle order is ambiguous; completion is unconfirmed.";
 class InvalidQueuedEvent extends Error {}
+interface UnreadableEvent { at: number; sessionId?: string; owner?: ClaudeOwner }
 
 /** Ordinary Claude terminals emit official hooks into a private queue. This
  * adapter never controls the CLI and never guesses completion from silence,
@@ -49,7 +52,7 @@ export class ClaudeObserver {
   private stopped = false;
   private ownerCache = new Map<string, { at: number; alive: boolean }>();
   private queueCursor = "";
-  private unreadable = new Map<string, number>();
+  private unreadable = new Map<string, UnreadableEvent>();
   private missingEvents: number[] = [];
   private missingThrough = 0;
   private gapUnconfirmed = false;
@@ -79,6 +82,12 @@ export class ClaudeObserver {
             !Array.isArray(row.background) || row.background.length > 256 ||
             (row.crons !== undefined && (!Array.isArray(row.crons) || row.crons.length > 256 || row.crons.some((value: unknown) => typeof value !== "string" || value.length > 128))) ||
             [...row.children, ...row.background].some(value => typeof value !== "string" || value.length > 128) ||
+            (row.childEvents !== undefined && (!Array.isArray(row.childEvents) || row.childEvents.length > 256 ||
+              new Set(row.childEvents.map((event: any) => event?.id)).size !== row.childEvents.length || row.childEvents.some((event: any) =>
+                !event || typeof event.id !== "string" || !event.id || event.id.length > 128 || !Number.isFinite(event.at) || event.at < 0 ||
+                (event.startAt !== undefined && (!Number.isFinite(event.startAt) || event.startAt < 0 || event.startAt > event.at)) ||
+                (event.stopTrusted !== undefined && typeof event.stopTrusted !== "boolean") ||
+                (event.ambiguous !== undefined && typeof event.ambiguous !== "boolean")))) ||
             typeof row.mainBusy !== "boolean" || typeof row.pendingDone !== "boolean" || typeof row.ended !== "boolean" ||
             !["completed", "failed"].includes(row.outcome) || !Number.isFinite(row.lastAt) || !Number.isFinite(row.updatedAt)) throw new Error();
         const store = new CockpitStore(row.cwd);
@@ -138,7 +147,10 @@ export class ClaudeObserver {
     } catch (error: any) {
       // UserPromptSubmit can run before Claude commits its first transcript
       // entry. Keep the queue record until the expected file exists.
-      if (retryMissing && error.code === "ENOENT" && canonicalPath(resolve(path)).startsWith(canonicalPath(this.root) + sep)) throw error;
+      if (error.code === "ENOENT" && canonicalPath(resolve(path)).startsWith(canonicalPath(this.root) + sep)) {
+        if (retryMissing) throw error;
+        return undefined;
+      }
       return false;
     }
   }
@@ -193,7 +205,12 @@ export class ClaudeObserver {
       session: { ...state.session, name: session.name, model: session.model, cwd: session.cwd },
       main: { ...state.main, status: running ? session.waiting ? "waiting" : "running" : completion?.outcome === "failed" ? "failed" : "idle",
         startedAt: session.turnAt, ...(completion ? { settledAt: this.now(), statusSince: this.now(), outcome: completion.outcome } : {}) },
-      subagents: { active: session.children.length, mainDelegated: !session.mainBusy && session.children.length > 0 },
+      subagents: { active: session.children.filter(id => !session.childEvents?.some(event => event.id === id && event.stopTrusted === true)).length,
+        mainDelegated: !session.mainBusy && session.children.length > 0,
+        uncertain: session.unknownChildren || Boolean(session.warning) || session.children.some(id => {
+          const event = session.childEvents?.find(event => event.id === id);
+          return event?.startAt === undefined || event.stopTrusted !== undefined;
+        }) || undefined },
       capabilities: { prompt: false, interrupt: false },
       commandStatus: session.warning,
     }, { type: "monitoring.updated" });
@@ -205,22 +222,95 @@ export class ClaudeObserver {
     // Old queued Stop records establish a baseline, never replay notifications.
     return at >= this.started ? { turnId: session.turn, outcome: session.outcome } : undefined;
   }
+  private guardGaps(session: Session, at: number) {
+    if (session.pendingDone && (this.gapUnconfirmed || (session.turnAt || 0) <= this.missingThrough ||
+        this.missingEvents.some(missing => missing >= (session.turnAt || 0) && missing <= at))) {
+      session.unknownChildren = true;
+      session.warning = "Claude monitor received invalid or missing event data; completion is unconfirmed.";
+    }
+  }
+  private childEvent(session: Session, raw: any, late: boolean) {
+    const id = raw.agent_id;
+    if (typeof id !== "string" || !id || id.length > 128) {
+      session.unknownChildren = true; session.warning = "Claude agent count is incomplete; completion is unconfirmed."; return;
+    }
+    const previous = session.childEvents?.find(event => event.id === id);
+    if (previous && raw.at < previous.at) return;
+    if (previous && raw.at === previous.at && (previous.ambiguous ||
+        (raw.hook_event_name === "SubagentStart") === (previous.stopTrusted !== undefined))) {
+      // Hooks use millisecond timestamps. Opposite lifecycle records tied at
+      // the same time cannot prove whether a resumed child actually stopped.
+      // Keep uncertainty local to this ID until newer authoritative evidence.
+      if (!session.children.includes(id)) {
+        if (session.children.length >= 256) { session.unknownChildren = true; return; }
+        session.children.push(id);
+      }
+      session.childEvents = [...(session.childEvents || []).filter(event => event.id !== id),
+        { ...previous, startAt: previous.startAt ?? (raw.hook_event_name === "SubagentStart" ? raw.at : undefined),
+          stopTrusted: false, ambiguous: true }].slice(-256);
+      session.warning = ambiguousChildWarning; return;
+    }
+    let event: NonNullable<SavedSession["childEvents"]>[number];
+    if (raw.hook_event_name === "SubagentStart") {
+      if (!session.children.includes(id)) {
+        if (session.children.length >= 256) {
+          session.unknownChildren = true; session.warning = "Claude agent count is incomplete; completion is unconfirmed."; return;
+        }
+        session.children.push(id);
+      }
+      event = { id, at: raw.at, startAt: raw.at };
+    } else {
+      event = { id, at: raw.at, startAt: previous?.startAt, stopTrusted: raw.stopTrusted === true };
+      if (raw.stopTrusted !== true) session.warning = "Claude has additional or unverified stop hooks; completion is unconfirmed.";
+      // Parent tool events can arrive before a slower child's Stop hook. Its
+      // independent start watermark, not the parent's timestamp, owns its life.
+      // A legacy child has no start evidence: an old acknowledgement can repair
+      // display activity but must retain its conservative completion blocker.
+      else if (previous?.startAt !== undefined || !late) session.children = session.children.filter(child => child !== id);
+    }
+    session.childEvents = [...(session.childEvents || []).filter(previous => previous.id !== id), event].slice(-256);
+    if (session.warning === ambiguousChildWarning && !session.children.some(id => session.childEvents?.some(event => event.id === id && event.ambiguous)))
+      session.warning = undefined;
+  }
   private async event(raw: any) {
     if (raw?.version !== 1 || !uuidPattern.test(raw.eventId || "") || !uuidPattern.test(raw.session_id || "") ||
         !names.has(raw.hook_event_name) || !Number.isFinite(raw.at) || raw.at > this.now() + 60_000 ||
         typeof raw.cwd !== "string" || typeof raw.transcript_path !== "string" || !ownerValid(raw.owner)) return false;
-    if (!await this.validPath(raw.transcript_path, raw.session_id, true)) return false;
+    const validPath = await this.validPath(raw.transcript_path, raw.session_id, raw.hook_event_name === "UserPromptSubmit");
+    if (validPath === false) return false;
     if (!["SubagentStart", "SubagentStop"].includes(raw.hook_event_name) && raw.agent_id) return true;
     let session = this.sessions.get(raw.session_id);
-    if (session && raw.at < session.lastAt) return true;
+    if (Number.isFinite(raw.gapThrough)) this.missingThrough = Math.max(this.missingThrough, raw.gapThrough);
+    if (raw.gapUnconfirmed === true) this.gapUnconfirmed = true;
+    if (validPath === undefined && !["SessionStart", "SessionEnd"].includes(raw.hook_event_name)) {
+      // A known session's missing transcript cannot starve every other CLI.
+      // Lifecycle uncertainty remains attached to that owner instead.
+      if (session && sameOwner(session.owner, raw.owner)) {
+        session.unknownChildren = true; session.warning = "Claude monitor received invalid or missing event data; completion is unconfirmed.";
+        this.announce(session);
+      }
+      return true;
+    }
+    if (session && raw.at < session.lastAt) {
+      if (sameOwner(session.owner, raw.owner) && ["SubagentStart", "SubagentStop"].includes(raw.hook_event_name)) {
+        this.childEvent(session, raw, true);
+        this.guardGaps(session, session.lastAt);
+        // Do not regress parent registries, model, turn or timestamp from a
+        // late child. Legacy acknowledgements cannot settle retained blockers.
+        this.announce(session, false, session.ended ? undefined : this.settle(session, session.lastAt));
+      }
+      return true;
+    }
     if (session && !sameOwner(session.owner, raw.owner)) {
       if (raw.hook_event_name !== "UserPromptSubmit" && await this.alive(session.owner)) return true;
       session.mainBusy = false; session.pendingDone = false; session.children = []; session.background = [];
+      session.childEvents = [];
       session.crons = [];
       session.unknownChildren = false; session.waiting = false; session.warning = undefined;
       session.turn = undefined; session.turnAt = undefined; session.owner = raw.owner;
     }
     if (!session) {
+      if (validPath === undefined) return true;
       if (this.sessions.size >= 64) {
         const disposable = [...this.sessions.values()].filter(row => row.ended || (!row.online && !row.pendingDone))
           .sort((a, b) => a.lastAt - b.lastAt)[0];
@@ -232,7 +322,7 @@ export class ClaudeObserver {
       const store = new CockpitStore(raw.cwd);
       store.dispatch({ type: "session.updated", session: { id: raw.session_id, key: connectorKey("claude", raw.session_id), tunnel: "claude", cwd: raw.cwd } });
       session = { id: raw.session_id, owner: raw.owner, path: raw.transcript_path, cwd: raw.cwd, store,
-        mainBusy: false, pendingDone: false, outcome: "completed", children: [], background: [], ended: false,
+        mainBusy: false, pendingDone: false, outcome: "completed", children: [], childEvents: [], background: [], ended: false,
         lastAt: raw.at, updatedAt: raw.at, online: await this.alive(raw.owner), historyLoaded: false };
       this.sessions.set(session.id, session);
     }
@@ -241,8 +331,6 @@ export class ClaudeObserver {
     if (typeof raw.model === "string") session.model = raw.model.slice(0, 128);
     if (typeof raw.session_title === "string" && raw.session_title.trim()) session.name = raw.session_title.trim().slice(0, 180);
     const store = session.store;
-    if (Number.isFinite(raw.gapThrough)) this.missingThrough = Math.max(this.missingThrough, raw.gapThrough);
-    if (raw.gapUnconfirmed === true) this.gapUnconfirmed = true;
     let activity = false;
     switch (raw.hook_event_name) {
       case "SessionStart": session.ended = false; break;
@@ -271,15 +359,12 @@ export class ClaudeObserver {
         break;
       case "PermissionRequest": session.waiting = true; break;
       case "SubagentStart":
-        if (typeof raw.agent_id !== "string" || !raw.agent_id || raw.agent_id.length > 128 || session.children.length >= 256) {
-          session.unknownChildren = true; session.warning = "Claude agent count is incomplete; completion is unconfirmed.";
-        } else if (!session.children.includes(raw.agent_id)) session.children.push(raw.agent_id);
+        this.childEvent(session, raw, false);
         break;
       case "SubagentStop":
         this.background(session, raw.background_tasks);
         this.crons(session, raw.session_crons);
-        if (raw.stopTrusted !== true) session.warning = "Claude has additional or unverified stop hooks; completion is unconfirmed.";
-        else session.children = session.children.filter(id => id !== raw.agent_id);
+        this.childEvent(session, raw, false);
         break;
       case "Stop": case "StopFailure":
         this.background(session, raw.background_tasks);
@@ -296,10 +381,20 @@ export class ClaudeObserver {
         break;
       case "SessionEnd": session.ended = true; session.online = false; break;
     }
-    if (session.pendingDone && (this.gapUnconfirmed || (session.turnAt || 0) <= this.missingThrough ||
-        this.missingEvents.some(at => at >= (session.turnAt || 0) && at <= raw.at))) {
-      session.unknownChildren = true;
-      session.warning = "Claude monitor received invalid or missing event data; completion is unconfirmed.";
+    this.guardGaps(session, raw.at);
+    if (raw.hook_event_name === "Stop" && raw.stopTrusted === true && Array.isArray(raw.background_tasks) &&
+        raw.background_tasks.length === 0 && !session.unknownChildren) {
+      // Old versions persisted child IDs without start timestamps. Only a
+      // later trusted parent stop with an explicitly empty in-flight registry
+      // resolves those already acknowledged IDs. Running/restarted children
+      // and untrusted child stops keep their independent completion guards.
+      session.children = session.children.filter(id => {
+        const event = session.childEvents?.find(event => event.id === id);
+        if (event?.startAt === undefined && event?.stopTrusted === true && event.at <= raw.at) {
+          event.at = raw.at; return false;
+        }
+        return true;
+      });
     }
     const completion = session.ended ? undefined : this.settle(session, raw.at);
     this.announce(session, activity, completion);
@@ -338,7 +433,7 @@ export class ClaudeObserver {
       } catch (error) {
         if (error instanceof InvalidQueuedEvent) {
           this.unreadable.delete(name); remove.push(path); invalidAt.push(Number(name.slice(0, 13)));
-        } else this.unreadable.set(name, Number(name.slice(0, 13)));
+        } else this.unreadable.set(name, { at: Number(name.slice(0, 13)) });
       }
     }
     if (invalidAt.length) {
@@ -356,7 +451,8 @@ export class ClaudeObserver {
     for (const { name, path, raw } of inputs) {
       try {
         if (["Stop", "SubagentStop", "StopFailure"].includes(raw.hook_event_name) &&
-            [...this.unreadable.values()].some(at => at <= raw.at)) {
+            [...this.unreadable.values()].some(event => event.at <= raw.at && (!event.sessionId || !event.owner ||
+              event.sessionId === raw.session_id && ownerValid(raw.owner) && sameOwner(event.owner, raw.owner)))) {
           const session = this.sessions.get(raw.session_id);
           if (session) { session.warning = "Claude monitor is waiting for unreadable event data; completion is unconfirmed."; this.announce(session); }
           continue;
@@ -369,7 +465,11 @@ export class ClaudeObserver {
           this.dirty = true;
         }
         remove.push(path);
-      } catch { this.unreadable.set(name, Number(name.slice(0, 13))); /* Retry transient file/history failures. */ }
+      } catch {
+        this.unreadable.set(name, { at: Number(name.slice(0, 13)),
+          ...(uuidPattern.test(raw?.session_id || "") && ownerValid(raw?.owner) ? { sessionId: raw.session_id, owner: raw.owner } : {}) });
+        /* Retry transient file/history failures without blocking unrelated owners. */
+      }
     }
     for (const session of this.sessions.values()) {
       const online = !session.ended && await this.alive(session.owner);

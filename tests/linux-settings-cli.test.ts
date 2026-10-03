@@ -84,11 +84,25 @@ test("credential setting and clearing preserve pairing keys and the original ser
   for (const key of [privateKey, pairing, f.config.controlToken, f.config.notificationToken]) assert(!f.lines.join("\n").includes(key));
 });
 
-test("malformed, wrong-project, hostile-endpoint and oversized credentials never change local config", async t => {
+test("credential settings save the service-account project without restricting it to one Glance build", async t => {
+  const f = await fixture(t);
+  await writeFile(f.credentials, JSON.stringify({ ...service(), project_id: "my-glance-beta", client_email: "fixture@my-glance-beta.iam.gserviceaccount.com" }));
+  await runSettingsCommand(["firebase", "--credentials", f.credentials], f.context);
+  assert.deepEqual(JSON.parse(await readFile(join(f.directory, "bridge-config.json"), "utf8")),
+    { ...f.config, firebaseProjectId: "my-glance-beta", firebaseCredentialsPath: f.credentials });
+  assert.equal(f.restarts(), 1); assert.equal(f.calls.length, 0);
+  assert(f.lines.includes("Firebase credential reference saved."));
+  assert(!f.lines.join("\n").includes(privateKey));
+});
+
+test("malformed projects, keys, hostile endpoints and oversized credentials never change local config", async t => {
   const f = await fixture(t), path = join(f.directory, "bridge-config.json"), unchanged = await readFile(path, "utf8");
-  for (const data of ["{\"private_key\":\"" + pairing, "x".repeat(128001), JSON.stringify({ ...service(), project_id: "different-project" }),
+  const weakKey = generateKeyPairSync("rsa", { modulusLength: 1024 }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const wrongKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  for (const data of ["{\"private_key\":\"" + pairing, "x".repeat(128001),
+    ...[undefined, "", "MY-FIREBASE", "short", "project/path", "project?key=" + pairing].map(project_id => JSON.stringify({ ...service(), project_id })),
     JSON.stringify({ ...service(), type: "authorized_user" }), JSON.stringify({ ...service(), client_email: "invalid" }),
-    JSON.stringify({ ...service(), private_key: pairing }), JSON.stringify({ ...service(), token_uri: "https://host/?key=" + pairing }),
+    ...[pairing, weakKey, wrongKey].map(private_key => JSON.stringify({ ...service(), private_key })), JSON.stringify({ ...service(), token_uri: "https://host/?key=" + pairing }),
     JSON.stringify({ ...service(), universe_domain: "host" })]) {
     await writeFile(f.credentials, data);
     await assert.rejects(runSettingsCommand(["firebase", "--credentials", f.credentials], f.context), error => error instanceof Error && !error.message.includes(pairing) && !error.message.includes(privateKey));

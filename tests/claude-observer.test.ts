@@ -112,6 +112,7 @@ test("custom Stop hooks preserve uncertain work until trusted main and child com
   await f.observer.poll(); assert.equal(f.journal.list().length, 0);
   const state = f.host.getRuntime(s.key).store.state;
   assert.equal(state.main.status, "running"); assert.equal(state.subagents?.active, 1);
+  assert.equal(sessionAgentCount(state, true), "?", "Unverified stop decisions cannot be an exact activity count");
   assert.match(state.commandStatus!, /stop hooks/);
   await s.emit("PreToolUse", { tool_use_id: "continued", tool_name: "Read" });
   await s.emit("SubagentStop", { agent_id: "child", background_tasks: [] });
@@ -178,6 +179,165 @@ test("a first prompt hook waits for Claude's delayed transcript creation", async
   await writeFile(s.path, original); await s.emit("Stop", { background_tasks: [] }); await f.observer.poll();
   assert.equal(f.journal.list().length, 1);
   assert.equal((await readdir(f.queue)).length, 0);
+});
+
+test("missing closed-session transcripts cannot starve trusted stops in unrelated sessions", async t => {
+  const f = await fixture(t), closed = await f.session(), active = await f.session();
+  await rm(closed.path);
+  await closed.emit("SessionStart"); await closed.emit("SessionEnd");
+  await active.emit("UserPromptSubmit"); await active.emit("SubagentStart", { agent_id: "work" });
+  await active.emit("Stop", { background_tasks: [] }); await active.emit("SubagentStop", { agent_id: "work", background_tasks: [] });
+  await f.observer.poll();
+  assert.equal(f.journal.list().length, 1); assert.equal(f.journal.list()[0].sessionKey, active.key);
+  assert.equal((await readdir(f.queue)).length, 0);
+});
+
+test("a delayed valid first transcript blocks only that session's completion", async t => {
+  const f = await fixture(t), delayed = await f.session(), other = await f.session(), original = await readFile(delayed.path);
+  await rm(delayed.path); await delayed.emit("UserPromptSubmit");
+  await delayed.emit("Stop", { background_tasks: [] });
+  await other.emit("UserPromptSubmit"); await other.emit("Stop", { background_tasks: [] });
+  await f.observer.poll();
+  assert.equal(f.journal.list().length, 1); assert.equal(f.journal.list()[0].sessionKey, other.key);
+  assert.equal((await readdir(f.queue)).length, 2);
+  await writeFile(delayed.path, original); await f.observer.poll();
+  assert.equal(f.journal.list().length, 2); assert.equal(f.journal.list()[1].sessionKey, delayed.key);
+});
+
+test("late trusted child stops use child timestamps without regressing parent registries", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); const start = await s.emit("SubagentStart", { agent_id: "child" }); await f.observer.poll();
+  await s.emit("Stop", { at: start.at + 10, background_tasks: [{ id: "shell", status: "running" }], session_crons: [{ id: "wake" }] });
+  await f.observer.poll();
+  await s.emit("SubagentStop", { at: start.at + 1, agent_id: "child", background_tasks: [], session_crons: [], model: "older-model" });
+  await f.observer.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.subagents?.active, 0);
+  assert.equal(f.journal.list().length, 0, "Late child metadata cannot clear current shell/cron blockers");
+  assert.notEqual(f.host.getRuntime(s.key).store.state.session.model, "older-model");
+  await s.emit("Stop", { at: start.at + 11, background_tasks: [], session_crons: [] }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 1);
+});
+
+test("an older child stop cannot stop a resumed child or replay a completed child start", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); const first = await s.emit("SubagentStart", { agent_id: "child" }); await f.observer.poll();
+  await s.emit("SubagentStart", { at: first.at + 10, agent_id: "child" });
+  await s.emit("Stop", { at: first.at + 11, background_tasks: [] }); await f.observer.poll();
+  await s.emit("SubagentStop", { at: first.at + 1, agent_id: "child" }); await f.observer.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.subagents?.active, 1); assert.equal(f.journal.list().length, 0);
+  await s.emit("SubagentStop", { at: first.at + 12, agent_id: "child" }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 1);
+  await s.emit("SubagentStart", { at: first.at + 10, agent_id: "child" }); await f.observer.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.subagents?.active, 0); assert.equal(f.journal.list().length, 1);
+});
+
+test("equal-time conflicting child lifecycles stay uncertain in both delivery orders until a newer trusted stop", async t => {
+  for (const stopFirst of [false, true]) {
+    const f = await fixture(t), s = await f.session();
+    await s.emit("UserPromptSubmit"); const initial = await s.emit("SubagentStart", { agent_id: "child" }); await f.observer.poll();
+    const start = () => s.emit("SubagentStart", { at: initial.at + 10, agent_id: "child" });
+    const stop = () => s.emit("SubagentStop", { at: initial.at + 10, agent_id: "child" });
+    await (stopFirst ? stop() : start()); await f.observer.poll();
+    await (stopFirst ? start() : stop()); await f.observer.poll();
+    await s.emit("Stop", { at: initial.at + 11, background_tasks: [] }); await f.observer.poll();
+    assert.equal(f.journal.list().length, 0); assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "?");
+    assert.equal(f.host.getRuntime(s.key).store.state.subagents?.active, 1);
+    await stop(); await f.observer.poll();
+    assert.equal(f.journal.list().length, 0, "An equal-time trusted callback cannot resolve ambiguous order");
+    await s.emit("SubagentStop", { at: initial.at + 12, agent_id: "child", stopTrusted: false }); await f.observer.poll();
+    assert.equal(f.journal.list().length, 0, "A later untrusted hook still retains the child blocker");
+    await s.emit("Stop", { at: initial.at + 13, background_tasks: [] }); await f.observer.poll();
+    await s.emit("SubagentStop", { at: initial.at + 14, agent_id: "child" }); await f.observer.poll();
+    assert.equal(f.journal.list().length, 1); assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "0");
+    assert.equal(f.host.getRuntime(s.key).store.state.commandStatus, undefined);
+  }
+});
+
+test("a first child Start discovered in an equal-time conflict still supplies a resolvable start watermark", async t => {
+  const f = await fixture(t), s = await f.session(), prompt = await s.emit("UserPromptSubmit");
+  await s.emit("PreToolUse", { at: prompt.at + 13, tool_use_id: "parent", tool_name: "Read" }); await f.observer.poll();
+  await s.emit("SubagentStop", { at: prompt.at + 10, agent_id: "new-child" }); await f.observer.poll();
+  await s.emit("SubagentStart", { at: prompt.at + 10, agent_id: "new-child" }); await f.observer.poll();
+  await s.emit("Stop", { at: prompt.at + 14, background_tasks: [] }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 0); assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "?");
+  await s.emit("SubagentStop", { at: prompt.at + 12, agent_id: "new-child" }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 1); assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "0");
+  assert.equal(f.host.getRuntime(s.key).store.state.commandStatus, undefined);
+});
+
+test("a late child stop after SessionEnd cannot synthesize completion", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); const start = await s.emit("SubagentStart", { agent_id: "child" }); await f.observer.poll();
+  await s.emit("Stop", { at: start.at + 10, background_tasks: [] });
+  await s.emit("SessionEnd", { at: start.at + 11 }); await f.observer.poll();
+  await s.emit("SubagentStop", { at: start.at + 1, agent_id: "child" }); await f.observer.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.connected, false); assert.equal(f.journal.list().length, 0);
+});
+
+test("late child acknowledgements cannot skip their own durable gap evidence", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); const start = await s.emit("SubagentStart", { agent_id: "child" }); await f.observer.poll();
+  await s.emit("Stop", { at: start.at + 10, background_tasks: [] }); await f.observer.poll();
+  await s.emit("SubagentStop", { at: start.at + 1, agent_id: "child", gapUnconfirmed: true }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 0); assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "?");
+  await s.emit("Stop", { at: start.at + 11, background_tasks: [] }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 0);
+});
+
+test("trusted legacy child acknowledgements repair display counts without inventing completion", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit");
+  const children = Array.from({ length: 98 }, (_, index) => "child-" + index);
+  for (const agent_id of children) await s.emit("SubagentStart", { agent_id });
+  await f.observer.poll(); await f.observer.poll();
+  await f.observer.stop();
+  const path = join(f.root, "claude-monitor-state.json"), saved = JSON.parse(await readFile(path, "utf8"));
+  const row = saved.sessions.find((row: any) => row.id === s.id); delete row.childEvents;
+  await writeFile(path, JSON.stringify(saved)); f.advance();
+  const events: ClaudeObservation[] = [], restarted = new ClaudeObserver(event => { events.push(event); f.host.observeClaude(event); }, f.options);
+  t.after(() => restarted.stop()); await restarted.poll();
+  assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "?");
+  for (const agent_id of children) await s.emit("SubagentStop", { at: row.lastAt - 1, agent_id, background_tasks: [] });
+  await restarted.poll(); await restarted.poll();
+  const state = f.host.getRuntime(s.key).store.state;
+  assert.equal(state.subagents?.active, 0); assert.equal(state.main.status, "running");
+  assert.equal(sessionAgentCount(state, true), "?"); assert.equal(events.filter(event => event.completion).length, 0);
+  const repaired = JSON.parse(await readFile(path, "utf8")).sessions.find((row: any) => row.id === s.id);
+  assert.equal(repaired.children.length, 98, "Legacy lifecycle uncertainty remains a completion guard");
+  assert.equal(repaired.childEvents.length, 98);
+  await s.emit("Stop", { at: row.lastAt + 1, stopTrusted: false, background_tasks: [] }); await restarted.poll();
+  await s.emit("Stop", { at: row.lastAt + 2, background_tasks: undefined }); await restarted.poll();
+  await s.emit("Stop", { at: row.lastAt + 3, background_tasks: "invalid" }); await restarted.poll();
+  await s.emit("Stop", { at: row.lastAt + 4, owner: { pid: 999, started: "123" }, background_tasks: [] }); await restarted.poll();
+  assert.equal(events.filter(event => event.completion).length, 0, "Untrusted, unknown-registry or other-owner boundaries cannot resolve legacy guards");
+  await s.emit("SubagentStart", { at: row.lastAt + 5, agent_id: children[0] }); await restarted.poll();
+  await s.emit("Stop", { at: row.lastAt + 6, background_tasks: [] }); await restarted.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.subagents?.active, 1);
+  assert.equal(events.filter(event => event.completion).length, 0, "An acknowledged ID that restarts is a real running child again");
+  const remaining = JSON.parse(await readFile(path, "utf8")).sessions.find((row: any) => row.id === s.id);
+  assert.deepEqual(remaining.children, [children[0]], "Fresh safe boundary resolves only acknowledged legacy IDs");
+  await s.emit("SubagentStart", { at: row.lastAt, agent_id: children[1] }); await restarted.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.subagents?.active, 1, "Reconciled legacy tombstones prevent a late start from resurrecting history");
+  await s.emit("SubagentStop", { at: row.lastAt + 7, agent_id: children[0] }); await restarted.poll();
+  assert.equal(events.filter(event => event.completion).length, 1);
+  assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "0");
+});
+
+test("missing event guards survive legacy acknowledgements and a fresh trusted parent Stop", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); await s.emit("SubagentStart", { agent_id: "legacy" }); await f.observer.poll();
+  await f.observer.stop();
+  const path = join(f.root, "claude-monitor-state.json"), saved = JSON.parse(await readFile(path, "utf8"));
+  const row = saved.sessions.find((row: any) => row.id === s.id); delete row.childEvents;
+  await writeFile(path, JSON.stringify(saved)); f.advance();
+  const events: ClaudeObservation[] = [], restarted = new ClaudeObserver(event => { events.push(event); f.host.observeClaude(event); }, f.options);
+  t.after(() => restarted.stop()); await restarted.poll();
+  await s.emit("SubagentStop", { at: row.lastAt - 1, agent_id: "legacy" }); await restarted.poll();
+  await s.emit("Stop", { background_tasks: [], gapUnconfirmed: true }); await restarted.poll();
+  assert.equal(events.filter(event => event.completion).length, 0);
+  assert.equal(sessionAgentCount(f.host.getRuntime(s.key).store.state, true), "?");
+  const kept = JSON.parse(await readFile(path, "utf8")).sessions.find((row: any) => row.id === s.id);
+  assert.deepEqual(kept.children, ["legacy"]); assert.equal(kept.unknownChildren, true);
 });
 
 test("recurring, missing and malformed cron registries keep scheduled sessions unsettled", async t => {

@@ -94,6 +94,46 @@ test("root completion waits for real subagent completion; children never become 
   assert.equal(sessionAgentCount(f.host.getRuntime(main.key).store.state, true), "0");
 });
 
+test("Codex agent details expose only verified child identity and names, never copied parent prompts", async t => {
+  const f = await fixture(t), main = await f.session("vscode"), child = await f.session({ subagent: {} }, main.id);
+  await main.append({ type: "task_started", turn_id: "root" });
+  await child.append({ type: "task_started", turn_id: "child" });
+  await child.append({ type: "item_completed", item: { type: "UserMessage", id: "copied-user", content: [{ type: "text", text: "PRIVATE-COPIED-PARENT-PROMPT" }] } });
+  const index = join(f.root, "session_index.jsonl");
+  await writeFile(index, JSON.stringify({ id: child.id, thread_name: "Verified reviewer" }) + "\n");
+  await f.observer.poll(true);
+  const state = f.host.getRuntime(main.key).store.state;
+  assert.equal(sessionAgentCount(state, true), "2");
+  assert.deepEqual(state.subagents?.tasks, [{ id: child.id, name: "Verified reviewer" }]);
+  assert.doesNotMatch(JSON.stringify(state), /PRIVATE-COPIED-PARENT-PROMPT/); assert.equal(f.journal.list().length, 0);
+  const events = f.events.length;
+  await f.observer.poll(); assert.equal(f.events.length, events, "unchanged task identity does not emit extra state");
+  await writeFile(index, JSON.stringify({ id: child.id, thread_name: "Updated reviewer" }) + "\n");
+  const updated = new Date(Date.now() + 100); await utimes(index, updated, updated);
+  await f.observer.poll(true);
+  assert.equal(f.host.getRuntime(main.key).store.state.subagents?.tasks?.[0].name, "Updated reviewer");
+  assert.equal(f.journal.list().length, 0, "a detail-only change is not a completion");
+  await child.append({ type: "task_complete", turn_id: "child" }); await f.observer.poll();
+  assert.deepEqual(f.host.getRuntime(main.key).store.state.subagents?.tasks, []); assert.equal(f.journal.list().length, 0);
+});
+
+test("Codex bounds descendant agent details while preserving its complete lifecycle count", async t => {
+  const f = await fixture(t), main = await f.session("vscode");
+  await main.append({ type: "task_started", turn_id: "root" });
+  const children = [];
+  for (let index = 0; index < 18; index++) {
+    const child = await f.session({ subagent: {} }, main.id); children.push(child);
+    await child.append({ type: "task_started", turn_id: "child-" + index });
+  }
+  await writeFile(join(f.root, "session_index.jsonl"), children.map(child => JSON.stringify({ id: child.id, thread_name: "名字".repeat(80) })).join("\n") + "\n");
+  await f.observer.poll(true);
+  const state = f.host.getRuntime(main.key).store.state;
+  assert.equal(sessionAgentCount(state, true), "19"); assert.equal(state.subagents?.active, 18);
+  assert.equal(state.subagents?.tasks?.length, 16); assert.equal(state.subagents?.tasksTruncated, true);
+  assert(state.subagents!.tasks!.every(task => task.id.length <= 128 && task.name!.length <= 64 && !task.task && !task.tools));
+  assert.equal(f.journal.list().length, 0);
+});
+
 test("unwatch and unreadable logs never kill, finish or rewatch a running session", async t => {
   const f = await fixture(t), s = await f.session();
   await s.append({ type: "task_started", turn_id: "one" }); await f.observer.poll(true);
