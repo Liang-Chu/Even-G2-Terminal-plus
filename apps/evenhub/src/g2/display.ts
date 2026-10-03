@@ -97,6 +97,7 @@ export class G2Display {
   private restoring = false;
   private storageScope = "default";
   private remembered = "";
+  private pendingMemories: { bridge: EvenAppBridge; storageKey: string; key: string }[] = [];
   private renderer?: G2Renderer;
   private retryAt = 0;
   private failures = 0;
@@ -217,7 +218,7 @@ export class G2Display {
       this.lastNativeTexts.clear();
       for (const text of nativeTexts(frame)) this.lastNativeTexts.set(text.id,
         JSON.stringify([nativeTextPrefix(text.content), text.color]));
-      if (frame.picker && frame.conversationList) this.lastNativeTexts.set(7, frame.footer || "");
+      if (frame.picker && (frame.conversationList || frame.choice)) this.lastNativeTexts.set(7, frame.footer || "");
       this.lastNativeHeading = frame.heading || "";
     }
     if (frame.confirmation && this.draftConfirmation) this.draftConfirmation.selected = 0;
@@ -244,7 +245,7 @@ export class G2Display {
     if (!status || status.sn !== this.deviceSn || status.connectType === "none") return;
     const connected = status.connectType === "connected", previous = this.deviceConnected;
     this.deviceConnected = connected;
-    if (!connected) { this.options.input?.cancel?.(); this.connection("G2 disconnected · phone bridge is separate"); this.reportViewed(); }
+    if (!connected) { this.writeMemories(); this.options.input?.cancel?.(); this.connection("G2 disconnected · phone bridge is separate"); this.reportViewed(); }
     else if (previous === false) this.resync(true);
   }
   /** Re-send the latest snapshot after a bridge/BLE/foreground recovery. */
@@ -256,6 +257,7 @@ export class G2Display {
   }
   setStorageScope(scope: string) {
     if (scope === this.storageScope) return;
+    this.writeMemories();
     this.storageScope = scope; this.restored = false; this.remembered = ""; this.sessionCatalog = []; this.sessionRequest++;
   }
   private availableSessions(catalog: SessionSummary[]): SessionSummary[] {
@@ -292,7 +294,19 @@ export class G2Display {
     if (key === this.remembered) return;
     this.remembered = key;
     if (this.options.memory) this.options.memory.write(key);
-    else void this.bridge?.setLocalStorage(`pilot.last-session.${this.storageScope}`, key).catch(() => {});
+    else if (this.bridge) {
+      // Native storage shares the display queue. Save after the new page has
+      // been sent so a slow preference write cannot delay session navigation.
+      const storageKey = `pilot.last-session.${this.storageScope}`;
+      const pending = this.pendingMemories.find(memory => memory.bridge === this.bridge && memory.storageKey === storageKey);
+      if (pending) pending.key = key;
+      else this.pendingMemories.push({ bridge: this.bridge, storageKey, key });
+      if (!this.renderer || this.paused || this.disposed || this.deviceConnected === false || this.failures) this.writeMemories();
+    }
+  }
+  private writeMemories() {
+    for (const { bridge, storageKey, key } of this.pendingMemories.splice(0))
+      void bridge.setLocalStorage(storageKey, key).catch(() => {});
   }
   update(state: RuntimeState, online: boolean) {
     const previous = this.state;
@@ -418,7 +432,7 @@ export class G2Display {
     const system = event.sysEvent?.eventType;
     // The OS menu is the foreground overlay: 4 opens it, 5 dismisses it.
     // Neither event means the Hub app has exited (official contextual-menu contract).
-    if (system === 4) { this.taps.reset(); this.paused = true; this.options.input?.pause?.(); return; }
+    if (system === 4) { this.taps.reset(); this.paused = true; this.writeMemories(); this.options.input?.pause?.(); return; }
     if (system === 5) { this.paused = false; this.schedule(); return; }
     if (system === 6 || system === 7) { this.dispose(); return; }
     if (this.paused || this.disposed) return;
@@ -695,6 +709,7 @@ export class G2Display {
     const key = this.state?.session.key;
     this.exitRequest = true;
     try {
+      this.writeMemories();
       // Mode 1 asks the OS to confirm. Only its exit event disposes the display;
       // cancelling the confirmation leaves this session and Watch untouched.
       if (!await this.bridge.shutDownPageContainer(1)) throw new Error("Exit unavailable");
@@ -838,36 +853,52 @@ export class G2Display {
     if (!this.renderer || this.paused || this.disposed || this.busy || Date.now() < this.retryAt) return;
     const parts = this.parts(); this.busy = true; this.dirty = false;
     this.interactivePending = false; this.lastFlushAt = Date.now(); this.publishPreview(parts);
-    const epoch = this.displayEpoch;
+    const epoch = this.displayEpoch, sessionKey = this.state?.session.key;
     try {
       let frame = this.makeNativeFrame(parts);
       // Prepare PNGs before a page replacement clears the old pixels, so the
       // first bar can be submitted immediately after the native page call.
       this.renderPreview(frame, parts);
+      const currentFrame = () => {
+        if (this.disposed || this.paused || !this.bridge || this.deviceConnected === false || epoch !== this.displayEpoch) return;
+        const latest = this.makeNativeFrame();
+        return latest.layoutKey === frame.layoutKey && latest.sessionKey === frame.sessionKey ? latest : undefined;
+      };
+      const currentPage = () => !!currentFrame();
+      const upgradeText = (update: TextContainerUpgrade, matches: (latest: NativeFrame) => boolean, error: string) =>
+        bridgeBatch(this.bridge!, async bridge => {
+          // A host request may have held the queue while the user navigated or
+          // newer content arrived. Recheck when this request gets its turn.
+          const latest = currentFrame();
+          if (!latest || !matches(latest)) return false;
+          if (!await bridge.textContainerUpgrade(update)) throw new DisplayError(error);
+          return true;
+        });
       if (this.bridge && this.deviceConnected !== false) {
         if (!this.pageCreated || !this.nativeFrame || nativeLayoutKey(frame) !== nativeLayoutKey(this.nativeFrame)) {
           frame = await this.mountNativeFrame(frame, epoch);
         }
         if (frame.picker && frame.heading !== this.lastNativeHeading) {
-          const accepted = await this.bridge.textContainerUpgrade(new TextContainerUpgrade({ containerID: 6, containerName: "pilot-heading", content: frame.heading }));
-          if (!accepted) throw new DisplayError("heading update rejected");
-          if (epoch === this.displayEpoch) this.lastNativeHeading = frame.heading || "";
+          const sent = await upgradeText(new TextContainerUpgrade({ containerID: 6, containerName: "pilot-heading", content: frame.heading }),
+            latest => latest.heading === frame.heading, "heading update rejected");
+          if (sent && epoch === this.displayEpoch) this.lastNativeHeading = frame.heading || "";
         }
         if (frame.picker && (frame.conversationList || frame.choice)) {
           const signature = frame.footer || "";
           if (this.lastNativeTexts.get(7) !== signature) {
-            const accepted = await this.bridge.textContainerUpgrade(new TextContainerUpgrade({ containerID: 7, containerName: "pilot-hint", content: signature }));
-            if (!accepted) throw new DisplayError("hint update rejected");
-            if (epoch === this.displayEpoch) this.lastNativeTexts.set(7, signature);
+            const sent = await upgradeText(new TextContainerUpgrade({ containerID: 7, containerName: "pilot-hint", content: signature }),
+              latest => (latest.footer || "") === signature, "hint update rejected");
+            if (sent && epoch === this.displayEpoch) this.lastNativeTexts.set(7, signature);
           }
         }
         for (const text of nativeTexts(frame)) {
           const signature = JSON.stringify([text.content, text.color]);
           if (this.lastNativeTexts.get(text.id) === signature) continue;
-          const accepted = await this.bridge.textContainerUpgrade(new TextContainerUpgrade({
-            containerID: text.id, containerName: text.name, content: text.content, textColor: text.color }));
-          if (!accepted) throw new DisplayError(`text update rejected (${text.id})`);
-          if (epoch === this.displayEpoch) this.lastNativeTexts.set(text.id, signature);
+          const sent = await upgradeText(new TextContainerUpgrade({
+            containerID: text.id, containerName: text.name, content: text.content, textColor: text.color }),
+          latest => nativeTexts(latest).some(value => value.id === text.id && value.content === text.content && value.color === text.color),
+          `text update rejected (${text.id})`);
+          if (sent && epoch === this.displayEpoch) this.lastNativeTexts.set(text.id, signature);
         }
         // Move presence/gesture identity only after the new session's body is acknowledged.
         if (epoch === this.displayEpoch) this.nativeFrame = frame;
@@ -875,12 +906,6 @@ export class G2Display {
       // A rejected layout may have switched to the image-free basic view.
       this.renderPreview(frame, parts);
       const tiles = frame.picker || frame.plain ? [] : this.renderedTiles;
-      const currentPage = () => {
-        if (this.disposed || this.paused || !this.bridge || this.deviceConnected === false || epoch !== this.displayEpoch) return false;
-        const latest = this.makeNativeFrame();
-        // New body text in the same editor must not strand half a status bar.
-        return latest.layoutKey === frame.layoutKey && latest.sessionKey === frame.sessionKey;
-      };
       // Reserve only one bar at a time, not the whole frame. Storage requests
       // cannot split its halves; microphone/menu work gets a turn between bars.
       for (let start = 0; start < tiles.length; start += 2) {
@@ -899,11 +924,15 @@ export class G2Display {
           }
         });
       }
+      if (currentPage()) this.writeMemories();
       if (this.deviceConnected !== false) {
         if (this.failures) this.connectedNotice();
         this.failures = 0;
       }
-    } catch (error) { this.displayFailed(error); }
+    } catch (error) {
+      this.displayFailed(error);
+      if (sessionKey === this.state?.session.key) this.writeMemories();
+    }
     finally { this.busy = false; this.rebuilding = false; this.reportViewed(); }
     if (this.dirty || epoch !== this.displayEpoch || this.parts().some((part, index) => part !== parts[index])) this.schedule(false);
   }
@@ -916,6 +945,7 @@ export class G2Display {
   }
   dispose() {
     this.taps.reset();
+    this.writeMemories();
     this.disposed = true; this.sessionRequest++; clearTimeout(this.timer); clearInterval(this.clock);
     this.wrapped.clear();
     this.reportViewed();

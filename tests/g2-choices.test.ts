@@ -10,7 +10,7 @@ import { initialState } from "../packages/cockpit-state/types.js";
 const choice = (id = "question"): Interaction => ({ id, kind: "question", title: "Question", expiresAt: Date.now() + 10_000,
   questions: [{ id: "format", text: "Which format?", allowText: true, options: [{ id: "short", label: "Summary" }, { id: "full", label: "Full" }] }] });
 function fixture(t: any) {
-  const pages: any[] = [], answers: InteractionAnswer[] = []; let opened = 0;
+  const pages: any[] = [], updates: any[] = [], answers: InteractionAnswer[] = []; let opened = 0;
   let current = { ...initialState(), connected: true, session: { key: "s", cwd: "/fixture" }, capabilities: { prompt: false, interrupt: false }, interactions: [choice()] };
   const display = new G2Display(() => {}, () => {}, undefined, {
     renderer: { pages: text => [text], render: () => [] }, respond: async (_key, answer) => { answers.push(answer); },
@@ -18,12 +18,21 @@ function fixture(t: any) {
   });
   const bridge = { createStartUpPageContainer: async (page: any) => { pages.push(page); return 0; },
     rebuildPageContainer: async (page: any) => { pages.push(page); return true; },
-    textContainerUpgrade: async () => true, updateImageRawData: async () => "success",
+    textContainerUpgrade: async (update: any) => { updates.push(update); return true; }, updateImageRawData: async () => "success",
     onEvenHubEvent: () => () => {}, setLocalStorage: async () => {}, getLocalStorage: async () => undefined };
   display.update(current, true); t.after(() => display.dispose());
-  return { display, bridge, pages, answers, opened: () => opened,
+  return { display, bridge, pages, updates, answers, opened: () => opened,
     update: (request: Interaction, online = true) => { current = { ...current, interactions: [request] }; display.update(current, online); } };
 }
+
+test("a mounted choice sends its hint once and only upgrades a changed submission hint", async t => {
+  const f = fixture(t); await f.display.init(f.bridge as any); await delay(140);
+  assert.equal(f.updates.length, 0, "the native page already contains the initial hint");
+  const pageCount = f.pages.length;
+  f.display.toggle(); await delay(140);
+  assert.equal(f.pages.length, pageCount, "submitting retains the native choice list and focus");
+  assert.deepEqual(f.updates.map(update => [update.containerID, update.content]), [[7, "Response submitted."]]);
+});
 
 test("G2 question choices use native scroll focus and do not rebuild while selecting", async t => {
   const f = fixture(t); await f.display.init(f.bridge as any); await delay(140);

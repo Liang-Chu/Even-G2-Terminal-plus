@@ -17,19 +17,27 @@ export const G2_IMAGE_REGIONS = [
 ];
 
 /** Pixel-measured wrapping keeps CJK and proportional fonts inside the display. */
-export function measuredPages(text: string, measure: (text: string) => number, width = 560, rows = 7): string[] {
+export function measuredPages(text: string, measure: (text: string) => number, width = 560, rows = 7, maxPages = Infinity): string[] {
   const lines: string[] = [];
+  const addLine = (line: string) => { lines.push(line.trimEnd()); return lines.length >= rows * maxPages; };
+  paragraphs:
   for (const paragraph of text.split("\n")) {
     let line = "";
     for (const token of paragraph.match(/\S+|\s+/gu) || []) {
-      if (line && measure(line + token) > width && measure(token) <= width) { lines.push(line.trimEnd()); line = ""; }
+      if (line && measure(line + token) > width && measure(token) <= width) {
+        if (addLine(line)) break paragraphs;
+        line = "";
+      }
       for (const character of token) {
         if (!line && /\s/u.test(character)) continue;
-        if (line && measure(line + character) > width) { lines.push(line.trimEnd()); line = ""; }
+        if (line && measure(line + character) > width) {
+          if (addLine(line)) break paragraphs;
+          line = "";
+        }
         line += character;
       }
     }
-    lines.push(line.trimEnd());
+    if (addLine(line)) break;
   }
   const pages: string[] = [];
   for (let i = 0; i < lines.length; i += rows) pages.push(lines.slice(i, i + rows).join("\n"));
@@ -96,7 +104,9 @@ export class CanvasG2Renderer implements G2Renderer {
 
     c.fillStyle = "#fff"; this.font(G2_LAYOUT.body);
     const padding = frame.bodyPadding || 0;
-    const lines = !frame.list && frame.body ? measuredPages(frame.body, value => c.measureText(value).width, 560 - 2 * padding)[0].split("\n") : [];
+    // The phone preview paints only the visible rows. Native G2 text retains
+    // the complete part and handles scrolling without more app-side wrapping.
+    const lines = !frame.list && frame.body ? measuredPages(frame.body, value => c.measureText(value).width, 560 - 2 * padding, G2_LAYOUT.rows, 1)[0].split("\n") : [];
     c.save(); c.beginPath(); c.rect(8 + padding, 38 + padding, 560 - 2 * padding, 222 - 2 * padding); c.clip();
     lines.forEach((line, i) => c.fillText(line, 8 + padding, G2_LAYOUT.bodyY + padding + i * G2_LAYOUT.lineHeight));
     c.restore();

@@ -1,13 +1,14 @@
 # Release status — 1.1.8
 
-This patch fixes Claude queue starvation and delayed child-event accounting, adds G2 agent-task details, removes generated context from G2 questions, preserves newer voice settings and supports user-owned Firebase sender projects. Final source checks and independent reviews passed.
+This patch fixes Claude queue starvation and delayed child-event accounting, adds G2 agent-task details, removes generated context from G2 questions, preserves newer voice settings and supports user-owned Firebase sender projects. G2 navigation also skips obsolete queued text writes, sends the selected page before saving preferences and wraps only visible preview rows. Final source checks and independent reviews passed.
 
 Reviewed 2026-10-03:
 
 | Check | Result |
 | --- | --- |
-| Windows source | 415 passed, 6 Linux-only tests skipped; type checking and production build passed |
-| Linux source | 418 passed, 3 Windows-only tests skipped; type checking and production build passed |
+| Windows source | 422 passed, 6 Linux-only tests skipped; type checking and production build passed |
+| Linux source | 425 passed, 3 Windows-only tests skipped; type checking and production build passed |
+| G2 navigation regression | Obsolete queued text is skipped; page/bar writes precede remembered-session saves; rapid switches coalesce unsent saves; saved selection survives pause, failure and disposal. Independent wrapping comparison passed 1,110 full and 3,330 bounded-prefix cases. No hardware latency claim |
 | Windows desktop | Startup, autostart, scoped installer ownership and direct authenticated tray-update checks passed |
 | Independent reviews | G2 projection/detail selection, voice persistence, Firebase validation and bounded Pi/Codex task metadata passed; Claude reordered-event, equal-time and recovery guards independently reviewed with 25/25 tests |
 | NUC actual-data copy | 156 queued events drained; acknowledged legacy children no longer counted as confirmed active. Parent activity and conservative completion guards retained; no completion emitted. Live data and native processes were not modified |

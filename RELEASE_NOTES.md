@@ -5,6 +5,7 @@ Fixes accumulated Claude agent counts and removes generated context from G2 ques
 - Missing transcripts from other Claude sessions no longer block valid completion events. Independent child timestamps handle delayed stops without clearing a restarted agent or sending a false completion notification.
 - Select the running-agent row on G2 to open task details. Pi exposes explicit subagent tasks; Codex exposes verified child identities. Missing descriptions and uncertain counts are shown honestly.
 - Expanded G2 questions show your actual request, without recognized Codex browser/attachment metadata or a missing-summary notice. Original CLI histories stay intact.
+- Opening G2 messages wraps only the visible preview rows. Session changes prioritize page updates over saved-selection writes, and obsolete queued text updates are skipped.
 - Voice settings retain the newest saved keys across delayed native storage operations and reconnects.
 - Glance senders accept your own Firebase project and reject registrations for a different project. Removed unused Hub UI and shortened the documentation.
 

@@ -1,83 +1,100 @@
 # Even-Pilot
 
-A lightweight watcher for Pi, Codex and Claude Code on Windows/Linux. Each desktop manager controls its own computer; the phone combines watched sessions from your computers for viewing on phone and Even G2. Keep working in your native CLI. The phone/G2 can send prompts only to input-capable sessions. Glance completion notifications are optional.
+Watch Pi, Codex and Claude Code sessions on your phone and Even G2 while continuing to work in your native terminal. A lightweight companion runs on each Windows/Linux computer; the phone combines their watched sessions.
+
+See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
 **1.1.8** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
-[Download](https://github.com/Liang-Chu/Even-Pilot/releases) · [中文](README.zh-CN.md) · [Release notes](RELEASE_NOTES.md)
+[Download](https://github.com/Liang-Chu/Even-Pilot/releases) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md) · [Release notes](RELEASE_NOTES.md)
 
 ## Quick start
 
-### 1. Install on each computer you want to watch
+### 1. Install the companion
 
-Keep your existing CLI installation and model login. Run Even-Pilot as the same operating-system user as that CLI.
+Install on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing CLI installation and model login stay in use.
 
-- **Windows:** run `Even-Pilot-1.1.8-Setup-x64.exe` and choose **Install**. The manager opens; later use the desktop shortcut or double-click the tray. Right-click the tray to enable **Start with Windows**.
-- **Linux / SSH:** download the Linux installer, then run as your normal user:
+- **Windows:** download and run `Even-Pilot-1.1.8-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the desktop shortcut or double-click the tray icon.
+- **Linux / SSH:** download the Linux installer and run without `sudo`:
 
   ```sh
   sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
   ```
 
-  Open a new shell, then run `even-pilot status` and `even-pilot pair`. Until then, use `~/.local/bin/even-pilot`. The offline installer includes Node and backend dependencies; no global npm install is needed. [Headless service and reboot setup](docs/setup.md#linux-headless-or-desktop)
+  Open a new shell, then run `even-pilot status`. In the current shell, use `~/.local/bin/even-pilot`. Node and backend dependencies are bundled; no global npm installation is needed.
 
-### 2. Attach an existing CLI
+For startup after login/reboot: Windows tray → **Start with Windows**; Linux → [headless service setup](docs/setup.md#linux-headless-or-desktop).
 
-| Session started normally | First-time setup | Phone/G2 input |
+### 2. Attach your CLI
+
+| CLI | First-time setup | Phone/G2 input |
 | --- | --- | --- |
-| Pi | The monitor extension is installed automatically. In an already open Pi, wait until idle and run `/reload` once. New Pi terminals load it automatically. | Supported |
-| Codex CLI / local Codex Desktop | No plugin or reopening needed. Send a first prompt if the session has not saved any history yet. | Read-only; create a connector session for remote input |
-| Claude Code | Installation adds official monitor hooks. Its next prompt begins observation; check `/hooks`, and reopen while idle if the hooks were not loaded. | Read-only; remote input needs the experimental connector |
+| Pi | The monitor extension installs automatically. In an already open terminal, wait until idle, then run `/reload` once. | Supported |
+| Codex CLI / local Codex Desktop | Automatic observation; a new session appears after its first saved prompt. | Ordinary sessions are read-only |
+| Claude Code (experimental) | The installer adds monitor hooks. Check `/hooks`; observation starts with the next prompt. Reopen while idle if hooks are missing. | Ordinary sessions are read-only |
 
-To create a connector session, use **+ New terminal** in the manager and choose **Tunnel** and project directory. Claude asks for native Channel confirmation. Complete output and unsupported CLI menus stay in the original terminal. [Exact capabilities and limits](docs/connectors.md)
+For Codex/Claude remote input, use **+ New terminal** in the manager to create a connector session. Choose **Tunnel** and the project directory; Claude also asks for Channel confirmation in its terminal. [Capabilities and limits](docs/connectors.md)
 
-### 3. Make the computer reachable
+### 3. Connect the phone
 
-1. Install [Tailscale](https://tailscale.com/download) on computer and phone; join the same tailnet and keep both connected.
-2. Find **that computer's** `100.x.x.x` address (`tailscale ip -4` on Linux).
-3. On the phone, open `http://COMPUTER_IP:4317`; the page should load. Replace `COMPUTER_IP` with your address. A reachable LAN also works.
+1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
+2. Install `even-pilot-1.1.8.ehpk` in Even Hub and connect G2 in Even App.
+3. Get this computer's URL and key: Windows **Connect phone**; Linux `even-pilot pair`.
+4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
-No subnet router or exit node is needed. `127.0.0.1` reaches the device you are on; `0.0.0.0` is a listening address. Neither is your phone's computer address. [Connection troubleshooting](docs/setup.md#troubleshooting)
+Use the computer's reachable address, such as `http://COMPUTER_IP:4317`; replace `COMPUTER_IP` with its Tailscale IP. Enter the key without `Bearer`. The phone saves connections automatically; repeat for other computers. Keep the companion running and the computer awake.
 
-### 4. Install the phone app and save the connection
+Each desktop manager shows only its own computer. Hub uses manual URL/key entry; the QR is for Glance. If connection fails, first open the Bridge URL in the phone browser. [Troubleshooting](docs/setup.md#troubleshooting)
 
-1. Install/upload `even-pilot-1.1.8.ehpk` in Even Hub; connect G2 in Even App.
-2. On Windows open **Connect phone** to see this computer's phone URL/key. On Linux run `even-pilot pair`.
-3. In the phone Hub app, open **Connection → Connect another computer**. Paste the computer's **Bridge URL** and **Connection key**, then **Connect computer**. Enter the plain key without `Bearer`.
-4. The connection saves on this phone. Add each additional machine here with its own URL/key; the phone combines their sessions. Each desktop manager shows only its own computer.
+### 4. Choose sessions
 
-The displayed QR is for compatible apps such as Glance; Hub currently uses manual URL/key entry. Connecting a computer does not configure Glance notifications. [Multi-computer setup and key roles](docs/setup.md#connect-even-hub-and-multiple-computers)
+In **Sessions**, enable **Watch**, then open Even-Pilot on G2. G2 returns to the last available watched session and lists only watched, reachable sessions. If a session is missing on desktop, check **All sessions**.
 
-### 5. Choose Watch, then open G2
+- **Watch** monitors without opening a terminal; **Unwatch** never stops a task or terminal.
+- Opening the desktop manager defaults Watch to sessions updated within 24 hours. Refresh/reconnect does not reset Watch; manual Unwatch survives later tasks and network loss.
+- Selecting a saved session can open its terminal. Quitting the tray or stopping monitoring leaves native terminals running.
 
-Find the session in **Sessions** and enable **Watch**. If it is missing on desktop, check **All sessions**. G2 starts with the last available watched session and lists only watched, reachable sessions.
+[Session management](docs/setup.md#watch-and-native-terminal-operations)
 
-- **Watch** monitors without opening a terminal. **Unwatch** never stops a terminal or task.
-- Selecting a saved session can open its terminal. An explicit desktop opening defaults Watch to sessions updated within 24 hours; ordinary refresh/reconnect does not reset Watch.
-- Manual Unwatch persists through later tasks and network loss. Explicit selection or remote input can enable Watch again.
-- Quitting the Windows tray or stopping the monitoring backend leaves native terminals running. Monitoring that is stopped cannot observe every completion.
+## G2 controls
 
-## Everyday controls
+Swipe to select; tap a message to expand it or the active-agent row to view available task details. G2 shows the latest ten messages. Double tap returns from expanded text; in the conversation list it requests normal app exit. **Terminate task** is in the menu and requires an input-capable session.
 
-G2 uses a native list: **New prompt**, the selected session's active-agent row while working, then the latest ten messages. Tap the agent row for current task details; unavailable connector details are labeled. Swipe to select; tap a message to expand native long text; double tap returns. In the list, double tap requests normal app exit. **Terminate task** is in the menu and requires an input-capable connector. [G2/input controls](docs/setup.md#phone-and-g2-controls)
+[Complete controls](docs/setup.md#phone-and-g2-controls)
 
-Optional voice: save your own OpenAI/ElevenLabs transcription key in the phone's **Voice** settings. Tap starts/stops recording; hold deletes the last segment once per second. Double tap returns directly for an empty draft; otherwise choose **Send & exit** or **Exit only**. [Voice details](docs/voice.md)
+## Optional features
 
-Optional Pi multi-agent support: reuse an already loaded official subagent example, or run Linux `even-pilot enable-pi-subagents` / follow the [Windows script steps](docs/pi-extensions.md#第一步添加到-pi-的配置目录), then `/reload` while idle. This is separate from basic monitoring. [Installation and verification](docs/pi-extensions.md)
+### Voice input
 
-Optional Glance push: configure **each independent sender**, or configure **one center** and forward other computers to it. Only senders need Firebase credentials and Glance PUSH registration. [Step-by-step notification setup](docs/setup.md#optional-glance-notifications)
+In the phone's **Voice** settings, save your own **OpenAI API key** (Whisper/GPT Transcribe) or **ElevenLabs key**. A ChatGPT subscription alone does not provide API access. The phone needs internet access to the speech service.
 
-## Update
+In an input-capable session, open **New prompt**. Tap to record/stop each sentence; record again to add another. Hold deletes the latest segment, repeating once per second. Double tap returns for an empty draft; otherwise choose **Send & exit** or **Exit only**. [Voice setup and controls](docs/voice.md)
 
-Installed companions automatically check for stable releases and install verified updates by default. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `even-pilot update off`; `on` enables them again. Existing opt-outs are retained. To update immediately, use that computer's **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `even-pilot update`. Pairing/Watch persist and native terminals remain running while monitoring briefly restarts.
+### Pi subagents
 
-**Companion updates do not update the phone Hub app.** Install the matching `.ehpk` separately in Even Hub. The phone app has no companion update controls. [Update details](docs/updates.md)
+Already using the official Pi subagent extension? Keep it. Otherwise, run Linux `even-pilot enable-pi-subagents` or follow the [Windows script steps](docs/pi-extensions.md#第一步添加到-pi-的配置目录), then `/reload` while Pi is idle. This optional tool is separate from the basic monitor. [Installation and verification](docs/pi-extensions.md)
 
-## Where to go next
+### Glance completion notifications
 
-- [Complete first-time setup](docs/setup.md) / [中文安装配置](docs/setup.zh-CN.md)
-- [Runbook for a new operator or agent](docs/agent-runbook.md)
-- [Documentation index](docs/README.md), [API](docs/api.md), [build/development](docs/development.md)
-- [Audit evidence and known limits](docs/release-status.md), [publishing instructions](docs/publishing.md)
+Install [Glance](https://github.com/Liang-Chu/Glance) on Android for per-session completion push notifications. Choose one delivery mode:
 
-Linux binaries require x64/glibc; ARM64 and Alpine/musl are not covered by this release. Windows binaries are unsigned. Claude remains experimental, and physical G2/voice/push acceptance is distinct from automated tests.
+| Mode | Firebase credentials | Glance PUSH registration |
+| --- | --- | --- |
+| Independent senders | On each sending computer | One watcher per sender |
+| One central sender | On the center; other computers forward to it | One watcher for the center |
+
+Configure **Glance notifications** on the companion, then register the sender/center in Glance using its QR or URL/key. Saving a computer in Hub does not register Glance. The session currently viewed on G2 does not send automatic completion notifications.
+
+[Companion and forwarding setup](docs/setup.md#optional-glance-notifications)
+
+## Updates
+
+Companions automatically install verified stable updates by default. Disable **Automatic updates** on that computer, or use Linux `even-pilot update off`; `on` restores it. To update now, use the Windows tray/manager or Linux `even-pilot update`.
+
+**Update the Hub app separately** by installing the matching `.ehpk` in Even Hub. Companion updates retain connections/Watch and leave native terminals running. [Update guide](docs/updates.md)
+
+## More help
+
+[Operator/agent runbook](docs/agent-runbook.md) · [Documentation](docs/README.md) · [Build/development](docs/development.md) · [Publishing](docs/publishing.md)
+
+Claude support is experimental. Linux requires x64/glibc; ARM64 and Alpine/musl are not covered. Windows binaries are unsigned. [Audit evidence and known limits](docs/release-status.md)
