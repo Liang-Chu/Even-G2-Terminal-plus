@@ -42,6 +42,11 @@ class TrayUpdateTests {
             try { await TrayUpdateActions.Perform(http, json, null, true); throw new Exception("Invalid metadata must be rejected"); }
             catch (InvalidOperationException error) { Expect(!TrayUpdateActions.Error(error).Contains("private response"), "Invalid transport response must not be echoed"); }
             Expect(TrayUpdateActions.Label("installing", 100, "1.1.1", true) == "Installing update…", "Installing remains distinct from download progress");
+            Expect(!TrayUpdateActions.StartAllowed("installing", false, false), "An expected update disconnect cannot restart the old backend");
+            Expect(!TrayUpdateActions.StartAllowed("idle", true, false), "The installer lock blocks startup before update information has loaded");
+            Expect(TrayUpdateActions.StartAllowed("idle", false, false), "Ordinary reconnect can still start monitoring");
+            Expect(TrayUpdateActions.StartAllowed("downloading", false, false), "An interrupted download does not permanently disable monitor recovery");
+            Expect(TrayUpdateActions.StartAllowed("installing", true, true), "Only the replacement tray's initial startup can perform the installer's health check");
         }
     }
     static int Main() {

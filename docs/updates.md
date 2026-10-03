@@ -6,7 +6,7 @@ Published installers come from [Liang-Chu/Even-Pilot Releases](https://github.co
 
 1. Open **Updates** in the desktop page to update the computer serving that page. In the phone Hub it targets the active computer when the dialog opens. There is no additional computer selector. From the Windows tray, choose **Check for updates**, then **Update to …** when a version is available.
 2. Review the installed and available versions. Choose **Update to …** to start downloading and installing on that computer.
-3. The monitoring backend reconnects after installation. Native CLI windows remain open.
+3. When installation begins, the page announces the restart and closes the update dialog. Reopen the manager after installation; native CLI windows remain open and pairing keys are retained.
 
 The tray starts the download/install directly and shows **Downloading update: …%** followed by **Installing update…**. Progress is polled more frequently during work. Update actions are disabled while a request or installation is in progress, and failures are shown directly; the tray does not open a browser to perform the update.
 
@@ -30,7 +30,7 @@ The updater uses the fixed public repository over HTTPS, an exact platform/versi
 
 Installers retain old payload directories because working native terminals may still use them. The installer starts the new backend and checks its version. If startup fails, it restores the previous selection and attempts to restart it. Configuration, pairing keys, Watch and notification settings remain in their existing data directory. Existing terminals load connector changes when reopened, or Pi when reloaded while idle.
 
-**Updating a Windows/Linux companion does not replace the phone Hub package.** To receive the 1.1.3 G2 changes, upload/install `even-pilot-1.1.3.ehpk` separately through Even Hub. Existing phone connection and voice settings remain saved.
+**Updating a Windows/Linux companion does not replace the phone Hub package.** To receive the 1.1.4 G2 changes, upload/install `even-pilot-1.1.4.ehpk` separately through Even Hub. Existing phone connection and voice settings remain saved.
 
 ## Control API
 

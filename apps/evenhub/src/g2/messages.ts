@@ -24,7 +24,8 @@ export function listLabel(text: string, prefix = "", suffix = "", maxBytes?: num
 export function messageLabel(message: G2Message, compact = false): string {
   const text = readableText(message.text.slice(0, 600));
   const maxBytes = compact ? 63 : undefined;
-  return listLabel(text, message.role === "assistant" ? "← " : "→ ", "", maxBytes);
+  // Role spacing is a measured prefix, separate from the normalized message.
+  return listLabel(text, message.role === "assistant" ? "  ← " : "→ ", "", maxBytes);
 }
 
 export const NATIVE_TEXT_BYTES = 900;

@@ -19,9 +19,11 @@ export class UpdateSettings {
   private install: HTMLButtonElement;
   private latest?: UpdateStatus;
   private busy = false;
+  private reachable = false;
   private revision = 0;
   private timer?: ReturnType<typeof setTimeout>;
-  constructor(private client: () => UpdateClient | undefined, private entry: HTMLButtonElement, private servingOrigin?: string) {
+  constructor(private client: () => UpdateClient | undefined, private entry: HTMLButtonElement, private servingOrigin?: string,
+    private notify?: (message: string) => void) {
     this.dialog.className = "update-settings";
     this.dialog.innerHTML = `<div class="dialog-heading"><h2>Updates</h2><button type="button" class="subtle" aria-label="Close updates">✕</button></div>
       <p class="caption" data-update-computer></p>
@@ -44,17 +46,19 @@ export class UpdateSettings {
   }
   open() {
     const host = updateComputer(this.client(), this.servingOrigin);
-    this.revision++; this.busy = false; this.latest = undefined; this.install.hidden = true;
+    this.revision++; this.busy = false; this.reachable = false; this.latest = undefined; this.install.hidden = true;
     this.targetUrl = this.servingOrigin || host?.url;
     this.computer.textContent = host ? `${this.servingOrigin ? "This computer" : "Computer"}: ${host.name}${host.online ? "" : " (offline)"}`
       : this.servingOrigin ? "Connect this computer in Connection first." : "Choose a connected computer in Sessions first.";
     if (!this.dialog.open) this.dialog.showModal(); void this.load();
   }
   private lock(value: boolean) {
-    this.busy = value; this.check.disabled = this.automatic.disabled = this.install.disabled = value;
+    this.busy = value;
+    this.check.disabled = this.automatic.disabled = this.install.disabled = value || !this.reachable
+      || ["checking", "downloading", "installing"].includes(this.latest?.phase || "");
   }
   private draw(status: UpdateStatus) {
-    this.latest = status; this.automatic.checked = status.automaticChecks;
+    this.latest = status; this.reachable = true; this.automatic.checked = status.automaticChecks;
     const working = ["downloading", "installing"].includes(status.phase);
     this.message.textContent = working ? status.phase === "downloading" ? `Downloading ${status.progress}%…` : "Installing… The computer will reconnect."
       : [`Installed: ${status.currentVersion}`, status.available ? `Available: ${status.available.version}` : status.checkedAt && !status.error ? "No newer release." : "",
@@ -62,35 +66,44 @@ export class UpdateSettings {
         !status.installSupported ? "Source checkout: use the installer to enable in-app updates." : ""].filter(Boolean).join(" · ");
     this.install.hidden = !status.available || !status.installSupported;
     this.install.textContent = working ? "Updating…" : `Update to ${status.available?.version || ""}`;
-    this.check.disabled = this.automatic.disabled = this.install.disabled = working;
+    this.lock(false);
+    if (status.phase === "installing" && this.dialog.open) {
+      const notice = "Installing update. This computer will restart; reconnect afterward.";
+      this.entry.textContent = "Restarting…"; this.entry.title = notice; this.notify?.(notice);
+      this.dialog.close();
+    }
   }
   private async load() {
     if (this.busy) return;
     const client = this.client(), url = this.targetUrl;
     if (!client || !url) {
-      this.lock(false); this.check.disabled = this.automatic.disabled = this.install.disabled = true;
+      this.reachable = false; this.lock(false);
       this.message.textContent = "No computer connected for this page."; this.install.hidden = true;
       this.schedule(this.dialog.open ? 3000 : 60_000); return;
     }
-    const request = ++this.revision; this.lock(true); this.message.textContent = "Loading…";
+    const request = ++this.revision; this.lock(true);
+    if (!this.latest) this.message.textContent = "Loading…";
     try {
       const status = await client.requestFrom(url, "/api/updates");
       if (request !== this.revision) return;
-      this.lock(false); if (status) this.draw(status);
-    } catch { if (request === this.revision) { this.lock(false); this.message.textContent = "Computer unavailable or backend needs an update."; this.install.hidden = true; } }
-    this.schedule(this.dialog.open ? 3000 : 60_000);
+      if (status) this.draw(status);
+      else throw new Error("Update status unavailable");
+    } catch { if (request === this.revision) { this.reachable = false; this.lock(false); this.message.textContent = "Reconnecting… Update status is unavailable."; } }
+    if (request === this.revision) this.schedule(this.dialog.open ? 3000 : 60_000);
   }
   private async act(path: string, body: object) {
-    if (this.busy) return;
+    if (this.busy || !this.reachable || ["checking", "downloading", "installing"].includes(this.latest?.phase || "")) return;
     const client = this.client(), url = this.targetUrl;
     if (!client || !url) return;
     const revision = ++this.revision; this.lock(true);
     try {
       const value = await client.requestFrom(url, path, body);
       if (revision !== this.revision) return;
-      this.lock(false); if (value) this.draw(value);
-    } catch (error) { if (revision === this.revision) { this.lock(false); this.message.textContent = error instanceof Error ? error.message : "Update request failed"; } }
-    this.schedule(2000);
+      if (value) this.draw(value);
+      else throw new Error("Update response unavailable");
+    } catch { if (revision === this.revision) { this.reachable = false; this.lock(false); this.message.textContent = "Reconnecting… Update request was not confirmed. Check status before trying again."; } }
+    // Poll status only. A lost acknowledgement must never repeat installation.
+    if (revision === this.revision) this.schedule(2000);
   }
   private schedule(ms: number) { clearTimeout(this.timer); this.timer = setTimeout(() => { void this.poll(); }, ms); }
   private async poll() {

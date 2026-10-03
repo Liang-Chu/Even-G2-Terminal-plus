@@ -8,10 +8,14 @@ using System.Net.NetworkInformation;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 using Microsoft.Win32;
 
 static class InstallerSupport {
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    static extern uint GetExtendedTcpTable(IntPtr table, ref int bytes, bool ordered, int family, int tableClass, uint reserved);
     internal static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 4000000 };
     internal static string Full(string path) { return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar); }
     internal static bool Inside(string path, string directory) { return Full(path).StartsWith(Full(directory) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase); }
@@ -100,7 +104,100 @@ static class InstallerSupport {
         }
         return false;
     }
+    internal static bool OwnedMonitorExecutable(string root, string executable) {
+        try {
+            root = Full(root); executable = Full(executable);
+            string checkedPath = executable;
+            while (Inside(checkedPath, root)) {
+                if ((File.GetAttributes(checkedPath) & FileAttributes.ReparsePoint) != 0) return false;
+                checkedPath = Path.GetDirectoryName(checkedPath);
+            }
+            string runtime = Path.GetDirectoryName(executable), payload = Path.GetDirectoryName(runtime);
+            if (!String.Equals(executable, Path.Combine(payload, "runtime", "node.exe"), StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(Path.Combine(payload, "apps", "windows", "src", "cli.ts"))) return false;
+            if (String.Equals(payload, root, StringComparison.OrdinalIgnoreCase)) return true;
+            string versions = Path.Combine(root, "versions"), version = Path.GetFileName(payload);
+            if (!String.Equals(Path.GetDirectoryName(payload), versions, StringComparison.OrdinalIgnoreCase)
+                || !Regex.IsMatch(version, @"^\d+\.\d+\.\d+-[a-f0-9]{12}$") || !File.Exists(Path.Combine(payload, "installed.json"))) return false;
+            var record = Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(root, "install.json")));
+            object value;
+            if (record.TryGetValue("current", out value) && String.Equals(value as string, version, StringComparison.Ordinal)) return true;
+            if (record.TryGetValue("versions", out value)) {
+                var recorded = value as System.Collections.IEnumerable;
+                if (recorded != null) foreach (object item in recorded) if (String.Equals(item as string, version, StringComparison.Ordinal)) return true;
+            }
+        } catch { }
+        return false;
+    }
+    internal sealed class MonitorProcess : IDisposable {
+        readonly Process process;
+        readonly string root, executable;
+        readonly DateTime started;
+        internal readonly int Pid;
+        internal MonitorProcess(string installRoot, int pid) {
+            root = installRoot; Pid = pid;
+            process = Process.GetProcessById(pid);
+            try {
+                // Pin the kernel process object before retaining PID identity.
+                // Recovery never looks up an arbitrary Node process by name.
+                var handle = process.Handle;
+                started = process.StartTime; executable = process.MainModule.FileName;
+                if (!OwnedMonitorExecutable(root, executable)) throw new Exception("The listening process is not this installation's bundled monitoring runtime. Close that monitor explicitly before updating; no terminal was stopped.");
+            } catch { process.Dispose(); throw; }
+        }
+        internal bool HasExited { get { return process.HasExited; } }
+        internal bool MatchesIdentity(int pid, DateTime startTime, string path) {
+            return Pid == pid && started.ToUniversalTime() == startTime.ToUniversalTime()
+                && String.Equals(executable, path, StringComparison.OrdinalIgnoreCase);
+        }
+        internal bool SameProcess(MonitorProcess other) { return other != null && MatchesIdentity(other.Pid, other.started, other.executable); }
+        internal void FinishAcknowledgedShutdown() {
+            if (process.WaitForExit(3000)) return;
+            bool same;
+            try { same = !process.HasExited && MatchesIdentity(process.Id, process.StartTime, process.MainModule.FileName) && OwnedMonitorExecutable(root, process.MainModule.FileName); }
+            catch { same = false; }
+            if (!same) throw new Exception("The monitor closed its port but its process identity could not be confirmed. No process was force-closed.");
+            // Older monitors can retain their IPC lock after acknowledging
+            // shutdown and closing the listener. Only that proven PID is stopped;
+            // native terminals and connector workers keep their own lifetimes.
+            try { process.Kill(); }
+            catch (InvalidOperationException) { if (process.HasExited) return; throw; }
+            if (!process.WaitForExit(5000)) throw new Exception("The acknowledged monitoring process did not exit. No terminal was force-closed.");
+        }
+        public void Dispose() { process.Dispose(); }
+    }
+    internal static MonitorProcess CaptureMonitor(string root, int port) {
+        const int ipv4 = 2, listenerOwnerPid = 3, rowBytes = 24;
+        int bytes = 0;
+        uint result = GetExtendedTcpTable(IntPtr.Zero, ref bytes, false, ipv4, listenerOwnerPid, 0);
+        if ((result != 0 && result != 122) || bytes < 4 || bytes > 8 * 1024 * 1024) throw new Exception("Could not identify the local monitoring listener. No process was stopped.");
+        IntPtr table = Marshal.AllocHGlobal(bytes);
+        try {
+            result = GetExtendedTcpTable(table, ref bytes, false, ipv4, listenerOwnerPid, 0);
+            if (result != 0) throw new Exception("The local monitoring listener changed during identification. No process was stopped.");
+            var data = new byte[bytes]; Marshal.Copy(table, data, 0, bytes);
+            uint rows = BitConverter.ToUInt32(data, 0);
+            if (rows > (bytes - 4) / rowBytes) throw new Exception("Invalid local listener information. No process was stopped.");
+            var pids = new HashSet<int>();
+            for (int n = 0; n < rows; n++) {
+                int row = 4 + n * rowBytes;
+                bool any = data[row + 4] == 0 && data[row + 5] == 0 && data[row + 6] == 0 && data[row + 7] == 0;
+                bool loopback = data[row + 4] == 127 && data[row + 5] == 0 && data[row + 6] == 0 && data[row + 7] == 1;
+                if (BitConverter.ToUInt32(data, row) != 2 || !any && !loopback || (data[row + 8] << 8 | data[row + 9]) != port) continue;
+                uint pid = BitConverter.ToUInt32(data, row + 20);
+                if (pid == 0 || pid > Int32.MaxValue) throw new Exception("The local listener owner could not be confirmed. No process was stopped.");
+                pids.Add((int)pid);
+            }
+            if (pids.Count == 0) return null;
+            if (pids.Count != 1) throw new Exception("Multiple processes own the local monitoring port. No process was stopped.");
+            foreach (int pid in pids) return new MonitorProcess(root, pid);
+            return null;
+        } finally { Marshal.FreeHGlobal(table); }
+    }
     internal static void StopMonitor(string root) {
+        // Retire the old tray before its monitor goes offline. Otherwise its
+        // automatic reconnect can launch the old payload during installation.
+        StopTrays(root);
         string configPath = Path.Combine(Data(root), "bridge-config.json");
         if (File.Exists(configPath)) {
             var config = Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(configPath));
@@ -108,17 +205,29 @@ static class InstallerSupport {
             if (String.IsNullOrEmpty(token)) token = Convert.ToString(config["controlToken"]);
             int port = 4317; string configuredPort = Environment.GetEnvironmentVariable("EVEN_PILOT_PORT");
             if (!String.IsNullOrEmpty(configuredPort) && (!Int32.TryParse(configuredPort, out port) || port < 1 || port > 65535)) throw new Exception("Invalid bridge port.");
+            using (var monitor = CaptureMonitor(root, port))
             using (var http = new HttpClient(new HttpClientHandler { UseProxy = false })) {
                 http.BaseAddress = new Uri("http://127.0.0.1:" + port); http.Timeout = TimeSpan.FromSeconds(3);
                 http.DefaultRequestHeaders.ConnectionClose = true;
                 http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
                 HttpResponseMessage state = null;
                 try { state = http.GetAsync("/api/monitoring").GetAwaiter().GetResult(); } catch (HttpRequestException) { } catch (System.Threading.Tasks.TaskCanceledException) { throw new Exception("The bridge did not respond. Installation has not stopped any terminal."); }
+                if (state == null && monitor != null && !monitor.HasExited) throw new Exception("The listening monitor did not acknowledge shutdown. No process was force-closed.");
                 if (state != null) using (state) {
                     if (!state.IsSuccessStatusCode) throw new Exception("Port " + port + " belongs to another bridge. Close that monitoring backend before continuing; keep native terminals running.");
                     var body = Json.Deserialize<Dictionary<string, object>>(state.Content.ReadAsStringAsync().GetAwaiter().GetResult());
                     if (!body.ContainsKey("nativeTerminals") || !Convert.ToBoolean(body["nativeTerminals"])) throw new Exception("Refusing to stop a backend that may own agent processes.");
-                    using (var response = http.PostAsync("/api/shutdown", new StringContent("{}", Encoding.UTF8, "application/json")).GetAwaiter().GetResult()) response.EnsureSuccessStatusCode();
+                    if (monitor == null) throw new Exception("The monitoring listener owner could not be confirmed. No process was stopped.");
+                    using (var current = CaptureMonitor(root, port)) {
+                        if (!monitor.SameProcess(current)) throw new Exception("The monitoring listener changed before shutdown. No process was stopped.");
+                    }
+                    using (var response = http.PostAsync("/api/shutdown", new StringContent("{}", Encoding.UTF8, "application/json")).GetAwaiter().GetResult()) {
+                        response.EnsureSuccessStatusCode();
+                        var acknowledgment = Json.Deserialize<Dictionary<string, object>>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                        object accepted;
+                        if (acknowledgment == null || !acknowledgment.TryGetValue("ok", out accepted) || !(accepted is bool) || !(bool)accepted)
+                            throw new Exception("Monitoring shutdown was not acknowledged. No process was force-closed.");
+                    }
                     bool stopped = false;
                     for (int n = 0; n < 80; n++) {
                         Thread.Sleep(100);
@@ -128,16 +237,22 @@ static class InstallerSupport {
                         if (!listening) { stopped = true; break; }
                     }
                     if (!stopped) throw new Exception("The monitoring backend did not exit. No terminal was force-closed.");
+                    monitor.FinishAcknowledgedShutdown();
                 }
             }
         }
+    }
+    internal static void StopTrays(string root) {
         // Only the tray in this installation. Never use process trees or kill Node/CLI processes.
         foreach (var process in Process.GetProcessesByName("Even-Pilot")) using (process) {
             try {
                 if (process.SessionId != Process.GetCurrentProcess().SessionId) continue;
                 string path = process.MainModule.FileName;
                 if (String.Equals(path, Path.Combine(root, "Even-Pilot.exe"), StringComparison.OrdinalIgnoreCase)
-                    || Inside(path, Path.Combine(root, "versions"))) { process.Kill(); process.WaitForExit(5000); }
+                    || Inside(path, Path.Combine(root, "versions"))) {
+                    process.Kill();
+                    if (!process.WaitForExit(5000)) throw new Exception("The previous tray did not exit. No monitoring backend or terminal was stopped.");
+                }
             } catch (InvalidOperationException) { }
         }
     }

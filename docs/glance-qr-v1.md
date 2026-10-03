@@ -1,6 +1,6 @@
 # Even-Pilot / Glance 共用连接二维码（v1）
 
-二维码内容是一条 URL，不是 JSON。桌面 **Connection** 的 **Phone connection** 弹窗和 Linux 的 `even-pilot pair` 使用同一格式、同一个后端 connection key。Glance 可直接扫码；Even Hub 目前仍手工填写 URL/key。
+二维码内容是一条 URL，不是 JSON。桌面 **Connect phone** 的 **Connect your phone** 弹窗和 Linux 的 `even-pilot pair` 使用同一格式、同一个后端 connection key。Glance 可直接扫码；Even Hub 目前仍手工填写 URL/key。
 
 Linux / SSH：运行 `~/.local/bin/even-pilot pair`，终端会打印 Bridge URL、connection key、完整 Glance URL 和二维码，优先使用 Tailscale 地址。用 Glance 的扫码入口扫描，再保存注册。二维码和 key 属于当前执行命令的电脑；集中转发时应在中心服务器运行这条命令。
 

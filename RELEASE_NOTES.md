@@ -1,9 +1,11 @@
-# Even-Pilot 1.1.3
+# Even-Pilot 1.1.4
 
-Mobile device selection now matches the black-and-white pixel style.
+Fixes companion restarts during updates and simplifies phone connection setup.
 
-- **Sessions** shows direct device buttons instead of the phone's native option picker. The selected device uses white pixel text on black; buttons have square borders and wrap on narrow screens.
-- Device selection stays in place when sessions refresh. Unchanged device buttons retain focus instead of being rebuilt for every status update.
-- These buttons only filter the session list. Connection selection, Watch settings and prompt destinations keep their existing behavior.
+- Windows updates retire the old tray before stopping the monitor, preventing it from starting the previous backend during installation.
+- Shutdown closes stalled HTTP connections after a short drain so the replacement monitor can acquire its lock. Native CLI sessions keep running.
+- Updates announce the restart and close the settings dialog. Download progress stays visible, and a lost acknowledgement never repeats the installation request.
+- **Connect phone** shows this computer's URL, connection key, matching copy buttons and shared QR in one compact panel. Existing connection keys are retained during updates.
+- G2 agent replies have two spaces before their arrow to distinguish them from user messages.
 
-Upload/install `even-pilot-1.1.3.ehpk` in Even Hub to receive this change. Updating the Windows/Linux companion alone does not replace the phone package. This patch retains 1.1.2's connection setup, Windows update fixes and documented connector limitations.
+Install `even-pilot-1.1.4.ehpk` separately in Even Hub for the UI changes. Updating the Windows/Linux companion does not replace the phone package. Physical G2 rendering still requires device verification.

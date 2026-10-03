@@ -11,8 +11,8 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Even-Pilot")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.3.0")]
-[assembly: System.Reflection.AssemblyVersion("1.1.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.4.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.4.0")]
 
 // Native tray UI. The bridge and its Pi sessions have an independent lifetime.
 class PilotTray : ApplicationContext {
@@ -40,14 +40,16 @@ class PilotTray : ApplicationContext {
     int updateProgress;
     bool installSupported;
     bool updating;
+    bool installerStartup;
     static int Port() {
         int value; string configured = Environment.GetEnvironmentVariable("EVEN_PILOT_PORT");
         if (String.IsNullOrEmpty(configured)) return 4317;
         if (!Int32.TryParse(configured, out value) || value < 1 || value > 65535) throw new Exception("Invalid bridge port");
         return value;
     }
-    PilotTray(EventWaitHandle show, bool quietLaunch) {
+    PilotTray(EventWaitHandle show, bool quietLaunch, bool installerLaunch) {
         showRequested = show;
+        installerStartup = installerLaunch;
         node = PrepareDesktop(root);
         var config = json.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(DesktopPaths.DataDirectory(root), "bridge-config.json")));
         token = Environment.GetEnvironmentVariable("EVEN_PILOT_TOKEN");
@@ -82,7 +84,7 @@ class PilotTray : ApplicationContext {
         timer.Tick += async (s, e) => {
             if (exiting) return;
             if (showRequested.WaitOne(0)) await OpenManager();
-            if (++ticks % 3 == 0 && !starting && !await Refresh() && DateTime.UtcNow >= retryAt) await Start(false);
+            if (++ticks % 3 == 0 && !starting && !await Refresh() && !BackendStartBlocked() && DateTime.UtcNow >= retryAt) await Start(false);
             if (DateTime.UtcNow >= updatesAt && !updating && !starting) await ReadUpdates(false);
         };
         timer.Start();
@@ -90,8 +92,12 @@ class PilotTray : ApplicationContext {
         Begin(quietLaunch);
     }
     async void Begin(bool quietLaunch) {
+        await ReadUpdates(false);
         if (quietLaunch) await Start(false);
         else await OpenManager();
+    }
+    bool BackendStartBlocked() {
+        return !TrayUpdateActions.StartAllowed(updatePhase, DesktopPaths.InstallationInProgress(root), installerStartup);
     }
     void ReadStartup() {
         try { autoStart.Checked = startup.IsEnabled(); autoStart.Enabled = true; }
@@ -122,6 +128,7 @@ class PilotTray : ApplicationContext {
         updateAction.Text = TrayUpdateActions.Label(updatePhase, updateProgress, availableVersion, installSupported);
         updateAction.Enabled = autoUpdates.Enabled = !working;
         if (working) icon.Text = "Even-Pilot · " + updateAction.Text;
+        if (BackendStartBlocked()) startBackground.Enabled = false;
         string error = data["error"] == null ? null : Convert.ToString(data["error"]);
         if (!working && (manual || TrayUpdateActions.Working(previousPhase)) && !String.IsNullOrEmpty(error))
             icon.ShowBalloonTip(7000, TrayUpdateActions.Working(previousPhase) ? "Even-Pilot update failed" : "Even-Pilot updates", error, ToolTipIcon.Warning);
@@ -184,10 +191,11 @@ class PilotTray : ApplicationContext {
             }
         } catch {
             if (!exiting) {
-                status.Text = starting ? "Background: Starting…" : "Background: Reconnecting";
-                activity.Text = "Watch settings retained";
-                icon.Text = "Even-Pilot · reconnecting";
-                startBackground.Enabled = !starting;
+                bool installing = BackendStartBlocked();
+                status.Text = installing ? "Background: Updating…" : starting ? "Background: Starting…" : "Background: Reconnecting";
+                activity.Text = installing ? "Monitor will reconnect; terminals keep running" : "Watch settings retained";
+                icon.Text = installing ? "Even-Pilot · installing update" : "Even-Pilot · reconnecting";
+                startBackground.Enabled = !starting && !installing;
             }
             return false;
         }
@@ -199,13 +207,18 @@ class PilotTray : ApplicationContext {
         return startTask;
     }
     async Task<bool> StartCore(bool notifyErrors) {
+        if (BackendStartBlocked()) {
+            if (notifyErrors) icon.ShowBalloonTip(5000, "Even-Pilot update", "Installation is in progress. The monitor will reconnect; native terminals keep running.", ToolTipIcon.Info);
+            return false;
+        }
         starting = true;
         startBackground.Enabled = false;
         try {
             LogStartup("background.check");
             while (checking) await Task.Delay(50);
             if (exiting) return false;
-            if (await Refresh()) { LogStartup("background.ready"); return true; }
+            if (await Refresh()) { installerStartup = false; LogStartup("background.ready"); return true; }
+            if (BackendStartBlocked()) return false;
             // Detach stdio too: quitting the UI cannot break a backend pipe.
             // The backend's exclusive lock prevents duplicate session owners.
             using (var launcher = Process.Start(new ProcessStartInfo(node, "--import tsx apps/windows/src/desktop-launch.ts --port " + Port()) {
@@ -218,11 +231,13 @@ class PilotTray : ApplicationContext {
             var deadline = DateTime.UtcNow.AddSeconds(30);
             do {
                 if (exiting) return false;
-                if (await Refresh()) { LogStartup("background.ready"); return true; }
+                if (await Refresh()) { installerStartup = false; LogStartup("background.ready"); return true; }
+                if (BackendStartBlocked()) return false;
                 await Task.Delay(300);
             } while (DateTime.UtcNow < deadline);
             throw new Exception("The bridge is not ready on port " + Port() + ". Existing sessions have not been stopped.");
         } catch (Exception error) {
+            if (BackendStartBlocked()) { LogStartup("background.update-wait"); return false; }
             LogStartup("background.failed", error);
             if (!exiting) {
                 status.Text = "Background: Unavailable";
@@ -284,11 +299,12 @@ class PilotTray : ApplicationContext {
     [STAThread]
     static void Main(string[] args) {
         bool quietLaunch = Array.IndexOf(args, "--autostart") >= 0;
+        bool installerLaunch = Array.IndexOf(args, "--installer-start") >= 0;
         try {
             string installed = DesktopPaths.InstalledExecutable(AppDomain.CurrentDomain.BaseDirectory);
             if (installed != null) {
                 var forwarded = new List<string>();
-                foreach (string arg in args) if (arg == "--autostart" || arg == "--prepare" || arg == "--check") forwarded.Add(arg);
+                foreach (string arg in args) if (arg == "--autostart" || arg == "--prepare" || arg == "--check" || arg == "--installer-start") forwarded.Add(arg);
                 using (var child = Process.Start(new ProcessStartInfo(installed, String.Join(" ", forwarded.ToArray())) { WorkingDirectory = Path.GetDirectoryName(installed), UseShellExecute = false, CreateNoWindow = true })) {
                     if (forwarded.Contains("--prepare") || forwarded.Contains("--check")) {
                         child.WaitForExit(); Environment.ExitCode = child.ExitCode;
@@ -313,6 +329,10 @@ class PilotTray : ApplicationContext {
                 || !File.Exists(Path.Combine(root, "node_modules", "tsx", "package.json"))) Environment.Exit(1);
             return;
         }
+        if (!installerLaunch && DesktopPaths.InstallationInProgress(AppDomain.CurrentDomain.BaseDirectory)) {
+            if (!quietLaunch) MessageBox.Show("Installation is in progress. Open Even-Pilot again when it finishes; native terminals keep running.", "Even-Pilot update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         bool first;
         string instance = Port() == 4317 ? "" : "-" + Port();
         using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\Even-PIlot-Show" + instance))
@@ -320,7 +340,7 @@ class PilotTray : ApplicationContext {
             if (!first) { if (!quietLaunch) show.Set(); return; }
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             for (int attempt = 0; ; attempt++) {
-                try { LogStartup(quietLaunch ? "tray.autostart" : "tray.open"); Application.Run(new PilotTray(show, quietLaunch)); break; }
+                try { LogStartup(quietLaunch ? "tray.autostart" : "tray.open"); Application.Run(new PilotTray(show, quietLaunch, installerLaunch)); break; }
                 catch (Exception error) {
                     LogStartup("tray.failed", error);
                     if (quietLaunch && attempt < 2) { Thread.Sleep(3000); continue; }
@@ -336,6 +356,11 @@ class PilotTray : ApplicationContext {
 // behavior can be verified without launching a browser or touching sessions.
 internal static class TrayUpdateActions {
     internal static bool Working(string phase) { return phase == "downloading" || phase == "installing"; }
+    internal static bool StartAllowed(string phase, bool installerActive, bool installerStartup) {
+        // The replacement tray must start the new monitor while its installer
+        // still owns the lock and checks health. This exception ends on readiness.
+        return installerStartup || phase != "installing" && !installerActive;
+    }
     internal static string Label(string phase, int progress, string version, bool supported) {
         if (phase == "downloading") return "Downloading update: " + Math.Max(0, Math.Min(100, progress)) + "%";
         if (phase == "installing") return "Installing update…";

@@ -7,7 +7,7 @@ Start here when you have no history from the original setup. For a new user, fol
 1. Identify the computer, operating-system user and actual installation root. Run as the same user as the native CLI. A custom or portable installation may not use the default directory.
 2. Identify the task: monitor a local session, connect a viewer, configure notifications, update the companion, or install the phone package. These are separate operations.
 3. On Linux run `even-pilot status`, `even-pilot sessions` and `even-pilot settings`. These show monitoring/session/sender state without printing keys. Use `even-pilot pair` only when the owner needs connection details.
-4. On Windows open the shortcut and inspect Sessions and the tray's running state. **Connection** shows this computer's phone URL/key; **Other computers** manages this browser's saved remote connections.
+4. On Windows open the shortcut and inspect Sessions and the tray's running state. **Connect phone** opens **Connect your phone** with this computer's URL/key; **Other computers** manages this browser's saved remote connections.
 5. Check the installed version and [release status](release-status.md). Do not infer a deployed version from the source checkout or a file left in Downloads.
 
 The default backend listens on TCP 4317. Only one monitor should own a given data directory and port. Network loss, Unwatch and monitoring shutdown must not be turned into task completion or terminate native terminals.

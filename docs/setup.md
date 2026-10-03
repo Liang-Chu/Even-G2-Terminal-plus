@@ -17,7 +17,7 @@ The companion is a watcher and lightweight session manager. Installing it does n
 
 ### Windows
 
-1. Download `Even-Pilot-1.1.3-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
+1. Download `Even-Pilot-1.1.4-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Even-Pilot**, **Start with Windows**, update controls and **Quit Even-Pilot**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -29,7 +29,7 @@ The ZIP is an optional portable alternative: extract the whole archive to a dedi
 The supplied binary targets x64/glibc Linux. The tested baseline is headless Ubuntu 26.04 LTS; Alpine/musl is not supported by this package. Install as a normal user, without `sudo`:
 
 ```sh
-sh ./Even-Pilot-1.1.3-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.4-Setup-linux-x64.run
 ```
 
 It installs its bundled runtime under `~/.local/lib/even-pilot`, creates `~/.local/bin/even-pilot`, starts monitoring and adds a removable PATH block for supported shells. Open a new shell before using the short command; in the current shell use the full path or the PATH command printed by the installer. This is a per-user global command, not an npm package installation.
@@ -101,8 +101,8 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install/upload `even-pilot-1.1.3.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
-2. Get a computer's values: Windows **Connection** in its local manager opens **Phone connection** with this computer's URL/key and QR; Linux `even-pilot pair` prints them.
+1. Install/upload `even-pilot-1.1.4.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
+2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `even-pilot pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
    | Field | Value |
@@ -172,7 +172,7 @@ The list begins with **New prompt**, even when the session is read-only; in that
 
 Voice is optional: open phone **Voice**, select OpenAI or ElevenLabs, enter your own transcription key and save. It persists on that device. The phone sends audio directly to the chosen transcription provider, then sends the finished prompt to the target companion. [Voice models, privacy and gestures](voice.md)
 
-Ordinary Claude questions can be read in history; answering requires an explicit connector session. Supported connector questions wait up to five minutes for the remote reply, and phone **Cancel** returns them to the native terminal immediately. Larger/multiple questions are handled on the phone; multi-select stays native. [Question capabilities](connectors.md#phone-commands-and-choices)
+Ordinary Claude questions can be read in history; answering requires an explicit connector session. Supported connector questions wait up to five minutes for the remote reply, and phone **Cancel** returns them to the native terminal immediately. Supported multiple questions use the phone; unsupported or multi-select forms stay native. [Question capabilities](connectors.md#phone-commands-and-choices)
 
 ## Optional Glance notifications
 
@@ -213,7 +213,7 @@ This is a two-field fragment to merge, not a replacement file. Quit the tray, st
 
 ### Register Glance on the sender/center
 
-1. Display its QR: Windows **Connection**, or Linux `even-pilot pair`.
+1. Display its QR: Windows **Connect phone**, or Linux `even-pilot pair`.
 2. In Glance, scan it or manually enter the complete `http://SENDER_IP:4317/api/glance` URL and that sender's connection key as **Credential**.
 3. Choose **PUSH**, then **Save and register**. Do this for each independent sender, or only for the center.
 
@@ -243,7 +243,7 @@ To return a source to independent delivery use `even-pilot settings push direct`
 
 Windows tray: **Check for updates → Update to …**. Linux: `even-pilot update`, then `even-pilot update status`. The manager's **Updates** targets its serving computer; phone Hub targets the computer active when the dialog opens. Automatic checks can be disabled in the tray/Updates or with `even-pilot update off`.
 
-**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.3.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.4.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Even-Pilot**. Linux uses `even-pilot uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `even-pilot stop`; native terminals keep working.
 
@@ -253,7 +253,7 @@ Windows uninstall is in **Settings → Apps → Even-Pilot**. Linux uses `even-p
 | --- | --- |
 | Phone browser cannot reach the URL | Both Tailscale devices online, correct computer IP, companion running, computer awake, TCP 4317 allowed |
 | Browser works but Hub cannot fetch | Install the current Hub package, use plain HTTP(S) origin/no API path, check the Even App network permission; keep the precise error/origin for diagnosis |
-| Connection key rejected | Copy the current running installation's **Connection** / `pair` key. A fresh installation in another directory can have a different key on the same computer; normal in-place updates retain it |
+| Connection key rejected | Copy the current running installation's **Connect phone** / `pair` key. A fresh installation in another directory can have a different key on the same computer; normal in-place updates retain it |
 | Tailscale reports DNS unavailable | Test the numeric Tailscale IP; MagicDNS is not needed for that connection |
 | G2 shows reconnecting but phone is online | Check Even App's G2/Bluetooth connection and the G2 page's display status; backend connection and display connection are separate |
 | New CLI missing | Same user/config directory; first saved prompt; Pi idle `/reload`; Claude `/hooks`; desktop **All sessions**, then Watch |

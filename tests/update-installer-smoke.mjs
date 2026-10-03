@@ -3,7 +3,8 @@ import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,cpSync,existsSync,rmSyn
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {spawn,spawnSync} from 'node:child_process';
-import {createServer} from 'node:net';
+import {createServer,connect} from 'node:net';
+import {once} from 'node:events';
 import {randomUUID} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 
@@ -13,6 +14,9 @@ const sandbox=mkdtempSync(join(tmpdir(),'pilot-update-install-')), root=join(san
 const stage=join(release,'Even-Pilot');
 const version=JSON.parse(readFileSync(join(stage,'package.json'))).version;
 const setup=join(release,`Even-Pilot-${version}-Setup-${windows?'x64.exe':'linux-x64.run'}`);
+const previousRelease=process.argv[3]?resolve(process.argv[3]):release;
+const previousVersion=JSON.parse(readFileSync(join(previousRelease,'Even-Pilot/package.json'))).version;
+const firstSetup=join(previousRelease,`Even-Pilot-${previousVersion}-Setup-${windows?'x64.exe':'linux-x64.run'}`);
 const reservation=createServer();await new Promise(done=>reservation.listen(0,'127.0.0.1',done));
 const port=reservation.address().port;await new Promise(done=>reservation.close(done));
 const data=windows?join(root,'.local'):join(sandbox,'data');
@@ -26,12 +30,12 @@ if(!windows) { env.HOME=join(sandbox,'home'); env.SHELL='/bin/bash'; mkdirSync(e
 const run=(exe,args)=>spawnSync(exe,args,{env,cwd:sandbox,windowsHide:true,encoding:'utf8',timeout:110000});
 const install=(file,update)=>windows?run(file,['--quiet','--dir',root,'--no-shortcuts',update?'--update':'--no-launch'])
  :run('sh',[file,'--dir',root,update?'--update':'--no-start']);
-let backend, worker, token, record;
+let backend, worker, token, record, stalledClient;
 const request=async(path,body)=>fetch(`http://127.0.0.1:${port}${path}`,{headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},method:body?'POST':'GET',body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(1200)});
 async function until(fn,ms=20000){const end=Date.now()+ms;while(!await fn()){if(Date.now()>end)throw new Error('Update fixture timeout');await delay(100);}}
 async function healthy(){try{return(await request('/api/updates')).ok;}catch{return false;}}
 try {
- const first=install(setup,false);assert.equal(first.status,0,first.stderr);
+ const first=install(firstSetup,false);assert.equal(first.status,0,first.stderr);
  record=JSON.parse(readFileSync(join(root,'install.json')));const payload=join(root,'versions',record.current);
  const claudeBefore=JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR,'settings.json')));
  const config=readFileSync(join(data,'bridge-config.json'),'utf8');token=JSON.parse(config).controlToken;
@@ -42,6 +46,14 @@ try {
  worker=spawn(node,['-e','setInterval(()=>{},1000)'],{cwd:payload,env,stdio:'ignore',windowsHide:true});
  await new Promise((done,fail)=>{worker.once('spawn',done);worker.once('error',fail);});
  mkdirSync(join(data,'native'),{recursive:true});writeFileSync(join(data,'native',worker.pid+'.json'),JSON.stringify({version:1,pid:worker.pid,instance:randomUUID(),at:Date.now(),state:{connected:true}}));
+ if(windows&&previousRelease!==release){
+   // The published old backend can close its listener yet retain its IPC lock
+   // forever while an unfinished phone upload remains active.
+   stalledClient=connect(port,'127.0.0.1');stalledClient.on('error',()=>{});
+   await once(stalledClient,'connect');
+   stalledClient.write(`POST /api/prompt HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer ${token}\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{`);
+   await delay(100);
+ }
  let rejected;
  if(windows){
    const {buildInstaller}=await import('../scripts/installer.mjs');
@@ -57,7 +69,7 @@ try {
  assert.notEqual(rejected.status,0,'Health version mismatch must reject the update');
  await until(healthy);
  assert.equal(JSON.parse(readFileSync(join(root,'install.json'))).current,record.current,'Previous payload selected after rollback');
- assert.equal((await(await request('/api/updates')).json()).currentVersion,version,'Previous backend is healthy after rollback');
+ assert.equal((await(await request('/api/updates')).json()).currentVersion,previousVersion,'Previous backend is healthy after rollback');
  assert.equal(worker.exitCode,null,'Native process survives failed update');
  assert.equal(readFileSync(join(data,'bridge-config.json'),'utf8'),config,'Keys survive rollback');
  assert.deepEqual(JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR,'settings.json'))),claudeBefore,'Rollback restores the previous owned hook command');
@@ -66,9 +78,11 @@ try {
  assert.equal(worker.exitCode,null,'Native process survives successful update');
  assert.equal((await(await request('/api/updates')).json()).automaticChecks,false,'Disabled update preference persists');
  assert.equal(readFileSync(join(data,'bridge-config.json'),'utf8'),config);
- assert.deepEqual(JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR,'settings.json'))),claudeBefore,'Reinstall preserves the registered hook settings');
- console.log('PASS: '+process.platform+' real --update installation, failed health check rollback, healthy restart, saved preference/key retention and native-process survival.');
+ assert.equal((await(await request('/api/updates')).json()).currentVersion,version,'The accepted backend serves the new exact version');
+ if(previousRelease===release)assert.deepEqual(JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR,'settings.json'))),claudeBefore,'Reinstall preserves the registered hook settings');
+ console.log('PASS: '+process.platform+' '+previousVersion+' → '+version+' real --update installation, failed health check rollback, healthy restart, saved preference/key retention and native-process survival.');
 } finally {
+ if(stalledClient)stalledClient.destroy();
  if(worker?.exitCode===null){worker.kill();await until(()=>worker.exitCode!==null||worker.signalCode!==null);}
  try{await request('/api/shutdown',{});}catch{}
  if(existsSync(join(root,'install.json'))){

@@ -425,14 +425,23 @@ export function createBridgeServer(
     clearTimeout(broadcastTimer);
   };
   server.on("close", cleanup);
+  let closing: Promise<void> | undefined;
   return {
     server,
-    close: async () => {
+    close: () => closing ??= (async () => {
       cleanup();
       for (const stream of [...streams, ...pinnedStreams]) stream.end();
-      await new Promise<void>((resolve, reject) =>
-        server.close((error: NodeJS.ErrnoException | undefined) => (error && error.code !== "ERR_SERVER_NOT_RUNNING" ? reject(error) : resolve())),
-      );
-    },
+      await new Promise<void>((resolve, reject) => {
+        // Allow the shutdown response to drain, then close stalled phone/SSE
+        // connections. Otherwise the stopped HTTP listener can retain the
+        // backend lock indefinitely and prevent the replacement from starting.
+        const deadline = setTimeout(() => server.closeAllConnections(), 1_000);
+        server.close((error: NodeJS.ErrnoException | undefined) => {
+          clearTimeout(deadline);
+          if (error && error.code !== "ERR_SERVER_NOT_RUNNING") reject(error);
+          else resolve();
+        });
+      });
+    })(),
   };
 }

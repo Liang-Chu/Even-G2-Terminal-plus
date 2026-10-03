@@ -74,7 +74,7 @@ test("working count is below New prompt, inert on tap, and does not shift messag
     monitoring: { running: 12, watched: 12, since: 0, sessions: [] } }, true);
   await display.init(bridge as any); await wait();
   assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName,
-    ["New prompt", "… agents: 3", "← Latest reply"]);
+    ["New prompt", "… agents: 3", "  ← Latest reply"]);
   display.handleEvent({ listEvent: { containerID: 8, currentSelectItemIndex: 1 } } as any);
   display.handleEvent({ sysEvent: { eventType: 0 } } as any); await wait();
   assert.equal(opens, 0, "system click duplicates cannot act through the informational row");
@@ -100,11 +100,11 @@ test("working row changes preserve native browsing focus and disappear after ret
   assert.equal(layouts.length, before, "count updates cannot reset firmware focus");
   assert.equal(layouts.at(-1).listObject[0].itemContainer.itemName[1], "… agents: 3");
   display.back(); await wait();
-  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName, ["New prompt", "← First reply"]);
+  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName, ["New prompt", "  ← First reply"]);
   display.update(state, true); await wait(2200);
   assert.equal(layouts.at(-1).listObject[0].itemContainer.itemName[1], "… agents: 3");
   display.update(state, false); await wait(2200);
-  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName, ["New prompt", "← First reply"]);
+  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName, ["New prompt", "  ← First reply"]);
 });
 
 test("gesture diagnostics retain event metadata but never conversation or audio", async t => {

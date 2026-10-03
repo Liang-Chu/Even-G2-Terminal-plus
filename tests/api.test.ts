@@ -4,13 +4,39 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, symlinkSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { connect } from "node:net";
+import { once } from "node:events";
 import { CockpitStore } from "../packages/cockpit-state/store.js";
 import { TestRuntime, completeSession } from "./fixtures/runtime.js";
 import { NotificationJournal } from "../apps/windows/src/notifications.js";
 import { createBridgeServer } from "../apps/windows/src/server.js";
+import { acquireBackendLock } from "../apps/windows/src/backend-lock.js";
 
 const control = "control-token-for-tests-123456789";
 const credential = "notification-token-for-tests-123456789";
+test("shutdown closes an unfinished phone request and releases the backend lock", { timeout: 5_000 }, async t => {
+  const root = mkdtempSync(join(tmpdir(), "pilot-shutdown-"));
+  const runtime = new TestRuntime({ cwd: root }), journal = new NotificationJournal(runtime.store);
+  const bridge = createBridgeServer(runtime, journal, { token: control, notificationToken: credential });
+  let unlock = await acquireBackendLock(root);
+  await new Promise<void>(done => bridge.server.listen(0, "127.0.0.1", done));
+  const port = (bridge.server.address() as { port: number }).port;
+  const socket = connect(port, "127.0.0.1");
+  t.after(async () => { socket.destroy(); await bridge.close(); await unlock(); journal.close(); rmSync(root, { recursive: true, force: true }); });
+  await once(socket, "connect");
+  const request = once(bridge.server, "request");
+  socket.write(`POST /api/prompt HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer ${control}\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{`);
+  await request;
+  const closed = once(socket, "close"), started = Date.now();
+  const closing = bridge.close();
+  assert.equal(bridge.close(), closing, "concurrent shutdown calls share the same drain");
+  await closing;
+  await closed;
+  assert.ok(Date.now() - started < 3_000, "a stalled upload must not block replacement startup");
+  assert.equal(bridge.server.listening, false);
+  await unlock();
+  unlock = await acquireBackendLock(root);
+});
 test("public static assets cannot follow a directory junction into private files", async t => {
   const root = mkdtempSync(join(tmpdir(), "pilot-static-"));
   const assets = join(root, "assets"), privateDir = join(root, "private");

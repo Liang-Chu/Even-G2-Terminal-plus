@@ -29,22 +29,22 @@
 .desktop-session-row strong { max-height: 3.2em; overflow: hidden; }
 .desktop-session-row small { color: #666; font-size: 10px; margin-top: 5px; }
 .desktop-row-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.pairing-dialog { width: min(94vw, 680px); max-height: calc(100dvh - 24px); overflow-y: auto; }
-.pairing-dialog .dialog-heading h2 { margin: 0; }
-.pairing-dialog > p { margin: 12px 0 20px; }
-.pairing-content { display: grid; grid-template-columns: minmax(0, 1fr) 184px; align-items: start; gap: 24px; }
+.pairing-dialog { width: min(94vw, 640px); max-height: calc(100dvh - 24px); padding: 20px; overflow-y: auto; }
+.pairing-dialog .dialog-heading h2 { margin: 0; font-size: 18px; }
+.pairing-dialog > p { margin: 10px 0 16px; }
+.pairing-content { display: grid; grid-template-columns: minmax(0, 1fr) 176px; align-items: start; gap: 20px; }
 .pairing-details { min-width: 0; }
-.pairing-fields { display: grid; gap: 16px; }
+.pairing-fields { display: grid; gap: 14px; }
 .pairing-field { display: grid; gap: 6px; }
 .pairing-field label { margin: 0; }
 .pairing-control { display: flex; align-items: stretch; border: 1px solid #111; }
-.pairing-control input { flex: 1; min-width: 0; height: 38px; margin: 0; padding: 8px 10px; border: 0; }
+.pairing-control input { flex: 1; min-width: 0; height: 38px; margin: 0; padding: 8px 10px; border: 0; font-size: 13px; }
 .pairing-control input:focus { outline-offset: -3px; }
 .pairing-copy-button { display: grid; place-items: center; flex: 0 0 38px; padding: 0; border: 0; border-left: 1px solid #111; background: #fff; color: #111; }
 .pairing-copy-button:focus-visible { outline: 2px solid currentColor; outline-offset: -4px; }
 .pairing-copy-button:active:enabled { transform: none; }
 .pairing-dialog #pairing-copy-status { min-height: 18px; margin: 8px 0 0; }
-.pairing-dialog img { display: block; width: 184px; height: 184px; margin: 0; image-rendering: pixelated; }
+.pairing-dialog img { display: block; width: 176px; height: 176px; margin: 0; image-rendering: pixelated; }
 @media (max-width: 600px) {
   .pairing-content { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .pairing-dialog img { width: 176px; height: 176px; margin: 0 auto; }

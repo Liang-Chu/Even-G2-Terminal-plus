@@ -17,7 +17,7 @@ Even-Pilot 是监控和简单会话管理端。它不替你安装 CLI，也不�
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.3-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.4-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Even-Pilot**、**Start with Windows**、更新和 **Quit Even-Pilot**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -29,7 +29,7 @@ Even-Pilot 是监控和简单会话管理端。它不替你安装 CLI，也不�
 本包面向 x64/glibc，实测基准为无头 Ubuntu 26.04 LTS，不适用于 Alpine/musl。以普通用户执行，**不要加 sudo**：
 
 ```sh
-sh ./Even-Pilot-1.1.3-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.4-Setup-linux-x64.run
 ```
 
 程序安装到 `~/.local/lib/even-pilot`，命令位于 `~/.local/bin/even-pilot`；安装器给支持的 shell 添加可移除的 PATH 配置，并启动后台。新开一个 shell 后可直接输入短命令。当前终端先用完整路径，或执行安装器打印的 PATH 命令。这是当前用户的全局命令，不是 npm 全局包。
@@ -101,8 +101,8 @@ even-pilot new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. Even Hub 安装／上传 `even-pilot-1.1.3.ehpk`，Even App 2.2.10+ 连好 G2。
-2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connection** 打开 **Phone connection**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
+1. Even Hub 安装／上传 `even-pilot-1.1.4.ehpk`，Even App 2.2.10+ 连好 G2。
+2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
    | 字段 | 内容 |
@@ -172,7 +172,7 @@ tmux attach -t 实际会话名
 
 语音是可选项：手机 **Voice** 选择 OpenAI／ElevenLabs，填自己的转写 key 并保存。默认在当前设备保存；手机直接向所选服务上传音频，再把完整 prompt 发到目标电脑。[语音和数据流](voice.md)
 
-普通 Claude 会话能显示问题和选项，回答需要专门的连接器会话。支持的连接器提问最多等待五分钟接收远程回答，手机点 **Cancel** 会立即交回原终端。较长或多个问题在手机处理；多选题保留在原终端。[提问支持范围](connectors.md#phone-commands-and-choices)
+普通 Claude 会话能显示问题和选项，回答需要专门的连接器会话。支持的连接器提问最多等待五分钟接收远程回答，手机点 **Cancel** 会立即交回原终端。支持的多个问题在手机处理；未支持的格式或多选题保留在原终端。[提问支持范围](connectors.md#phone-commands-and-choices)
 
 ## 可选 Glance 通知
 
@@ -213,7 +213,7 @@ Quit 托盘，按[认证停止后台步骤](development.md#更新已有安装)�
 
 ### 2. 给 Glance 注册发送端
 
-1. 发送端／中心显示二维码：Windows **Connection**，或 Linux `even-pilot pair`。
+1. 发送端／中心显示二维码：Windows **Connect phone**，或 Linux `even-pilot pair`。
 2. Glance 扫码，或手填完整 `http://发送端IP:4317/api/glance`，Credential 填同一发送端 connection key。
 3. 选择 **PUSH**，**Save and register**。独立发送每台注册一次，中心模式只注册中心。
 
@@ -243,7 +243,7 @@ even-pilot settings
 
 Windows 托盘 **Check for updates → Update to …**；Linux `even-pilot update` 后 `even-pilot update status`。管理页 **Updates** 更新提供当前页面的电脑，手机 Hub 更新打开弹窗时的当前电脑。托盘／Updates 或 `even-pilot update off` 可停自动检查。
 
-**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.3.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.4.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
 Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `even-pilot stop`。
 
@@ -253,7 +253,7 @@ Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot unin
 | --- | --- |
 | 手机浏览器打不开 | 两端 Tailscale 在线、电脑 IP 正确、后台运行、电脑未休眠、防火墙 TCP 4317 |
 | 浏览器能开但 Hub fetch 失败 | 当前 Hub 包、纯 origin 无 `/api` 路径、Even App 网络权限；保留完整错误／origin 供诊断 |
-| Connection key 被拒绝 | 用当前运行安装的 **Connection**／`pair` 获取 key。同一台电脑新装到另一个目录可能生成不同 key；正常原目录更新会保留 |
+| Connection key 被拒绝 | 用当前运行安装的 **Connect phone**／`pair` 获取 key。同一台电脑新装到另一个目录可能生成不同 key；正常原目录更新会保留 |
 | Tailscale DNS unavailable | 先用数字 IP 验证，它不需要 MagicDNS |
 | 手机在线但 G2 reconnecting | Even App 的 G2／蓝牙连接及 G2 页状态，显示连接与后端连接不同 |
 | 新 CLI 不在列表 | 同用户／配置目录、首次保存 prompt、Pi `/reload`、Claude `/hooks`、桌面 **All sessions** 再 Watch |

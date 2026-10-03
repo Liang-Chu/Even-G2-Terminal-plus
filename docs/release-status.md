@@ -1,4 +1,24 @@
-# Release status — 1.1.3
+# Release status — 1.1.4
+
+1.1.4 fixes monitor restart coordination and stalled HTTP shutdown, simplifies desktop phone pairing, and indents G2 assistant rows. The new HTTP shutdown has a one-second connection drain and is idempotent; it closes only this server's connections before releasing the backend lock. Windows installation stops its own tray before shutdown and blocks competing starts while the installer is active. Older monitors are eligible for bounded process cleanup only after authenticated watcher-only shutdown acknowledgement, listener closure, and verification of their exact process identity and this installation's bundled runtime. Native CLI process trees are never terminated.
+
+Checked 2026-10-03:
+
+| Check | Result |
+| --- | --- |
+| Windows source | 349 passed, 6 Linux-only tests skipped; type checking and production build passed |
+| Linux source | 352 passed, 3 Windows-only tests skipped; type checking and production build passed |
+| HTTP shutdown | Unfinished phone upload closes in about one second; the backend lock is reacquired; concurrent close calls share one drain; independent source review found no lifecycle blocker |
+| Windows desktop | Real isolated listener/process tests passed: old tray retires first, stalled acknowledged monitor is recovered, and unrelated/native processes survive; unknown ownership, watcher-only refusal, failed HTTP and false acknowledgement cannot trigger recovery |
+| Published-old-version migration | Isolated Windows 1.1.0 → 1.1.4 update passed with an unfinished phone upload held open: wrong-version health failure rolled back correctly, the accepted version restarted, keys and disabled update preference persisted, and a working native process survived both attempts |
+| Updates UI | Confirmed installation announces restart and closes the dialog; lost acknowledgements poll status without repeating installation; stale responses cannot affect another open target |
+| Connection UI | Local URL/key/QR and equal copy buttons fit a 640 × 323 px dialog without scrolling; credentials are retained and closing clears the displayed key; phone/multi-computer behavior is unchanged |
+| G2 reply formatting | Two leading spaces are included in pixel/character/compact-byte budgets and retained in the phone preview; focused message, scroll, reconnect and canvas tests passed |
+| Documentation | Desktop Connect phone labels match the simplified panel; phone Connection and Other computers retain their existing names; setup links and anchors validated |
+
+Physical G2 verification remains pending. Companion installation retains pairing keys; the matching phone `.ehpk` is installed separately. The audit evidence below is historical unless explicitly repeated above.
+
+## 1.1.3 audit evidence (historical)
 
 1.1.3 updates the session device filter to native HTML buttons using the existing black-and-white pixel theme. It changes no backend protocol or lifecycle behavior. Type checking and the production build pass; browser verification at 320 px and 390 px covers selected styling, wrapping, filtering and retaining the device selection after refresh. Independent code review confirms that filtering does not change connections, Watch, terminals or prompt targets. Unchanged device options retain their DOM/focus during status updates. Runtime packaging and credential/checksum validation are repeated for the new release; the full source, installer and updater results below belong to 1.1.2 and were not rerun for this UI patch.
 

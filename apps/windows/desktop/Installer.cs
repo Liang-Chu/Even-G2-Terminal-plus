@@ -13,8 +13,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Even-Pilot Setup")]
-[assembly: AssemblyFileVersion("1.1.3.0")]
-[assembly: AssemblyVersion("1.1.3.0")]
+[assembly: AssemblyFileVersion("1.1.4.0")]
+[assembly: AssemblyVersion("1.1.4.0")]
 
 class ReleaseFile { public string path { get; set; } public string sha256 { get; set; } public long bytes { get; set; } }
 class ReleasePayload { public string version { get; set; } public string buildId { get; set; } public ReleaseFile[] files { get; set; } }
@@ -34,7 +34,7 @@ class PilotInstaller : Form {
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen; BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         using (var image = Assembly.GetExecutingAssembly().GetManifestResourceStream("Even-Pilot.ico")) Icon = new Icon(image);
-        Controls.Add(new Label { Text = "Even-Pilot 1.1.3", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
+        Controls.Add(new Label { Text = "Even-Pilot 1.1.4", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
         Controls.Add(new Label { Text = removing ? "Remove the app. Connection settings will be retained.\nClose connected native terminals before uninstalling."
             : "Desktop monitor for Pi, Codex and Claude.\nRuntime included. No Node.js installation or setup commands.", AutoSize = true, Location = new Point(24, 65) });
         location.Text = root; location.Location = new Point(24, 124); location.Size = new Size(388, 28); location.ReadOnly = true; Controls.Add(location);
@@ -102,7 +102,7 @@ class PilotInstaller : Form {
     static void Run(string root, bool removing, bool noLaunch, bool noShortcuts, Action<string> status, bool backgroundUpdate = false) {
         root = InstallerSupport.Full(root); InstallerSupport.ValidateRoot(root);
         bool first;
-        using (var mutex = new Mutex(true, "Local\\Even-PIlot-Install-" + InstallerSupport.RootId(root), out first)) {
+        using (var mutex = new Mutex(true, DesktopPaths.InstallationMutexName(root), out first)) {
             if (!first) throw new Exception("Another installer is already using this folder.");
             if (removing) { Uninstall(root, status); return; }
             if (!Environment.Is64BitOperatingSystem) throw new Exception("This package requires 64-bit Windows.");
@@ -152,12 +152,12 @@ class PilotInstaller : Form {
                 else File.Move(pendingRecord, recordPath);
                 InstallerSupport.Register(root, target, release.version, !noShortcuts);
                 if (backgroundUpdate) {
-                    Process.Start(new ProcessStartInfo(Path.Combine(target, "Even-Pilot.exe"), "--autostart") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
+                    Process.Start(new ProcessStartInfo(Path.Combine(target, "Even-Pilot.exe"), "--autostart --installer-start") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
                     InstallerSupport.WaitForVersion(root, release.version);
                 }
                 committed = true;
                 status("Installed.");
-                if (!noLaunch && !backgroundUpdate) Process.Start(new ProcessStartInfo(Path.Combine(target, "Even-Pilot.exe")) { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
+                if (!noLaunch && !backgroundUpdate) Process.Start(new ProcessStartInfo(Path.Combine(target, "Even-Pilot.exe"), "--installer-start") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
             } catch {
                 if (stopped && !committed && File.Exists(previousExe)) {
                     InstallerSupport.StopMonitor(root);
@@ -170,7 +170,7 @@ class PilotInstaller : Form {
                         InstallerSupport.Register(root, Path.GetDirectoryName(previousExe), previous.version, !noShortcuts);
                     } else if (File.Exists(Path.Combine(root, "install.json"))) File.Delete(Path.Combine(root, "install.json"));
                     using (var prepare = Process.Start(new ProcessStartInfo(previousExe, "--prepare") { WorkingDirectory = Path.GetDirectoryName(previousExe), UseShellExecute = false, CreateNoWindow = true })) prepare.WaitForExit(20000);
-                    Process.Start(new ProcessStartInfo(previousExe, "--autostart") { WorkingDirectory = Path.GetDirectoryName(previousExe), UseShellExecute = false, CreateNoWindow = true });
+                    Process.Start(new ProcessStartInfo(previousExe, "--autostart --installer-start") { WorkingDirectory = Path.GetDirectoryName(previousExe), UseShellExecute = false, CreateNoWindow = true });
                     if (cleanupError != null) throw new Exception("The previous monitor was restored, but Claude monitoring settings need repair before removing the new payload.", cleanupError);
                 } else if (stopped && !committed) {
                     RemoveClaudeMonitoring(root, target);

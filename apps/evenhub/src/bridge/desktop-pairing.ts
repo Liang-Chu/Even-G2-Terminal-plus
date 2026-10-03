@@ -4,13 +4,15 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 function ensureDialog() {
   if (qrDialog) return;
   qrDialog = document.createElement("dialog"); qrDialog.className = "pairing-dialog";
+  qrDialog.setAttribute("aria-labelledby", "pairing-title");
+  qrDialog.setAttribute("aria-describedby", "pairing-instructions");
   const copyIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V4H4v12h4"/></svg>';
-  qrDialog.innerHTML = `<div class="dialog-heading"><h2>Phone connection</h2><button type="button" class="subtle" aria-label="Close connection details">✕</button></div>
-    <p>On your phone, open Connection and enter these values.</p>
+  qrDialog.innerHTML = `<div class="dialog-heading"><h2 id="pairing-title">Connect your phone</h2><button type="button" class="subtle" aria-label="Close connection details">✕</button></div>
+    <p id="pairing-instructions">On your phone: <strong>Even Hub → Even-Pilot → Connection</strong>. Paste this computer's URL and key.</p>
     <div class="pairing-content"><div class="pairing-details"><div class="pairing-fields">
-      <div class="pairing-field"><label for="pairing-origin">Bridge URL</label><div class="pairing-control"><input id="pairing-origin" readonly spellcheck="false" aria-describedby="pairing-copy-status"/><button type="button" class="pairing-copy-button" data-copy-url aria-label="Copy URL" title="Copy URL">${copyIcon}</button></div></div>
+      <div class="pairing-field"><label for="pairing-origin">URL</label><div class="pairing-control"><input id="pairing-origin" readonly spellcheck="false" aria-describedby="pairing-copy-status"/><button type="button" class="pairing-copy-button" data-copy-url aria-label="Copy URL" title="Copy URL">${copyIcon}</button></div></div>
       <div class="pairing-field"><label for="pairing-key">Connection key</label><div class="pairing-control"><input id="pairing-key" type="text" readonly spellcheck="false" autocomplete="off" aria-describedby="pairing-copy-status"/><button type="button" class="pairing-copy-button" data-copy-key aria-label="Copy connection key" title="Copy connection key">${copyIcon}</button></div></div>
-    </div><p id="pairing-copy-status" class="caption" role="status"></p></div><img alt="Connection QR code"/></div>`;
+    </div><p id="pairing-copy-status" class="caption" role="status"></p></div><img alt="Connection QR code" width="176" height="176"/></div>`;
   qrDialog.querySelector("button")!.onclick = () => qrDialog!.close(); document.body.append(qrDialog);
   qrDialog.addEventListener("close", () => {
     $<HTMLInputElement>("pairing-key").value = ""; qrDialog!.querySelector("img")!.removeAttribute("src");

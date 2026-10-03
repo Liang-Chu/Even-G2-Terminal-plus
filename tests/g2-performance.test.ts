@@ -5,7 +5,7 @@ import { G2Display } from "../apps/evenhub/src/g2/display.js";
 import { CanvasG2Renderer, type G2Frame } from "../apps/evenhub/src/g2/renderer.js";
 import { initialState } from "../packages/cockpit-state/types.js";
 import { NEXT_PART_MENU_ID } from "../apps/evenhub/src/g2/native.js";
-import { messageParts } from "../apps/evenhub/src/g2/messages.js";
+import { messageLabel, messageParts } from "../apps/evenhub/src/g2/messages.js";
 import type { TestContext } from "node:test";
 
 const wait = (ms = 140) => new Promise(resolve => setTimeout(resolve, ms));
@@ -72,11 +72,14 @@ test("static headers and body-only updates reuse the actual canvas PNG encodings
     const count = encodings;
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint" }, 90_000);
     assert.equal(encodings, count + 2, "footer changes leave both top tiles cached");
-    const list = { labels: ["New prompt", "← Agent answer", "→ User question"], selected: 0 };
+    const list = { labels: ["New prompt", messageLabel({ id: "a", role: "assistant", text: "Agent answer" }),
+      messageLabel({ id: "u", role: "user", text: "User question" })], selected: 0 };
     const before = encodings;
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint", list }, 90000);
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint", list: { ...list, selected: 2 } }, 90000);
     assert.equal(encodings, before, "native rows and native selection encode no pixels");
+    assert.deepEqual(frameText.filter(text => /Agent answer|User question/.test(text)), ["  ← Agent answer", "→ User question"],
+      "the mobile canvas paints native labels verbatim, including the agent's leading spaces");
     assert.ok(encodedText.every(texts=>!texts.some(text=>text.includes("Agent answer")||text.includes("User question"))));
 
   } finally {
