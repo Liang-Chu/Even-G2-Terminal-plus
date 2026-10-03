@@ -2,17 +2,15 @@ import type { FleetClient } from "../bridge/fleet.js";
 
 interface UpdateStatus { currentVersion: string; automaticChecks: boolean; available?: { version: string; page: string }; phase: string;
   progress: number; error?: string; installSupported: boolean; checkedAt?: number; lastResult?: { status: string; version: string } }
-type UpdateClient = Pick<FleetClient, "activeUrl" | "hosts" | "requestFrom">;
+type UpdateClient = Pick<FleetClient, "hosts" | "requestFrom">;
 /** Desktop updates always belong to the companion serving the page. */
-export function updateComputer(client: UpdateClient | undefined, servingOrigin?: string) {
-  const url = servingOrigin || client?.activeUrl();
-  return client?.hosts().find(host => host.url === url);
+export function updateComputer(client: UpdateClient | undefined, servingOrigin: string) {
+  return client?.hosts().find(host => host.url === servingOrigin);
 }
 /** Reads only this page's companion; only the backend contacts the release server. */
 export class UpdateSettings {
   private dialog = document.createElement("dialog");
   private computer: HTMLParagraphElement;
-  private targetUrl?: string;
   private automatic: HTMLInputElement;
   private message: HTMLParagraphElement;
   private check: HTMLButtonElement;
@@ -22,13 +20,13 @@ export class UpdateSettings {
   private reachable = false;
   private revision = 0;
   private timer?: ReturnType<typeof setTimeout>;
-  constructor(private client: () => UpdateClient | undefined, private entry: HTMLButtonElement, private servingOrigin?: string,
+  constructor(private client: () => UpdateClient | undefined, private entry: HTMLButtonElement, private servingOrigin: string,
     private notify?: (message: string) => void) {
     this.dialog.className = "update-settings";
     this.dialog.innerHTML = `<div class="dialog-heading"><h2>Updates</h2><button type="button" class="subtle" aria-label="Close updates">✕</button></div>
       <p class="caption" data-update-computer></p>
-      <label class="update-option"><input type="checkbox">Automatically check for updates</label>
-      <p class="caption">Checks once a day and shows new versions. Installation starts only when you choose Update. Turn off to disable background checks and reminders.</p>
+      <label class="update-option"><input type="checkbox">Automatic updates</label>
+      <p class="caption">Checks daily and installs verified updates automatically. The monitor restarts; native terminals keep running. Turn off to disable automatic checks and installation.</p>
       <p role="status"></p><div class="update-actions"><button type="button" class="outline">Check now</button><button type="button" class="primary" hidden>Update</button></div>`;
     this.computer = this.dialog.querySelector("[data-update-computer]")!; this.automatic = this.dialog.querySelector("input")!;
     this.message = this.dialog.querySelector('[role="status"]')!;
@@ -47,9 +45,8 @@ export class UpdateSettings {
   open() {
     const host = updateComputer(this.client(), this.servingOrigin);
     this.revision++; this.busy = false; this.reachable = false; this.latest = undefined; this.install.hidden = true;
-    this.targetUrl = this.servingOrigin || host?.url;
-    this.computer.textContent = host ? `${this.servingOrigin ? "This computer" : "Computer"}: ${host.name}${host.online ? "" : " (offline)"}`
-      : this.servingOrigin ? "Connect this computer in Connection first." : "Choose a connected computer in Sessions first.";
+    this.computer.textContent = host ? `This computer: ${host.name}${host.online ? "" : " (offline)"}`
+      : "Open this computer's Even-Pilot desktop shortcut to connect.";
     if (!this.dialog.open) this.dialog.showModal(); void this.load();
   }
   private lock(value: boolean) {
@@ -75,7 +72,7 @@ export class UpdateSettings {
   }
   private async load() {
     if (this.busy) return;
-    const client = this.client(), url = this.targetUrl;
+    const client = this.client(), url = this.servingOrigin;
     if (!client || !url) {
       this.reachable = false; this.lock(false);
       this.message.textContent = "No computer connected for this page."; this.install.hidden = true;
@@ -93,7 +90,7 @@ export class UpdateSettings {
   }
   private async act(path: string, body: object) {
     if (this.busy || !this.reachable || ["checking", "downloading", "installing"].includes(this.latest?.phase || "")) return;
-    const client = this.client(), url = this.targetUrl;
+    const client = this.client(), url = this.servingOrigin;
     if (!client || !url) return;
     const revision = ++this.revision; this.lock(true);
     try {
@@ -117,7 +114,7 @@ export class UpdateSettings {
     }
     this.entry.textContent = available ? "Update available" : "Updates";
     this.entry.classList.toggle("updates-available", available);
-    this.entry.title = available ? `New version for ${host!.name}` : "Versions and automatic update checks";
+    this.entry.title = available ? `New version for ${host!.name}` : "Versions and automatic updates";
     this.schedule(60_000);
   }
 }

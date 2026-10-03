@@ -17,7 +17,7 @@ Even-Pilot 是监控和简单会话管理端。桌面管理页只控制提供这
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.5-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `Even-Pilot-1.1.6-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Even-Pilot**、**Start with Windows**、更新和 **Quit Even-Pilot**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -29,7 +29,7 @@ Even-Pilot 是监控和简单会话管理端。桌面管理页只控制提供这
 本包面向 x64/glibc，实测基准为无头 Ubuntu 26.04 LTS，不适用于 Alpine/musl。以普通用户执行，**不要加 sudo**：
 
 ```sh
-sh ./Even-Pilot-1.1.5-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.6-Setup-linux-x64.run
 ```
 
 程序安装到 `~/.local/lib/even-pilot`，命令位于 `~/.local/bin/even-pilot`；安装器给支持的 shell 添加可移除的 PATH 配置，并启动后台。新开一个 shell 后可直接输入短命令。当前终端先用完整路径，或执行安装器打印的 PATH 命令。这是当前用户的全局命令，不是 npm 全局包。
@@ -101,7 +101,7 @@ even-pilot new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. Even Hub 安装／上传 `even-pilot-1.1.5.ehpk`，Even App 2.2.10+ 连好 G2。
+1. Even Hub 安装／上传 `even-pilot-1.1.6.ehpk`，Even App 2.2.10+ 连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -243,9 +243,9 @@ even-pilot settings
 
 ## 更新和移除
 
-Windows 托盘 **Check for updates → Update to …**；Linux `even-pilot update` 后 `even-pilot update status`。管理页 **Updates** 更新提供当前页面的电脑，手机 Hub 更新打开弹窗时的当前电脑。托盘／Updates 或 `even-pilot update off` 可停自动检查。
+已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `even-pilot update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `even-pilot update`，再用 `even-pilot update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.5.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+**电脑更新不更新手机应用。**Even Hub 需单独安装对应 `even-pilot-1.1.6.ehpk`。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
 Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `even-pilot stop`。
 

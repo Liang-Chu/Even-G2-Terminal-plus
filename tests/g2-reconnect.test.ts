@@ -116,7 +116,7 @@ test("rejected rich pages recover to a visible native list and readable messages
     const startupAttempts = code === 1 ? 3 : 2;
     assert.equal(attempted.length, startupAttempts); assert.equal(attempted[0].containerTotalNum, 6);
     const list = attempted.at(-1).listObject[0];
-    assert.deepEqual(list.itemContainer.itemName, ["New prompt", "  ← Complete answer", "→ Question"]);
+    assert.deepEqual(list.itemContainer.itemName, ["New prompt", "\u3000\u3000← Complete answer", "→ Question"]);
     assert.deepEqual([list.width, list.height], [560, 222]);
     assert.match(f.statuses.at(-1)!, new RegExp(`G2 connected · basic view .*\\(${code}\\)`));
     f.display.handleEvent({ listEvent: { containerID: 8, eventType: 2, currentSelectItemIndex: 1 } } as any);
@@ -168,7 +168,7 @@ test("a label-length rejection only compacts labels, preserving header images an
   const fallback = attempts.at(-1).listObject[0];
   assert.equal(fallback.itemContainer.itemWidth, fallback.width);
   assert.ok(fallback.itemContainer.itemName.every((label: string) => Buffer.byteLength(label) <= 63));
-  assert.match(fallback.itemContainer.itemName[1], /^  ← .*\.\.\.$/);
+  assert.match(fallback.itemContainer.itemName[1], /^\u3000\u3000← .*\.\.\.$/);
   assert.deepEqual(attempts[1].imageObject, attempts[0].imageObject);
   assert.match(f.statuses.at(-1)!, /G2 connected · compact labels/);
   f.display.handleEvent({ listEvent: { containerID: 8, currentSelectItemIndex: 1 } } as any);
@@ -213,7 +213,7 @@ test("opening before the phone connects shows a connection notice then existing 
     { id: 2, at: 2, role: "assistant", text: "Existing answer" },
   ] }, true); await wait(350);
   const labels = (f.layouts.at(-1) as any).listObject[0].itemContainer.itemName;
-  assert.deepEqual(labels, ["New prompt", "  ← Existing answer", "→ Existing question"]);
+  assert.deepEqual(labels, ["New prompt", "\u3000\u3000← Existing answer", "→ Existing question"]);
   const count = f.layouts.length;
   f.display.handleEvent({ listEvent: { containerID: 8, eventType: 2, currentSelectItemIndex: 2 } } as any);
   f.display.update({ ...state(), transcript: [

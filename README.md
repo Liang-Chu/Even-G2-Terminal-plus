@@ -2,7 +2,7 @@
 
 A lightweight watcher for Pi, Codex and Claude Code on Windows/Linux. Each desktop manager controls its own computer; the phone combines watched sessions from your computers for viewing on phone and Even G2. Keep working in your native CLI. The phone/G2 can send prompts only to input-capable sessions. Glance completion notifications are optional.
 
-**1.1.5** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**1.1.6** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Download](https://github.com/Liang-Chu/Even-Pilot/releases) · [中文](README.zh-CN.md) · [Release notes](RELEASE_NOTES.md)
 
@@ -12,11 +12,11 @@ A lightweight watcher for Pi, Codex and Claude Code on Windows/Linux. Each deskt
 
 Keep your existing CLI installation and model login. Run Even-Pilot as the same operating-system user as that CLI.
 
-- **Windows:** run `Even-Pilot-1.1.5-Setup-x64.exe` and choose **Install**. The manager opens; later use the desktop shortcut or double-click the tray. Right-click the tray to enable **Start with Windows**.
+- **Windows:** run `Even-Pilot-1.1.6-Setup-x64.exe` and choose **Install**. The manager opens; later use the desktop shortcut or double-click the tray. Right-click the tray to enable **Start with Windows**.
 - **Linux / SSH:** download the Linux installer, then run as your normal user:
 
   ```sh
-  sh ./Even-Pilot-1.1.5-Setup-linux-x64.run
+  sh ./Even-Pilot-1.1.6-Setup-linux-x64.run
   ```
 
   Open a new shell, then run `even-pilot status` and `even-pilot pair`. Until then, use `~/.local/bin/even-pilot`. The offline installer includes Node and backend dependencies; no global npm install is needed. [Headless service and reboot setup](docs/setup.md#linux-headless-or-desktop)
@@ -41,7 +41,7 @@ No subnet router or exit node is needed. `127.0.0.1` reaches the device you are 
 
 ### 4. Install the phone app and save the connection
 
-1. Install/upload `even-pilot-1.1.5.ehpk` in Even Hub; connect G2 in Even App.
+1. Install/upload `even-pilot-1.1.6.ehpk` in Even Hub; connect G2 in Even App.
 2. On Windows open **Connect phone** to see this computer's phone URL/key. On Linux run `even-pilot pair`.
 3. In the phone Hub app, open **Connection → Connect another computer**. Paste the computer's **Bridge URL** and **Connection key**, then **Connect computer**. Enter the plain key without `Bearer`.
 4. The connection saves on this phone. Add each additional machine here with its own URL/key; the phone combines their sessions. Each desktop manager shows only its own computer.
@@ -69,9 +69,9 @@ Optional Glance push: configure **each independent sender**, or configure **one 
 
 ## Update
 
-Windows tray: **Check for updates → Update to …**. Linux: `even-pilot update`; `even-pilot update off` disables automatic checks. The manager's **Updates** also works. Updates are requested explicitly; pairing/Watch persist and native terminals remain running.
+Installed companions automatically check for stable releases and install verified updates by default. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `even-pilot update off`; `on` enables them again. Existing opt-outs are retained. To update immediately, use that computer's **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `even-pilot update`. Pairing/Watch persist and native terminals remain running while monitoring briefly restarts.
 
-**Companion updates do not update the phone Hub app.** Install the matching `.ehpk` separately in Even Hub. [Update details](docs/updates.md)
+**Companion updates do not update the phone Hub app.** Install the matching `.ehpk` separately in Even Hub. The phone app has no companion update controls. [Update details](docs/updates.md)
 
 ## Where to go next
 

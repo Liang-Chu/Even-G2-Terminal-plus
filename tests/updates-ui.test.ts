@@ -12,7 +12,7 @@ const hosts: HostSource[] = [
 test("desktop update target stays with the serving companion while a remote session is selected", () => {
   const client = { activeUrl: () => remote, hosts: () => hosts, requestFrom: async () => ({}) };
   assert.equal(updateComputer(client, local)?.url, local);
-  assert.equal(updateComputer(client)?.url, remote, "Hub uses its current paired computer");
+  assert.equal(updateComputer(client, local)?.url, local, "selected sessions cannot redirect desktop updates");
 });
 
 test("an offline or unsaved serving companion never redirects updates to another computer", () => {
@@ -53,7 +53,7 @@ function fixture(t: any, request: (url: string, path: string, data?: unknown) =>
   const client = { hosts: () => hosts, activeUrl: () => active, requestFrom: async (url: string, path: string, data?: unknown) => {
     calls.push({ url, path, data }); return request(url, path, data);
   } };
-  const updates = new UpdateSettings(() => client, entry as any, undefined, message => notices.push(message));
+  const updates = new UpdateSettings(() => client, entry as any, local, message => notices.push(message));
   return { updates, dialog, entry, notices, calls, active: (value: string) => { active = value; },
     message: dialog.querySelector('[role="status"]'), check: dialog.querySelector(".outline"),
     automatic: dialog.querySelector("input"), install: dialog.querySelector(".primary") };
@@ -110,18 +110,18 @@ test("a lost installation acknowledgement only polls the same computer and requi
   assert.equal(f.check.disabled, false); assert.equal(f.install.hidden, true);
 });
 
-test("a stale installation response cannot close or notify a newly opened computer dialog", async t => {
+test("a stale installation response cannot close or notify a reopened desktop dialog", async t => {
   let finish!: (value: any) => void;
   const f = fixture(t, async (_url, path) => path === "/api/updates/install" ? new Promise(done => { finish = done; }) : idle);
   f.updates.open(); await flush(); f.install.onclick?.(); await flush();
   f.dialog.close(); f.active(remote); f.updates.open(); await flush();
   finish({ ...idle, phase: "installing" }); await flush();
   assert.equal(f.dialog.open, true); assert.equal(f.notices.length, 0);
-  assert.equal(f.dialog.querySelector("[data-update-computer]").textContent, "Computer: server");
+  assert.equal(f.dialog.querySelector("[data-update-computer]").textContent, "This computer: laptop");
   assert.match(f.message.textContent, /Installed: 1\.1\.5/);
 });
 
-test("update dialog has no computer selector and pins actions until it is reopened", async t => {
+test("update dialog has no computer selector and always targets its serving computer", async t => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const previous = Object.getOwnPropertyDescriptor(globalThis, "document"), dialog = new Element();
   Object.defineProperty(globalThis, "document", { configurable: true, value: {
@@ -134,10 +134,10 @@ test("update dialog has no computer selector and pins actions until it is reopen
     calls.push({ url, path, data });
     return { currentVersion: "1.1.0", automaticChecks: true, phase: "idle", progress: 0, installSupported: true };
   } };
-  const updates = new UpdateSettings(() => client, new Element() as any);
+  const updates = new UpdateSettings(() => client, new Element() as any, local);
   updates.open(); await Promise.resolve();
   assert.doesNotMatch(dialog.innerHTML, /<select\b/);
-  assert.equal(dialog.querySelector("[data-update-computer]").textContent, "Computer: laptop");
+  assert.equal(dialog.querySelector("[data-update-computer]").textContent, "This computer: laptop");
   active = remote;
   dialog.querySelector(".outline").onclick?.(); await Promise.resolve();
   const automatic = dialog.querySelector("input"); automatic.checked = false;
@@ -145,5 +145,5 @@ test("update dialog has no computer selector and pins actions until it is reopen
   assert(calls.every(call => call.url === local), "session changes cannot redirect open update controls");
   assert.deepEqual(calls.at(-1), { url: local, path: "/api/updates/settings", data: { automaticChecks: false } });
   dialog.close(); updates.open(); await Promise.resolve();
-  assert.equal(calls.at(-1)?.url, remote, "Hub binds its new current computer on the next open");
+  assert.equal(calls.at(-1)?.url, local, "reopening cannot switch the update target to a saved remote");
 });

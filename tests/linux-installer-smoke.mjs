@@ -78,7 +78,7 @@ try {
   if (native) process.kill(native.pid, 0);
   assert.equal((await request('/api/monitoring')).status, 200);
   assert.equal((await (await request('/api/updates')).json()).automaticChecks, false);
-  assert.match(command('update', 'status'), /automatic checks off/);
+  assert.match(command('update', 'status'), /automatic updates off/);
   assert.match(command('--help'), /no browser required/);
   const pairing = command('pair');
   assert.ok(pairing.includes('Connection key: ' + token), 'Pair uses the saved connection key');

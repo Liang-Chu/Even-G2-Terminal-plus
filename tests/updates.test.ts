@@ -31,6 +31,13 @@ function fixture(t: any, override: Partial<ConstructorParameters<typeof UpdateSe
   return { service, directory, options };
 }
 async function until(check: () => boolean) { for (let n = 0; n < 100; n++) { if (check()) return; await delay(10); } throw new Error("Update fixture timeout"); }
+async function flushAsync(check: () => boolean) { for (let n = 0; n < 10_000; n++) { if (check()) return; await new Promise<void>(done => setImmediate(done)); } throw new Error("Scheduled update fixture timeout"); }
+function releaseMetadata(version = "2.0.0", platform = "linux") {
+  const value = metadata(), name = platform === "win32" ? `Even-Pilot-${version}-Setup-x64.exe` : `Even-Pilot-${version}-Setup-linux-x64.run`;
+  value.tag_name = "v" + version; value.assets[0].name = name;
+  value.assets[0].browser_download_url = `https://github.com/${updateRepository}/releases/download/v${version}/${name}`;
+  return value;
+}
 
 // A generated, local-only certificate avoids external services or changes to
 // the machine's trust store. Only fixture requests receive this private CA.
@@ -172,7 +179,7 @@ test("disabling checks aborts an in-flight check and cannot publish its late res
 test("disabled automatic checks make no scheduled requests and re-enabling resumes the daily check", async t => {
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
   let calls = 0;
-  const { service } = fixture(t, { automatic: true, fetch: async () => { calls++; return Response.json(metadata()); } });
+  const { service } = fixture(t, { automatic: true, supported: false, fetch: async () => { calls++; return Response.json(metadata()); } });
   service.configure(false); t.mock.timers.tick(2 * 24 * 60 * 60_000); assert.equal(calls, 0);
   service.configure(true); t.mock.timers.tick(10_000);
   await new Promise<void>(done => setImmediate(done));
@@ -180,7 +187,125 @@ test("disabled automatic checks make no scheduled requests and re-enabling resum
   service.configure(false); t.mock.timers.tick(2 * 24 * 60 * 60_000); assert.equal(calls, 1);
 });
 
-test("a verified installer is downloaded once and only explicit install starts it", async t => {
+test("default-enabled scheduled updates verify and install eligible Windows and Linux packages without a manual click", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  for (const platform of ["win32", "linux"]) {
+    let installed = 0, checks = 0, downloads = 0;
+    const { service, directory } = fixture(t, { automatic: true, platform, fetch: async input => {
+      if (String(input).includes("api.github.com")) { checks++; return Response.json(releaseMetadata("2.0.0", platform)); }
+      downloads++; return new Response(bytes);
+    }, install: async (path, release) => {
+      assert.deepEqual(readFileSync(path), bytes); assert.equal(release.version, "2.0.0");
+      assert.deepEqual(JSON.parse(readFileSync(join(directory, "update-settings.json"), "utf8")).automaticAttempt,
+        { version: "2.0.0", at: Date.now() });
+      installed++;
+    } });
+    assert.equal(service.status().automaticChecks, true); assert.equal(checks, 0);
+    t.mock.timers.tick(10_000);
+    await flushAsync(() => installed === 1 && service.status().phase === "idle");
+    assert.equal(checks, 2, "check and install each fetch fresh release metadata"); assert.equal(downloads, 1);
+    t.mock.timers.tick(60 * 60_000); await new Promise<void>(done => setImmediate(done));
+    assert.equal(installed, 1, "the completed attempt is not repeated between daily checks");
+    await service.close();
+  }
+});
+
+test("scheduled checks never download or install into source checkouts", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let checks = 0, downloads = 0, installed = 0;
+  const { service } = fixture(t, { automatic: true, supported: false, fetch: async input => {
+    if (String(input).includes("api.github.com")) { checks++; return Response.json(metadata()); }
+    downloads++; return new Response(bytes);
+  }, install: async () => { installed++; } });
+  t.mock.timers.tick(10_000); await flushAsync(() => service.status().available !== null && service.status().phase === "idle");
+  await new Promise<void>(done => setImmediate(done));
+  assert.equal(checks, 1); assert.equal(downloads, 0); assert.equal(installed, 0);
+});
+
+test("opting out during a scheduled check prevents a late response from starting automatic installation", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let complete!: (response: Response) => void, calls = 0, installed = 0;
+  const { service, options } = fixture(t, { automatic: true,
+    fetch: () => { calls++; return new Promise<Response>(done => { complete = done; }); }, install: async () => { installed++; } });
+  t.mock.timers.tick(10_000); assert.equal(calls, 1);
+  service.configure(false); complete(Response.json(metadata()));
+  await new Promise<void>(done => setImmediate(done));
+  assert.equal(service.status().available, null); assert.equal(installed, 0);
+  await service.close();
+  const restored = new UpdateService(options); t.after(() => restored.close());
+  assert.equal(restored.status().automaticChecks, false);
+  t.mock.timers.tick(2 * 24 * 60 * 60_000); assert.equal(calls, 1); assert.equal(installed, 0);
+});
+
+test("automatic failure cooldown survives restart, blocks same-release retries, and permits a verified manual retry", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let installed = 0, downloads = 0, corrupt = true;
+  const { service, directory, options } = fixture(t, { automatic: true, fetch: async input => {
+    if (String(input).includes("api.github.com")) return Response.json(metadata());
+    downloads++; return new Response(corrupt ? Buffer.alloc(bytes.length) : bytes);
+  }, install: async path => { assert.deepEqual(readFileSync(path), bytes); installed++; } });
+  t.mock.timers.tick(10_000); await flushAsync(() => service.status().error !== null && service.status().phase === "idle");
+  await service.close();
+  assert.equal(installed, 0); assert.equal(downloads, 1);
+  const saved = JSON.parse(readFileSync(join(directory, "update-settings.json"), "utf8"));
+  assert.equal(saved.automaticAttempt.version, "2.0.0");
+  saved.checkedAt = Date.now() - 24 * 60 * 60_000;
+  writeFileSync(join(directory, "update-settings.json"), JSON.stringify(saved));
+  const restored = new UpdateService(options); t.after(() => restored.close());
+  t.mock.timers.tick(10_000); await flushAsync(() => restored.status().checkedAt === Date.now());
+  await new Promise<void>(done => setImmediate(done));
+  assert.equal(downloads, 1, "restart and a fresh check cannot bypass the persisted cooldown");
+  corrupt = false;
+  await restored.check(); restored.install("2.0.0"); await flushAsync(() => installed === 1 && restored.status().phase === "idle");
+  assert.equal(downloads, 2, "an explicit retry still uses the verified pipeline");
+});
+
+test("a different newer release remains eligible during the previous release's automatic retry cooldown", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let version = "2.0.0", installedVersion = "", downloads = 0;
+  const { service, directory, options } = fixture(t, { automatic: true, fetch: async input => {
+    if (String(input).includes("api.github.com")) return Response.json(releaseMetadata(version));
+    downloads++; return new Response(version === "2.0.0" ? Buffer.alloc(bytes.length) : bytes);
+  }, install: async (_path, release) => { installedVersion = release.version; } });
+  t.mock.timers.tick(10_000); await flushAsync(() => service.status().error !== null); await service.close();
+  const saved = JSON.parse(readFileSync(join(directory, "update-settings.json"), "utf8"));
+  saved.checkedAt = Date.now() - 24 * 60 * 60_000;
+  writeFileSync(join(directory, "update-settings.json"), JSON.stringify(saved));
+  version = "2.0.1";
+  const restored = new UpdateService(options); t.after(() => restored.close());
+  t.mock.timers.tick(10_000); await flushAsync(() => installedVersion === "2.0.1" && restored.status().phase === "idle");
+  assert.equal(downloads, 2);
+});
+
+test("automatic same-release retry waits for the daily cooldown instead of looping after failure", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let installed = 0, downloads = 0, corrupt = true;
+  const { service } = fixture(t, { automatic: true, fetch: async input => {
+    if (String(input).includes("api.github.com")) return Response.json(metadata());
+    downloads++; return new Response(corrupt ? Buffer.alloc(bytes.length) : bytes);
+  }, install: async () => { installed++; } });
+  t.mock.timers.tick(10_000); await flushAsync(() => service.status().error !== null && service.status().phase === "idle" && !(service as any).task);
+  t.mock.timers.tick(23 * 60 * 60_000); await new Promise<void>(done => setImmediate(done));
+  assert.equal(downloads, 1); assert.equal(installed, 0);
+  corrupt = false;
+  t.mock.timers.tick(60 * 60_000); await flushAsync(() => installed === 1 && service.status().phase === "idle");
+  assert.equal(downloads, 2);
+});
+
+test("an automatic attempt cannot download until its cooldown and preference have been durably saved", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let metadataCalls = 0, downloads = 0, installed = 0;
+  const { service, directory } = fixture(t, { automatic: true, fetch: async input => {
+    if (String(input).includes("api.github.com")) { metadataCalls++; return Response.json(metadata()); }
+    downloads++; return new Response(bytes);
+  }, install: async () => { installed++; } });
+  mkdirSync(join(directory, "update-settings.json.tmp"));
+  t.mock.timers.tick(10_000); await flushAsync(() => service.status().error !== null && service.status().phase === "idle");
+  assert.equal(metadataCalls, 1); assert.equal(downloads, 0); assert.equal(installed, 0);
+  assert.match(service.status().error!, /Automatic update could not start/);
+});
+
+test("a manual check never installs; explicit install downloads one verified installer", async t => {
   let installed = 0;
   const { service } = fixture(t, { fetch: async input => String(input).includes("api.github.com") ? Response.json(metadata()) : new Response(bytes),
     install: async path => { assert.deepEqual(readFileSync(path), bytes); installed++; } });
@@ -282,6 +407,22 @@ test("a dead update helper recovers after startup grace and permits an explicit 
   assert.equal(existsSync(join(directory, "updates/job.json")), false);
   await restored.check(); restored.install("2.0.0"); await until(() => installed === 1);
   assert.equal(restored.status().phase, "idle", "An explicit retry is available after recovery");
+});
+
+test("headless update recovery notices a dead worker without status polling or another release request", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let calls = 0;
+  const { service, directory, options } = fixture(t, { automatic: true, workerAlive: () => false,
+    fetch: async () => { calls++; return Response.json(metadata()); } });
+  service.configure(false); await service.close();
+  const job = pendingJob(directory, Date.now() - 5000);
+  const restored = new UpdateService(options); t.after(() => restored.close());
+  assert.equal(existsSync(join(directory, "updates/job.json")), true);
+  t.mock.timers.tick(15_000);
+  assert.equal(existsSync(join(directory, "updates/job.json")), false, "worker recovery runs independently of clients asking for status");
+  const result = JSON.parse(readFileSync(join(directory, "update-result.json"), "utf8"));
+  assert.equal(result.id, job.id); assert.equal(result.status, "failed");
+  t.mock.timers.tick(24 * 60 * 60_000); assert.equal(calls, 0, "opt-out still prevents release network requests");
 });
 
 test("a live update worker or installer retains the installation lock, even with a stale heartbeat or an unrelated result", async t => {

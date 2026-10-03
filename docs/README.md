@@ -16,7 +16,7 @@ New users: [quick start](../README.md) / [中文快速开始](../README.zh-CN.md
 | Backend integration | [API](api.md) |
 | Model output for glasses | [G2 summaries](g2-output-contract.md) |
 | Updates, source builds and packaging | [Development](development.md) |
-| Daily checks and verified installation | [Application updates](updates.md) |
+| Automatic updates and verified installation | [Application updates](updates.md) |
 | GitHub/Even Hub publication and device validation | [Publishing](publishing.md) |
 | Runtime design | [Architecture](architecture.md) |
 | Tested platforms and remaining limits | [Release status](release-status.md) |

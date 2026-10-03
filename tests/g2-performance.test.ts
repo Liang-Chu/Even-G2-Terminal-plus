@@ -78,8 +78,8 @@ test("static headers and body-only updates reuse the actual canvas PNG encodings
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint", list }, 90000);
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint", list: { ...list, selected: 2 } }, 90000);
     assert.equal(encodings, before, "native rows and native selection encode no pixels");
-    assert.deepEqual(frameText.filter(text => /Agent answer|User question/.test(text)), ["  ← Agent answer", "→ User question"],
-      "the mobile canvas paints native labels verbatim, including the agent's leading spaces");
+    assert.deepEqual(frameText.filter(text => /Agent answer|User question/.test(text)), ["\u3000\u3000← Agent answer", "→ User question"],
+      "the mobile canvas paints native labels verbatim, including the agent's durable fullwidth indent");
     assert.ok(encodedText.every(texts=>!texts.some(text=>text.includes("Agent answer")||text.includes("User question"))));
 
   } finally {

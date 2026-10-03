@@ -24,8 +24,9 @@ export function listLabel(text: string, prefix = "", suffix = "", maxBytes?: num
 export function messageLabel(message: G2Message, compact = false): string {
   const text = readableText(message.text.slice(0, 600));
   const maxBytes = compact ? 63 : undefined;
-  // Role spacing is a measured prefix, separate from the normalized message.
-  return listLabel(text, message.role === "assistant" ? "  ← " : "→ ", "", maxBytes);
+  // Fullwidth spaces survive native leading-space trimming. Their measured
+  // 40px indent is about two arrow widths and stays inside every row budget.
+  return listLabel(text, message.role === "assistant" ? "\u3000\u3000← " : "→ ", "", maxBytes);
 }
 
 export const NATIVE_TEXT_BYTES = 900;

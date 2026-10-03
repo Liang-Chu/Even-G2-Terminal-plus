@@ -1,4 +1,25 @@
-# Release status — 1.1.5
+# Release status — 1.1.6
+
+1.1.6 enables scheduled verified installation by default on installed Windows/Linux companions, preserves existing opt-outs and keeps manual checks check-only. Same-version automatic failures have a persisted 24-hour retry delay. Headless companions recover finished/interrupted jobs without client polling. The phone Hub no longer contains the companion updater; desktop updates remain bound to the serving computer. G2 assistant rows use two preserved ideographic spaces (40 px in the pinned native text measurement) before their arrow, with no additional display writes.
+
+Checked 2026-10-03:
+
+| Check | Result |
+| --- | --- |
+| Windows source | 369 passed, 6 Linux-only tests skipped; type checking and production build passed |
+| Linux source | 372 passed, 3 Windows-only tests skipped; type checking and production build passed |
+| Windows desktop | Startup, scoped installer lifecycle and direct authenticated tray update tests passed |
+| Automatic updates | Independent review found no actionable issue; 29/29 updater tests cover scheduled verification/installation on Windows/Linux, persisted opt-outs, in-flight cancellation, source-checkout gating, cooldown across restart, manual retry, newer versions, storage failure and headless recovery |
+| G2 reply formatting | 48/48 message/native-scroll/reconnect/performance cases passed; native wrapping preserves the 40 px indent without extra page/image writes |
+| Browser UI | Fresh 1.1.6 phone view has no update button/dialog; desktop view retains its local companion and the Automatic updates control |
+| Documentation | 146 relative links and 32 heading anchors across 22 Markdown files passed |
+| Linux packaged installation | Isolated offline install/reinstall, non-systemd daemon, retained opt-out/key, autostart, Firebase set/clear, native-process survival and safe uninstall passed |
+
+Runtime packaging checks inventories, identical Windows/Linux frontend assets, private credential exclusion and SHA-256 download checksums. Linux installation uses an isolated home/data directory for offline installation, reinstallation, retained update opt-out, native-process survival, autostart, Firebase configuration and uninstall checks. The real old-version migration and rollback results below belong to 1.1.4; that Windows migration scenario was not repeated for this scheduler patch.
+
+Native list row spacing is controlled by firmware: the pinned SDK exposes no row-height or line-height property and existing list padding is zero. The assistant indent retains the pixel, character and compact UTF-8 budgets. Browser/native fixtures do not establish physical G2 acceptance.
+
+## 1.1.5 audit evidence (historical)
 
 1.1.5 limits each desktop manager to its serving companion. Only the phone restores a multi-computer viewing pool. Desktop notification forwarding has its own center URL and temporary registration key, without opening remote session streams or saving a remote viewer connection. Saving the same center without a new key preserves its dedicated relay credential and pending events. A two-step relay Save finishes against its captured source even if the dialog is closed programmatically; normal Close, Escape and reentry are blocked during that Save.
 

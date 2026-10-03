@@ -1,28 +1,28 @@
-# Publish Even-Pilot 1.1.5
+# Publish Even-Pilot 1.1.6
 
-The release folder is `release/1.1.5`. Building packages does not publish them. This is a normal patch release; no npm distribution is included.
+The release folder is `release/1.1.6`. Building packages does not publish them. This is a normal patch release; no npm distribution is included.
 
 ## GitHub
 
 1. Commit the reviewed source changes and push them to [Liang-Chu/Even-Pilot](https://github.com/Liang-Chu/Even-Pilot). Check that `.local`, credentials, generated payloads and `outputs` remain ignored. Keep `package-lock.json` and third-party notices.
-2. Open **Releases → Draft a new release**. Create tag **v1.1.5** on that source commit. Use title **Even-Pilot 1.1.5** and paste `RELEASE_NOTES.md` as the release body.
+2. Open **Releases → Draft a new release**. Create tag **v1.1.6** on that source commit. Use title **Even-Pilot 1.1.6** and paste `RELEASE_NOTES.md` as the release body.
 3. Attach these files from the release folder:
 
-   - `Even-Pilot-1.1.5-Setup-x64.exe` — Windows installer.
-   - `Even-Pilot-1.1.5-Setup-linux-x64.run` — Linux installer.
-   - `Even-Pilot-1.1.5-windows.zip` and `Even-Pilot-1.1.5-linux-x64.tar.gz` — optional portable packages.
-   - `even-pilot-1.1.5.ehpk` — Even Hub package.
+   - `Even-Pilot-1.1.6-Setup-x64.exe` — Windows installer.
+   - `Even-Pilot-1.1.6-Setup-linux-x64.run` — Linux installer.
+   - `Even-Pilot-1.1.6-windows.zip` and `Even-Pilot-1.1.6-linux-x64.tar.gz` — optional portable packages.
+   - `even-pilot-1.1.6.ehpk` — Even Hub package.
    - `SHA256SUMS.txt`, `RELEASE_NOTES.md` and `SETUP.md`.
 
-4. Leave **Set as a pre-release** unchecked, select **Set as the latest release**, then publish. This lets existing companions discover 1.1.5. Retain the documented known limitations. GitHub pre-releases are excluded from update checks. Installation still starts only when the user chooses Update. Keep installer filenames unchanged.
+4. Leave **Set as a pre-release** unchecked, select **Set as the latest release**, then publish. This lets existing companions discover 1.1.6. Retain the documented known limitations. GitHub pre-releases are excluded from update checks. Installed companions with **Automatic updates** enabled check and install verified releases automatically; manual **Update** remains available. Keep installer filenames unchanged.
 5. Open the published page while signed out and confirm all downloads are public. Verify GitHub's installer asset SHA-256 digests against `SHA256SUMS.txt`; the updater requires those asset digests. Do not attach inventories, logs, source-build folders, real keys or Firebase JSON files.
 
 ## Even Hub
 
-1. Upload `even-pilot-1.1.5.ehpk` through your Even Hub publishing account.
+1. Upload `even-pilot-1.1.6.ehpk` through your Even Hub publishing account.
 2. Paste the text from [Even Hub description](even-hub-description.md). It includes the GitHub download and setup links.
 3. Use your own current screenshots, the shared app icon and any other fields required by the publishing form. The description already states that a computer companion is required.
-4. Install the submitted Hub package on your phone. Saved connection and voice settings should restore. Use matching 1.1.5 companions.
+4. Install the submitted Hub package on your phone. Saved connection and voice settings should restore. Use matching 1.1.6 companions.
 
 Desktop/Linux updates do not install this phone package. The G2 changes require this separate Hub upload/install.
 

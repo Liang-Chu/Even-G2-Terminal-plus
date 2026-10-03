@@ -14,7 +14,7 @@ test("conversation uses one visible native list, top input and newest-first dire
   const browser = new MessageBrowser();
   browser.update({ messages: [message("latest", "user"), message("previous")], limited: false });
   const entries = browser.rows();
-  assert.deepEqual(entries.map(row => row.label), ["New prompt", "→ latest", "  ← previous"]);
+  assert.deepEqual(entries.map(row => row.label), ["New prompt", "→ latest", "\u3000\u3000← previous"]);
   const layout = nativeLayout({ layoutKey: "messages:s", body: "", entries, conversationList: true });
   assert.deepEqual(validateEvenHubPageContainer(layout), { valid: true });
   assert.equal(layout.containerTotalNum, 6); assert.equal(layout.textObject!.length, 1);
@@ -36,19 +36,19 @@ test("each message stays on one firmware line and truncates within pixel and cha
     assert.ok(label.length <= 64); assert.equal(Buffer.from(label).toString(), label);
     assert.ok(getTextWidth(label) <= LIST_TEXT_WIDTH);
     assert.equal(measureTextWrap(label, LIST_TEXT_WIDTH).lineCount, 1);
-    assert.ok(label.startsWith(role === "assistant" ? "  ← " : "→ "));
+    assert.ok(label.startsWith(role === "assistant" ? "\u3000\u3000← " : "→ "));
   }
   const label = listLabel("Please improve navigation accessibility responsiveness documentation before publishing");
   const source = new Set("Please improve navigation accessibility responsiveness documentation before publishing".split(" "));
   assert.ok((label.match(/[A-Za-z]+/g) || []).every(word => source.has(word)));
-  assert.equal(messageLabel(message("short","assistant","Hello")), "  ← Hello");
-  assert.equal(messageLabel(message("spaces", "assistant", " \n Hello \t world \n")), "  ← Hello world",
-    "normalizing message whitespace must retain exactly two spaces before the agent arrow");
+  assert.equal(messageLabel(message("short","assistant","Hello")), "\u3000\u3000← Hello");
+  assert.equal(messageLabel(message("spaces", "assistant", " \n Hello \t world \n")), "\u3000\u3000← Hello world",
+    "normalizing message whitespace must retain the fullwidth indent before the agent arrow");
   assert.equal(messageLabel(message("spaces", "user", " \n Hello \t world \n")), "→ Hello world");
   const boundary = "i".repeat(61);
   assert.equal(messageLabel(message("user-boundary", "user", boundary)), "→ " + boundary);
   const indented = messageLabel(message("agent-boundary", "assistant", boundary));
-  assert.ok(indented.startsWith("  ← ") && indented.endsWith("..."));
+  assert.ok(indented.startsWith("\u3000\u3000← ") && indented.endsWith("..."));
   assert.equal(indented.length, 64, "the agent indentation consumes the same character budget as the arrow and text");
 });
 
@@ -61,7 +61,7 @@ test("Chinese conversation rows fill the native width instead of being cut at 63
     assert.ok(getTextWidth(label) > LIST_TEXT_WIDTH - getTextWidth("中"));
     assert.ok(label.endsWith("..."));
     assert.ok(Buffer.byteLength(compact) <= 63);
-    assert.ok(compact.startsWith(role === "assistant" ? "  ← " : "→ "), "compact labels retain role spacing within their byte budget");
+    assert.ok(compact.startsWith(role === "assistant" ? "\u3000\u3000← " : "→ "), "compact labels retain role spacing within their byte budget");
     assert.ok(getTextWidth(label) - getTextWidth(compact) >= 100);
   }
   const browser = new MessageBrowser();
@@ -71,6 +71,23 @@ test("Chinese conversation rows fill the native width instead of being cut at 63
   assert.deepEqual(compact.map(row => row.key), normal.map(row => row.key));
   assert.equal(browser.rows(true), compact, "fallback rows are cached separately");
   assert.deepEqual(browser.rows(), normal);
+});
+
+test("agent indentation survives native line-start trimming at about two arrow widths", () => {
+  const label = messageLabel(message("reply", "assistant", "Hello"));
+  const indent = label.slice(0, label.indexOf("←"));
+  const width = getTextWidth(indent), arrow = getTextWidth("←");
+  assert.ok(width >= 2 * arrow && width <= 2.5 * arrow);
+  const user = measureTextWrap("← Hello", LIST_TEXT_WIDTH);
+  const assistant = measureTextWrap(label, LIST_TEXT_WIDTH);
+  assert.equal(assistant.lineCount, 1);
+  assert.equal(assistant.lineWidths[0] - user.lineWidths[0], width,
+    "the firmware-compatible wrapper must retain leading indentation instead of trimming ASCII spaces");
+  const compact = messageLabel(message("compact", "assistant", "中文😀".repeat(40)), true);
+  assert.ok(compact.startsWith(indent + "← "));
+  assert.ok(Buffer.byteLength(compact) <= 63);
+  assert.deepEqual(validateEvenHubPageContainer(nativeLayout({ layoutKey: "messages:s", body: "",
+    entries: [{ label }, { label: compact }], conversationList: true })), { valid: true });
 });
 
 test("UTF-8 bounded native message parts preserve the entire expanded response", () => {
@@ -90,7 +107,7 @@ test("the first reply cannot replace a selected activity row until returning to 
   assert.equal(browser.selectedRow(mounted), 1);
   assert.equal(browser.refresh(), false);
   browser.selectInput();
-  assert.deepEqual(browser.rows().map(row => row.label), ["New prompt", "  ← first"]);
+  assert.deepEqual(browser.rows().map(row => row.label), ["New prompt", "\u3000\u3000← first"]);
 });
 
 test("long Chinese and emoji replies open with visible content in the first page operation", async t => {

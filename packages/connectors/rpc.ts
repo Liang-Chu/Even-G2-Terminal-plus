@@ -42,7 +42,7 @@ export class AgentRpc extends EventEmitter {
   }
   close() { this.disconnect(); this.dispose(); }
   async initialize() {
-    await this.request("initialize", { clientInfo: { name: "even_pilot", title: "Even-Pilot", version: "1.1.5" }, capabilities: { experimentalApi: true } });
+    await this.request("initialize", { clientInfo: { name: "even_pilot", title: "Even-Pilot", version: "1.1.6" }, capabilities: { experimentalApi: true } });
     this.notify("initialized");
   }
 }

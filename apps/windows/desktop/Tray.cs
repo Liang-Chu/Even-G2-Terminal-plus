@@ -11,8 +11,8 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Even-Pilot")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.5.0")]
-[assembly: System.Reflection.AssemblyVersion("1.1.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.6.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.6.0")]
 
 // Native tray UI. The bridge and its Pi sessions have an independent lifetime.
 class PilotTray : ApplicationContext {
@@ -32,7 +32,7 @@ class PilotTray : ApplicationContext {
     readonly ToolStripMenuItem activity = new ToolStripMenuItem("Checking monitored sessions…");
     readonly ToolStripMenuItem startBackground = new ToolStripMenuItem("Start background");
     readonly ToolStripMenuItem autoStart = new ToolStripMenuItem("Start with Windows");
-    readonly ToolStripMenuItem autoUpdates = new ToolStripMenuItem("Automatically check for updates");
+    readonly ToolStripMenuItem autoUpdates = new ToolStripMenuItem("Automatic updates");
     readonly ToolStripMenuItem updateAction = new ToolStripMenuItem("Check for updates");
     DateTime updatesAt = DateTime.MinValue;
     string availableVersion, notifiedVersion;

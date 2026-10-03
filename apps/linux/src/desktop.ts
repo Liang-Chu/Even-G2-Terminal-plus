@@ -130,8 +130,12 @@ try {
       : action === "status" ? await request("/api/updates") : await request("/api/updates/check", {}, 20_000);
     const status = await response.json() as any;
     if (!response.ok) throw new Error(status.error || "Update request failed");
-    console.log(`Even-Pilot ${status.currentVersion} · automatic checks ${status.automaticChecks ? "on" : "off"}`);
-    if (status.error) throw new Error(status.error);
+    console.log(`Even-Pilot ${status.currentVersion} · automatic updates ${status.automaticChecks ? "on" : "off"}`);
+    if (status.error) {
+      if (action !== "status") throw new Error(status.error);
+      console.log("Update error: " + status.error);
+    }
+    if (action === "status") console.log(`Update state: ${status.phase}${status.phase === "downloading" ? ` (${status.progress}%)` : ""}`);
     if (status.available) {
       console.log(`Available: ${status.available.version}`);
       if (!action) {

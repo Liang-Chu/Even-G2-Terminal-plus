@@ -1,11 +1,13 @@
-# Even-Pilot 1.1.5
+# Even-Pilot 1.1.6
 
-Simplifies desktop connections: each companion manages only its own computer.
+Automatic updates are enabled by default on installed Windows/Linux companions.
 
-- Desktop **Connect phone** shows the local companion's reachable URL, key and shared QR. The desktop no longer has **Other computers** or an editable local connection form.
-- Saved remote viewing connections are no longer opened by the desktop. Watch membership, native terminals and notification forwarding stay unchanged.
-- Connect multiple computers in the phone Hub **Connection** panel to view their sessions together.
-- Desktop **Glance** configures this computer only. To forward notifications, enter the center URL and connection key there; registration does not add the center as a session viewer. An unchanged saved center retains its relay credential and queued notifications.
-- Installation and notification guides now describe desktop, phone and forwarding setup separately.
+- Companions check stable releases daily and automatically install verified updates. Existing opt-outs remain disabled; use **Automatic updates** on that computer or Linux `even-pilot update on|off` to change the preference.
+- Automatic installation uses fresh release metadata, SHA-256 verification and the existing health check/rollback flow. A failed automatic attempt waits at least 24 hours before retrying the same version. **Check now** and `even-pilot update check` remain check-only; immediate manual installation is still available.
+- Removed the companion updater from the phone Hub. Update each computer locally; install the Hub package separately.
+- G2 assistant reply rows use a wider, preserved indent before the arrow. The native list still owns selection and scrolling.
+- Headless companions recover finished or interrupted update jobs without needing a browser to poll their status. Linux `update status` also shows an earlier error without failing to print the remaining status.
 
-Windows/Linux companions update normally. Install `even-pilot-1.1.5.ehpk` separately in Even Hub for the matching phone package. Existing connection keys are retained.
+Monitoring briefly restarts during installation. Native CLI sessions continue running, and pairing keys, Watch and notification settings are retained.
+
+Install `even-pilot-1.1.6.ehpk` separately in Even Hub for the phone/G2 changes. Physical G2 spacing still needs device verification.

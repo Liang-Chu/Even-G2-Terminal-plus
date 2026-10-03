@@ -12,7 +12,11 @@ const day = 24 * 60 * 60_000;
 const maxAsset = 200 * 1024 * 1024;
 export class UpdateError extends Error { constructor(message: string, readonly status = 400) { super(message); } }
 export interface UpdateRelease { version: string; page: string; url: string; sha256: string; size: number }
-interface Settings { automaticChecks: boolean; checkedAt?: number; latest?: UpdateRelease; error?: string }
+interface Settings {
+  /** Existing persisted/API name now controls both checking and installation. */
+  automaticChecks: boolean; checkedAt?: number; latest?: UpdateRelease; error?: string;
+  automaticAttempt?: { version: string; at: number };
+}
 interface InstallJob { id: string; version: string; startedAt: number; workerPid?: number; installer: string; root: string; directory: string }
 export function versionParts(value: unknown): number[] | undefined {
   if (typeof value !== "string" || !/^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(value)) return;
@@ -76,6 +80,9 @@ export class UpdateService {
         // Cached release URLs are never executable input. An install always fetches fresh metadata.
         if (saved.latest && versionParts(saved.latest.version) && newerVersion(saved.latest.version, options.version))
           this.settings.latest = saved.latest;
+        if (saved.automaticAttempt && versionParts(saved.automaticAttempt.version) &&
+          Number.isFinite(saved.automaticAttempt.at) && saved.automaticAttempt.at > 0)
+          this.settings.automaticAttempt = { version: saved.automaticAttempt.version, at: Math.min(saved.automaticAttempt.at, this.now()) };
       } catch { this.settings = { automaticChecks: false, error: "Update settings could not be read. Save the preference again." }; }
     }
     try {
@@ -95,9 +102,39 @@ export class UpdateService {
   }
   private schedule() {
     clearTimeout(this.timer);
-    if (this.closed || this.options.automatic === false || !this.settings.automaticChecks || this.phase !== "idle") return;
+    if (this.closed) return;
+    if (this.phase === "installing" && this.installJob) {
+      // Headless installations cannot depend on a phone/tray requesting status
+      // to notice that a detached worker finished or died after startup grace.
+      this.timer = setTimeout(() => { this.timer = undefined; this.recoverInstallation(); this.schedule(); }, 15_000);
+      this.timer.unref(); return;
+    }
+    if (this.options.automatic === false || !this.settings.automaticChecks || this.phase !== "idle") return;
     const wait = Math.max(10_000, (this.settings.checkedAt || 0) + day - this.now());
-    this.timer = setTimeout(() => { void this.check().catch(() => {}); }, wait); this.timer.unref();
+    this.timer = setTimeout(() => { this.timer = undefined; void this.backgroundUpdate(); }, wait); this.timer.unref();
+  }
+  private async backgroundUpdate() {
+    const generation = this.generation;
+    try {
+      await this.check();
+      // Manual checks never reach this path. A cancelled/stale generation or
+      // source checkout may report a release, but cannot install it silently.
+      if (this.closed || generation !== this.generation || !this.settings.automaticChecks ||
+          this.settings.error || this.phase !== "idle" || this.task || !this.status().installSupported) return;
+      const release = this.settings.latest, attempt = this.settings.automaticAttempt;
+      if (!release || attempt?.version === release.version && this.now() < attempt.at + day) return;
+      // Commit cooldown before any download, so a failed install/rollback or
+      // backend restart cannot immediately attempt the same release again.
+      this.settings.automaticAttempt = { version: release.version, at: this.now() };
+      this.save();
+      this.install(release.version);
+    } catch (error) {
+      if (!this.closed && generation === this.generation) {
+        this.settings.error = error instanceof UpdateError ? error.message : "Automatic update could not start. Monitoring continues; check updates to retry.";
+        try { this.save(); } catch { /* Keep the in-memory failure visible when storage itself is unavailable. */ }
+      }
+    }
+    finally { this.schedule(); }
   }
   private recoverInstallation() {
     if (this.phase !== "installing" || !this.installJob) return;

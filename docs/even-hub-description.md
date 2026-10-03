@@ -1,4 +1,4 @@
-# Even Hub description — Even-Pilot 1.1.5
+# Even Hub description — Even-Pilot 1.1.6
 
 Even-Pilot brings your coding sessions to Even G2. Monitor Pi, Codex and Claude Code sessions across multiple computers, see the source computer, model, agent count and running status, and switch between watched sessions.
 
@@ -12,6 +12,6 @@ https://github.com/Liang-Chu/Even-Pilot#readme
 
 Connect your phone and computer through Tailscale or a reachable local network. On the phone open Connection, expand Connect another computer, enter that computer's Bridge URL and Connection key, then Connect computer. Saved computers appear together in Sessions. CLI model login stays with your existing CLI. Voice transcription is optional and requires your own OpenAI or ElevenLabs API key.
 
-Companion updates do not update this phone app. Install the matching Even Hub package separately to receive G2 changes.
+Installed companions automatically check and install verified updates by default, with an opt-out on each computer. This phone app has no companion update controls; install its matching Even Hub package separately to receive G2 changes.
 
 Known limitations: ordinary Codex CLI/Desktop and Claude Code sessions support observation and completion notifications; remote reply/control requires a connector session. The companion installs Claude's official monitor hooks; its next prompt establishes monitoring. Custom Stop hooks can leave completion unconfirmed, and Claude support remains experimental. G2 behavior can vary with firmware; Windows binaries are unsigned. See the setup guide for the current requirements and limitations.

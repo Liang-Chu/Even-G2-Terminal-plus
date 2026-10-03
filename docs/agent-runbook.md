@@ -55,6 +55,8 @@ Replace `SESSION` with a unique short key from `sessions`, or a quoted exact tit
 
 Windows tray Quit closes the tray only. To reload backend configuration manually, use the [authenticated monitoring shutdown procedure](development.md#更新已有安装), then reopen the shortcut. Never replace this with broad process killing. Installed upgrades perform their own backend shutdown and keep native terminal processes alive.
 
+Installed companions automatically check and install stable verified updates by default; an existing disabled preference remains disabled. Use the local desktop/tray's **Automatic updates** toggle or Linux `even-pilot update on|off` to change that preference. `update check` only checks; `update` installs immediately. The phone Hub has no companion update controls, and its `.ehpk` is installed separately. [Update policy and recovery](updates.md)
+
 For notifications, first decide **direct** versus **central**. A phone's saved connection is not the source's notification route. Desktop notification settings affect only that local source; phone settings select from its saved computers. Only the sender/center needs Firebase and a registered Glance PUSH watcher. A center URL/key supplied on desktop is used for relay registration, not for adding a remote session viewer; the backend retains a dedicated notification-only relay credential. Use [setup commands](setup.md#optional-glance-notifications) or [routing details](notification-routing.md); do not install a user's private Firebase JSON on every source.
 
 ## Source map
