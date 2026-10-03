@@ -8,7 +8,8 @@ interface Transport extends BridgeApi {
   verify(): Promise<RuntimeState>; connect(): void; disconnect(): void; reconnect(): void; setViewedSession(key?: string): void;
 }
 type Factory = (connection: Connection, state: (state: RuntimeState) => void, online: (online: boolean, error?: string) => void, completion: (value: Completion) => void) => Transport;
-interface Host { connection: Connection; client: Transport; state?: RuntimeState; catalog?: SessionSummary[]; info?: HostSource; online: boolean; error?: string; metadataAt: number }
+interface Host { connection: Connection; client: Transport; state?: RuntimeState; catalog?: SessionSummary[]; info?: HostSource; online: boolean; error?: string;
+  metadataDue: number; metadataPending?: boolean; metadataFailures?: number; metadataTimer?: ReturnType<typeof setTimeout> }
 const namespace = (url: string) => btoa(url).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 export const scopedKey = (url: string, key: string) => namespace(url) + ":" + key;
 
@@ -37,7 +38,7 @@ export class FleetClient implements BridgeApi {
   }
   private source(host: Host): HostSource {
     return { ...(host.info || { id: namespace(host.connection.url), name: new URL(host.connection.url).hostname,
-      nameSource: "address" as const, warning: "Tailscale name not available yet. Update/connect this backend to retrieve it." }),
+      nameSource: "address" as const, warning: "Device name unavailable; retrying while connected." }),
       url: host.connection.url, online: host.online, ...(host.error ? { warning: host.error } : {}) };
   }
   private target(key: string) {
@@ -80,25 +81,49 @@ export class FleetClient implements BridgeApi {
     this.syncPresence(); this.onState(this.snapshot());
     this.onConnection(online > 0, messages.length ? messages.join(" · ") : undefined);
   }
+  private scheduleMetadata(host: Host, wait: number) {
+    clearTimeout(host.metadataTimer);
+    host.metadataTimer = undefined;
+    if (this.suspended || !host.online || this.entries.get(host.connection.url) !== host) return;
+    host.metadataDue = Date.now() + wait;
+    host.metadataTimer = setTimeout(() => { host.metadataTimer = undefined; void this.metadata(host); }, wait);
+    host.metadataTimer.unref?.();
+  }
   private async metadata(host: Host) {
-    if (Date.now() - host.metadataAt < 60_000) return;
-    host.metadataAt = Date.now();
+    if (this.suspended || !host.online || host.metadataPending || this.entries.get(host.connection.url) !== host) return;
+    if (Date.now() < host.metadataDue) { this.scheduleMetadata(host, host.metadataDue - Date.now()); return; }
+    clearTimeout(host.metadataTimer); host.metadataTimer = undefined; host.metadataPending = true;
+    let wait: number | undefined;
     try {
       const value = await host.client.request("/api/host", undefined, 7000) as HostSource;
-      if (!value || typeof value.id !== "string" || typeof value.name !== "string" || !value.name.trim() || value.name.length > 128 || !["tailscale", "hostname"].includes(value.nameSource)) return;
-      if (this.entries.get(host.connection.url) !== host) return;
-      host.info = value; this.emit();
-    } catch { /* Saved hosts keep reconnecting; never forget one because metadata is temporarily unavailable. */ }
+      if (!value || typeof value.id !== "string" || typeof value.name !== "string" || !value.name.trim() || value.name.length > 128 || !["tailscale", "hostname"].includes(value.nameSource))
+        throw new Error("Host identity unavailable");
+      if (this.suspended || !host.online || this.entries.get(host.connection.url) !== host) return;
+      const changed = !host.info || JSON.stringify(value) !== JSON.stringify(host.info);
+      host.info = value; host.metadataFailures = 0; wait = 60_000;
+      // Polling an unchanged name must not trigger extra G2 renders or rebuilds.
+      if (changed) this.emit();
+    } catch {
+      // Retry independently of conversation events: idle hosts may only send
+      // SSE heartbeats. Keep the last verified name through a temporary failure.
+      host.metadataFailures = Math.min((host.metadataFailures || 0) + 1, 6);
+      wait = Math.min(60_000, 2000 * 2 ** (host.metadataFailures - 1));
+    } finally {
+      host.metadataPending = false;
+      if (wait !== undefined) this.scheduleMetadata(host, wait);
+    }
   }
   async add(connection: Connection, restoring = false, select = true, currentAttempt = () => true) {
-    const host = { connection, online: false, metadataAt: 0 } as Host;
+    const host = { connection, online: false, metadataDue: 0 } as Host;
     const current = () => this.entries.get(connection.url) === host;
     host.client = this.factory(connection, state => {
       if (!current()) return;
       host.state = state; this.emit(); void this.metadata(host);
     }, (online, error) => {
       if (!current()) return;
-      host.online = online; host.error = error; this.emit(); if (online) void this.metadata(host);
+      host.online = online; host.error = error;
+      if (!online) { clearTimeout(host.metadataTimer); host.metadataTimer = undefined; }
+      this.emit(); if (online) void this.metadata(host);
     }, completion => { if (current()) this.onCompletion({ ...completion, session: `${this.source(host).name} · ${completion.session}` }); });
     if (!restoring) {
       host.state = await host.client.verify();
@@ -107,14 +132,15 @@ export class FleetClient implements BridgeApi {
         if (typeof info?.id === "string" && typeof info.name === "string" && ["tailscale", "hostname"].includes(info.nameSource)) {
           const duplicate = [...this.entries.values()].find(other => other.connection.url !== connection.url && other.info?.id === info.id);
           if (duplicate) throw new Error(`This computer is already saved at ${duplicate.connection.url}. Edit or remove that entry first.`);
-          host.info = info; host.metadataAt = Date.now();
+          host.info = info; host.metadataDue = Date.now() + 60_000;
         }
       } catch (error) {
         if (error instanceof Error && error.message.startsWith("This computer is already saved")) throw error;
       }
     }
     if (!currentAttempt()) throw new Error("Connection attempt was replaced");
-    this.entries.get(connection.url)?.client.disconnect();
+    const previous = this.entries.get(connection.url);
+    clearTimeout(previous?.metadataTimer); previous?.client.disconnect();
     this.entries.set(connection.url, host);
     if (!this.active || select) this.choose(connection.url);
     if (!this.suspended) host.client.connect();
@@ -128,7 +154,8 @@ export class FleetClient implements BridgeApi {
     this.emit();
   }
   remove(url: string) {
-    this.entries.get(url)?.client.disconnect(); this.entries.delete(url);
+    const host = this.entries.get(url);
+    clearTimeout(host?.metadataTimer); host?.client.disconnect(); this.entries.delete(url);
     if (this.active === url) { this.active = this.entries.keys().next().value; this.viewed = undefined; if (this.active) this.onSelect(this.active); }
     this.emit();
   }
@@ -143,7 +170,7 @@ export class FleetClient implements BridgeApi {
     }
   }
   connect() { this.suspended = false; for (const host of this.entries.values()) host.client.connect(); }
-  disconnect() { this.suspended = true; for (const host of this.entries.values()) { host.online = false; host.client.disconnect(); } }
+  disconnect() { this.suspended = true; for (const host of this.entries.values()) { host.online = false; clearTimeout(host.metadataTimer); host.metadataTimer = undefined; host.client.disconnect(); } }
   reconnect() { this.suspended = false; for (const host of this.entries.values()) { host.online = false; host.client.reconnect(); } this.emit(); }
   private async catalog() {
     await Promise.all([...this.entries.values()].map(async host => {

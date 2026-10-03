@@ -126,7 +126,7 @@ lines.on("line", line => {
   if (!message || typeof message !== "object" || Array.isArray(message)) return;
   const respond = (result: unknown) => send({ jsonrpc: "2.0", id: message.id, result });
   if (message.method === "initialize") respond({ protocolVersion: message.params?.protocolVersion || "2024-11-05",
-    serverInfo: { name: "even-pilot", version: "1.1.6" },
+    serverInfo: { name: "even-pilot", version: "1.1.7" },
     capabilities: { experimental: { "claude/channel": {}, "claude/channel/permission": {} }, tools: {} },
     instructions: "Even-Pilot forwards the user's G2 prompts to this same session. Respond normally in the terminal. Preserve requested <g2-summary> summary markers. The reply tool may additionally send a concise glasses reply; it does not replace the full terminal response.",
   });

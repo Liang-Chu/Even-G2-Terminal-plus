@@ -8,6 +8,7 @@ import { connectorKey } from "./identity.js";
 import { canonicalPath } from "../pi-runtime/sessions.js";
 
 type Outcome = "completed" | "interrupted";
+interface ConversationMessage { role: "user" | "assistant"; text: string; userItem?: string }
 export interface CodexObservation {
   state: RuntimeState;
   updatedAt: number;
@@ -22,9 +23,16 @@ interface Rollout {
   pending: { turnId: string; outcome: Outcome; at: number }[];
   completed: Set<string>; announced: boolean; children: number;
   modifiedAt: number;
+  userEvents: boolean; userItems: Set<string>; derivedName?: string;
 }
 const CHUNK = 1024 * 1024;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+const textTail = (text: string, limit: number) => {
+  let start = Math.max(0, text.length - limit);
+  // Character caps must not leave an unpaired UTF-16 surrogate at the boundary.
+  if (start > 0 && /[\uDC00-\uDFFF]/.test(text[start]) && /[\uD800-\uDBFF]/.test(text[start - 1])) start++;
+  return text.slice(start);
+};
 
 /** Read-only adapter for local Codex rollout v0.159. Never resumes a thread or executes a hook.
  * Only explicit lifecycle records settle work; silence, file loss and malformed rows never do.
@@ -68,7 +76,8 @@ export class CodexObserver {
           if (info.mtimeMs < Date.now() - 86_400_000 || !canonicalPath(await realpath(path)).startsWith(actual + sep)) continue;
           this.files.set(path, { path, offset: 0, partial: Buffer.alloc(0), dropping: false, initialized: false,
             store: new CockpitStore(""), busy: false, updatedAt: 0, available: true, changed: false,
-            activity: false, pending: [], completed: new Set(), announced: false, children: 0, modifiedAt: info.mtimeMs });
+            activity: false, pending: [], completed: new Set(), announced: false, children: 0, modifiedAt: info.mtimeMs,
+            userEvents: false, userItems: new Set() });
         }
       }
     };
@@ -168,12 +177,17 @@ export class CodexObserver {
       // A truncated/replaced log cannot safely continue the previous run.
       file.offset = 0; file.partial = Buffer.alloc(0); file.dropping = false; file.initialized = false;
       file.turn = undefined; file.pending = [];
+      // Retained conversation belongs to the old read cursor. Reseed it instead
+      // of appending overlapping history from a shortened/replaced rollout.
+      file.store.state.transcript = []; file.store.state.currentAssistantText = ""; file.store.state.assistantOpen = false;
+      file.userEvents = false; file.userItems.clear(); file.changed = true;
       // Preserve the last known busy state until another explicit lifecycle record.
       // Truncation is not an idle transition and cannot authorize an exit/push.
     }
     if (info.size === file.offset) return;
     const handle = await open(file.path, "r");
     try {
+      let firstChunk: Buffer | undefined;
       // On first discovery read metadata plus a bounded recent tail, then only appended bytes.
       if (!file.initialized && info.size > CHUNK * 2) {
         const head = Buffer.alloc(CHUNK);
@@ -181,13 +195,20 @@ export class CodexObserver {
         const newline = head.indexOf(10);
         if (newline >= 0 && newline < bytesRead) this.line(file, head.subarray(0, newline));
         file.offset = info.size - CHUNK * 2;
-        await this.seedLifecycle(file, handle, file.offset);
+        // Reuse the first tail chunk both below and to complete a record crossing
+        // the seed boundary. Otherwise a prompt can be dropped by both readers.
+        firstChunk = Buffer.alloc(CHUNK);
+        const tail = await handle.read(firstChunk, 0, firstChunk.length, file.offset);
+        firstChunk = firstChunk.subarray(0, tail.bytesRead);
+        const boundary = firstChunk.indexOf(10);
+        await this.seedLifecycle(file, handle, file.offset, boundary >= 0 ? firstChunk.subarray(0, boundary) : undefined);
         file.partial = Buffer.alloc(0); file.dropping = true;
       }
       // Bound work per tick and keep partial UTF-8 in bytes, never split a decoded character.
       for (let n = 0; n < 4 && file.offset < info.size; n++) {
-        const buffer = Buffer.alloc(Math.min(CHUNK, info.size - file.offset));
-        const { bytesRead } = await handle.read(buffer, 0, buffer.length, file.offset);
+        const buffer = firstChunk || Buffer.alloc(Math.min(CHUNK, info.size - file.offset));
+        const bytesRead = firstChunk ? firstChunk.length : (await handle.read(buffer, 0, buffer.length, file.offset)).bytesRead;
+        firstChunk = undefined;
         if (!bytesRead) break;
         file.offset += bytesRead;
         const data = Buffer.concat([file.partial, buffer.subarray(0, bytesRead)]);
@@ -202,10 +223,13 @@ export class CodexObserver {
       file.initialized = true;
     } finally { await handle.close(); }
   }
-  private async seedLifecycle(file: Rollout, handle: FileHandle, end: number) {
+  private async seedLifecycle(file: Rollout, handle: FileHandle, end: number, boundary?: Buffer) {
     // A long-running turn may have megabytes of tool output after task_started.
     // Find its last lifecycle record without retaining that output or exposing reasoning.
-    let suffix = Buffer.alloc(0), cursor = end, foundModel = false, foundLifecycle = false;
+    let suffix = boundary || Buffer.alloc(0), cursor = end, foundModel = false, foundLifecycle = false;
+    const messages: ConversationMessage[] = [];
+    const userItems = new Set<string>();
+    let budget = 60_000;
     while (!this.stopped && cursor > 0 && (!foundLifecycle || !foundModel)) {
       const size = Math.min(CHUNK, cursor); cursor -= size;
       const buffer = Buffer.alloc(size);
@@ -213,12 +237,27 @@ export class CodexObserver {
       const data = Buffer.concat([buffer.subarray(0, bytesRead), suffix]);
       const first = cursor ? data.indexOf(10) : -1;
       const lines = data.subarray(first + 1).toString("utf8").split("\n");
-      // The rightmost line in the first chunk is incomplete at the tail boundary.
-      if (end === cursor + size) lines.pop();
+      // A bounded, complete boundary record comes from the already-read tail.
+      if (end === cursor + size && boundary === undefined) lines.pop();
       for (let n = lines.length - 1; n >= 0; n--) {
         const line = lines[n];
-        if (line.length > CHUNK || (!line.includes('"turn_context"') && !line.includes('"event_msg"'))) continue;
+        const conversation = line.includes('"response_item"') && /"role"\s*:\s*"(?:user|assistant)"/.test(line);
+        if (Buffer.byteLength(line) > CHUNK || (!line.includes('"turn_context"') && !line.includes('"event_msg"') && !conversation)) continue;
         let row: any; try { row = JSON.parse(line); } catch { continue; }
+        // Reuse records encountered while finding lifecycle/model; never extend
+        // the reverse scan solely for history or replay historical completions.
+        const userEvents = file.userEvents;
+        const message = !file.parent ? this.message(file, row) : undefined;
+        if (!userEvents && file.userEvents) for (let index = messages.length - 1; index >= 0; index--) {
+          if (messages[index].role === "user" && !messages[index].userItem) {
+            budget += messages[index].text.length; messages.splice(index, 1);
+          }
+        }
+        if (message && messages.length < 40 && budget > 0 && (!message.userItem || !userItems.has(message.userItem))) {
+          if (message.userItem) userItems.add(message.userItem);
+          const text = textTail(message.text, budget); budget -= text.length;
+          messages.push({ ...message, text });
+        }
         if (!foundModel && row?.type === "turn_context" && typeof row.payload?.model === "string") {
           this.line(file, Buffer.from(line)); foundModel = true;
         } else if (!foundLifecycle && row?.type === "event_msg" && ["task_started", "task_complete", "turn_aborted"].includes(row.payload?.type)) {
@@ -227,6 +266,45 @@ export class CodexObserver {
       }
       suffix = first >= 0 && first <= CHUNK ? Buffer.from(data.subarray(0, first)) : Buffer.alloc(0);
     }
+    for (const message of messages.reverse()) if (message.role !== "user" || !file.userEvents || message.userItem) this.appendMessage(file, message);
+  }
+  private message(file: Rollout, row: any): ConversationMessage | undefined {
+    const p = row?.payload, at = Date.parse(row?.timestamp);
+    if (!Number.isFinite(at) || at > Date.now() + 60_000) return;
+    if (row?.type === "event_msg" && p?.type === "item_completed" && p.item?.type === "UserMessage"
+      && typeof p.item.id === "string" && p.item.id.length > 0 && p.item.id.length <= 256 && Array.isArray(p.item.content)) {
+      if (!file.userEvents) {
+        file.userEvents = true;
+        // Current Codex also writes role=user context/instructions. Its actual
+        // UserMessage event is authoritative; those raw records are not prompts.
+        file.store.state.transcript = file.store.state.transcript.filter(entry => entry.role !== "user");
+        if (file.derivedName && file.store.state.session.name === file.derivedName) file.store.state.session.name = undefined;
+        file.derivedName = undefined; file.changed = true;
+      }
+      const text = textTail(p.item.content.filter((part: any) => part?.type === "text" && typeof part.text === "string")
+        .map((part: any) => part.text).join("\n"), 20_000);
+      if (text) return { role: "user", text, userItem: p.item.id };
+      return;
+    }
+    if (row?.type !== "response_item" || p?.type !== "message"
+      || !["user", "assistant"].includes(p.role) || (p.role === "assistant" && ![undefined, "final", "commentary"].includes(p.channel))
+      || (p.role === "user" && file.userEvents) || !Array.isArray(p.content)) return;
+    const text = textTail(p.content.filter((part: any) => ["input_text", "output_text"].includes(part?.type) && typeof part.text === "string")
+      .map((part: any) => part.text).join("\n"), 20_000);
+    if (text) return { role: p.role, text };
+  }
+  private appendMessage(file: Rollout, { role, text, userItem }: ConversationMessage) {
+    if (userItem) {
+      if (file.userItems.has(userItem)) return;
+      file.userItems.add(userItem);
+      if (file.userItems.size > 256) file.userItems.delete(file.userItems.values().next().value!);
+    }
+    file.store.dispatch(role === "user" ? { type: "user.message", text } : { type: "assistant.completed", text });
+    file.store.state.transcript = file.store.state.transcript.slice(-40);
+    let budget = 60_000;
+    file.store.state.transcript = file.store.state.transcript.reverse().filter(entry => { budget -= entry.text.length; return budget >= 0; }).reverse();
+    if (role === "user" && !file.store.state.session.name) file.store.state.session.name = file.derivedName = promptLabel(text);
+    file.changed = true;
   }
   private line(file: Rollout, bytes: Buffer) {
     let row: any; try { row = JSON.parse(bytes.toString("utf8")); } catch { return; }
@@ -267,17 +345,9 @@ export class CodexObserver {
       }
       file.store.state.main = { ...file.store.state.main, status: "idle", settledAt: at, statusSince: at };
       file.store.state.tools = { active: {} };
-    } else if (!file.parent && row.type === "response_item" && p.type === "message" && ["user", "assistant"].includes(p.role)
-      && (p.role === "user" || [undefined, "final", "commentary"].includes(p.channel)) && Array.isArray(p.content)) {
-      const text = p.content.filter((part: any) => ["input_text", "output_text"].includes(part?.type) && typeof part.text === "string")
-        .map((part: any) => part.text).join("\n").slice(-20_000);
-      if (!text) return;
-      file.store.dispatch(p.role === "user" ? { type: "user.message", text } : { type: "assistant.completed", text });
-      file.store.state.transcript = file.store.state.transcript.slice(-40);
-      let budget = 60_000;
-      file.store.state.transcript = file.store.state.transcript.reverse().filter(entry => { budget -= entry.text.length; return budget >= 0; }).reverse();
-      if (p.role === "user") file.store.state.session.name ||= promptLabel(text);
-      file.changed = true;
+    } else if (!file.parent) {
+      const message = this.message(file, row);
+      if (message) this.appendMessage(file, message);
     }
   }
   async stop() { this.stopped = true; clearInterval(this.timer); await this.pendingPoll; }

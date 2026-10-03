@@ -236,6 +236,152 @@ test("large active rollouts retain their start/model before the bounded tail and
   assert.equal(f.journal.list().length, 1);
 });
 
+test("large ordinary Codex rollouts retain user prompts before tool-output gaps without replaying old completion", async t => {
+  const f = await fixture(t), s = await f.session("vscode"), before = f.since - 10_000;
+  await s.append({ type: "task_started", turn_id: "prior" }, undefined, before);
+  await s.append({ type: "task_complete", turn_id: "prior" }, undefined, before);
+  await s.append({ type: "task_started", turn_id: "current" }, undefined, before);
+  await s.append({ model: "history-model" }, "turn_context", before);
+  await s.append({ type: "message", role: "user", content: [{ type: "input_text", text: "请保留我的提问" }] }, "response_item", before);
+  await s.append({ type: "message", role: "assistant", channel: "commentary", content: [{ type: "output_text", text: "Working on it" }] }, "response_item", before);
+  await s.append({ type: "custom_tool_call_output", output: "PRIVATE TOOL OUTPUT" + "x".repeat(3 * 1024 * 1024) }, "response_item", before);
+  await s.append({ type: "message", role: "assistant", channel: "final", content: [{ type: "output_text", text: "Finished the change" }] }, "response_item", before);
+  await f.observer.poll(true);
+  const transcript = () => f.host.getRuntime(s.key).store.state.transcript.map(({ role, text }) => ({ role, text }));
+  assert.deepEqual(transcript(), [
+    { role: "user", text: "请保留我的提问" }, { role: "assistant", text: "Working on it" }, { role: "assistant", text: "Finished the change" },
+  ]);
+  assert.equal(f.journal.list().length, 0, "backward history seeding never emits an old completion");
+  await f.observer.poll();
+  assert.equal(transcript().length, 3, "unchanged logs do not replay seeded history");
+  await s.append({ type: "message", role: "user", content: [{ type: "input_text", text: "One more change" }] }, "response_item");
+  await f.observer.poll();
+  assert.equal(transcript().length, 4, "incremental growth retains the restored prompt exactly once");
+  await s.append({ type: "task_complete", turn_id: "current" }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 1);
+});
+
+test("a UTF-8 prompt crossing the seed/tail boundary is retained exactly once and a truncated cursor stays safe", async t => {
+  const f = await fixture(t), s = await f.session(), before = f.since - 10_000;
+  await s.append({ type: "task_started", turn_id: "boundary" }, undefined, before);
+  await s.append({ model: "boundary-model" }, "turn_context", before);
+  const prefix = await readFile(s.path);
+  const prompt = Buffer.from(f.row({ type: "item_completed", item: { type: "UserMessage", id: "boundary-user",
+    content: [{ type: "text", text: "中文边界提问" }] } }, "event_msg", before));
+  const reply = Buffer.from(f.row({ type: "message", role: "assistant", content: [{ type: "output_text", text: "Boundary answer" }] }, "response_item", before));
+  const emptyTool = f.row({ type: "custom_tool_call_output", output: "" }, "response_item", before);
+  const split = prompt.indexOf(Buffer.from("中文")) + 1;
+  const padding = split + 2 * 1024 * 1024 - prompt.length - reply.length - Buffer.byteLength(emptyTool);
+  const tool = Buffer.from(f.row({ type: "custom_tool_call_output", output: "x".repeat(padding) }, "response_item", before));
+  await appendFile(s.path, Buffer.concat([prompt, reply, tool]));
+  await f.observer.poll(true);
+  const runtime = f.host.getRuntime(s.key);
+  assert.deepEqual(runtime.store.state.transcript.map(e => e.text), ["中文边界提问", "Boundary answer"]);
+  assert.equal(runtime.store.state.main.status, "running");
+  assert.equal(f.journal.list().length, 0);
+  await s.append({ type: "message", role: "assistant", content: [{ type: "output_text", text: "Appended answer" }] }, "response_item");
+  await f.observer.poll(); await f.observer.poll();
+  assert.deepEqual(runtime.store.state.transcript.map(e => e.text), ["中文边界提问", "Boundary answer", "Appended answer"]);
+  await writeFile(s.path, prefix.subarray(0, prefix.indexOf(10) + 1));
+  await f.observer.poll();
+  assert.equal(runtime.store.state.main.status, "running", "truncation is connection uncertainty, not a finish");
+  await s.append({ type: "message", role: "user", content: [{ type: "input_text", text: "Prompt after truncation" }] }, "response_item");
+  await f.observer.poll(); await f.observer.poll();
+  assert.equal(runtime.store.state.transcript.filter(e => e.text === "Prompt after truncation").length, 1);
+  assert.equal(f.journal.list().length, 0);
+});
+
+test("backward conversation seeding preserves bounded messages/text and never exposes reasoning or raw tools", async t => {
+  const f = await fixture(t), s = await f.session(), before = f.since - 10_000;
+  await s.append({ type: "task_started", turn_id: "bounded" }, undefined, before);
+  await s.append({ model: "bounded-model" }, "turn_context", before);
+  for (let n = 0; n < 60; n++) await s.append({ type: "message", role: n % 2 ? "assistant" : "user",
+    content: [{ type: n % 2 ? "output_text" : "input_text", text: `Message ${n}: ` + "x".repeat(2000) }] }, "response_item", before);
+  await s.append({ type: "message", role: "assistant", channel: "analysis", content: [{ type: "output_text", text: "PRIVATE REASONING" }] }, "response_item", before);
+  await s.append({ type: "custom_tool_call_output", output: "PRIVATE TOOL OUTPUT" + "x".repeat(3 * 1024 * 1024) }, "response_item", before);
+  await s.append({ type: "message", role: "assistant", content: [{ type: "output_text", text: "Latest answer" }] }, "response_item", before);
+  await f.observer.poll(true);
+  const state = f.host.getRuntime(s.key).store.state;
+  assert(state.transcript.length <= 40);
+  assert(state.transcript.reduce((sum, e) => sum + e.text.length, 0) <= 60_000);
+  assert(state.transcript.some(e => e.role === "user"));
+  assert.equal(state.transcript.at(-1)?.text, "Latest answer");
+  assert.equal(JSON.stringify(state).includes("PRIVATE"), false);
+});
+
+test("current Codex UserMessage events restore human prompts across large gaps without raw context or duplicate seed records", async t => {
+  const f = await fixture(t), s = await f.session("vscode"), before = f.since - 10_000;
+  await s.append({ type: "task_started", turn_id: "modern" }, undefined, before);
+  await s.append({ model: "modern-model" }, "turn_context", before);
+  for (const text of ["Environment context", "Desktop additional context", "Actual human prompt"]) {
+    await s.append({ type: "message", role: "user", content: [{ type: "input_text", text }] }, "response_item", before);
+  }
+  const human = { type: "item_completed", item: { type: "UserMessage", id: "human-1", client_id: "client-1",
+    content: [{ type: "text", text: "Actual human prompt", text_elements: [] }] } };
+  await s.append(human, undefined, before); await s.append(human, undefined, before);
+  await s.append({ type: "message", role: "assistant", channel: "commentary", content: [{ type: "output_text", text: "Working" }] }, "response_item", before);
+  await s.append({ type: "custom_tool_call_output", output: "x".repeat(3 * 1024 * 1024) }, "response_item", before);
+  await s.append({ type: "message", role: "assistant", content: [{ type: "output_text", text: "Done" }] }, "response_item", before);
+  await f.observer.poll(true);
+  const state = f.host.getRuntime(s.key).store.state;
+  assert.deepEqual(state.transcript.map(({ role, text }) => ({ role, text })), [
+    { role: "user", text: "Actual human prompt" }, { role: "assistant", text: "Working" }, { role: "assistant", text: "Done" },
+  ]);
+  assert.equal(state.session.name, "Actual human prompt");
+  assert.equal(f.journal.list().length, 0);
+});
+
+test("first current UserMessage event replaces raw context and titles; duplicate IDs are ignored but identical distinct prompts survive", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.append({ type: "task_started", turn_id: "first" });
+  await s.append({ type: "message", role: "user", content: [{ type: "input_text", text: "Environment context" }] }, "response_item");
+  await f.observer.poll(true);
+  assert.equal(f.host.getRuntime(s.key).store.state.session.name, "Environment context", "unknown formats retain the legacy raw-user fallback");
+  const appendHuman = async (id: string) => {
+    await s.append({ type: "message", role: "user", content: [{ type: "input_text", text: "Same human prompt" }] }, "response_item");
+    await s.append({ type: "item_completed", item: { type: "UserMessage", id,
+      content: [{ type: "text", text: "Same human prompt", text_elements: [] }] } });
+  };
+  await appendHuman("first-item"); await f.observer.poll();
+  await appendHuman("first-item");
+  await s.append({ type: "message", role: "user", content: [{ type: "input_text", text: "Later injected context" }] }, "response_item");
+  await s.append({ type: "task_complete", turn_id: "first" });
+  await s.append({ type: "task_started", turn_id: "second" });
+  await appendHuman("second-item"); await f.observer.poll(); await f.observer.poll();
+  const state = f.host.getRuntime(s.key).store.state;
+  assert.deepEqual(state.transcript.filter(e => e.role === "user").map(e => e.text), ["Same human prompt", "Same human prompt"]);
+  assert.equal(state.session.name, "Same human prompt");
+  assert.equal(state.main.status, "running");
+  assert.equal(f.journal.list().length, 0, "a new running turn retains existing completion behavior");
+});
+
+test("restoring overlapping large history after truncation reseeds once and preserves lifecycle/completion guards", async t => {
+  const f = await fixture(t), s = await f.session(), before = f.since - 10_000;
+  const metadata = await readFile(s.path);
+  await s.append({ type: "task_started", turn_id: "original" }, undefined, before);
+  await s.append({ model: "restored-model" }, "turn_context", before);
+  await s.append({ type: "item_completed", item: { type: "UserMessage", id: "original-user",
+    content: [{ type: "text", text: "Original prompt" }] } }, undefined, before);
+  await s.append({ type: "message", role: "assistant", content: [{ type: "output_text", text: "Original answer" }] }, "response_item", before);
+  await s.append({ type: "custom_tool_call_output", output: "x".repeat(3 * 1024 * 1024) }, "response_item", before);
+  const original = await readFile(s.path);
+  await f.observer.poll(true);
+  await writeFile(s.path, metadata); await f.observer.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.main.status, "running");
+  assert.equal(f.host.getRuntime(s.key).store.state.transcript.length, 0);
+  await writeFile(s.path, original);
+  await s.append({ type: "item_completed", item: { type: "UserMessage", id: "new-user",
+    content: [{ type: "text", text: "New prompt" }] } });
+  await f.observer.poll(); await f.observer.poll();
+  const state = f.host.getRuntime(s.key).store.state;
+  assert.deepEqual(state.transcript.map(e => e.text), ["Original prompt", "Original answer", "New prompt"]);
+  assert.equal(state.main.status, "running");
+  assert.equal(f.host.store.state.monitoring?.watched, 1);
+  assert.equal(f.journal.list().length, 0);
+  await s.append({ type: "task_complete", turn_id: "original" }); await f.observer.poll();
+  assert.equal(f.journal.list().length, 1);
+});
+
 test("Codex's saved title is used for the notification and G2 view suppression still applies", async t => {
   const f = await fixture(t), s = await f.session("vscode");
   await writeFile(join(f.root, "session_index.jsonl"), JSON.stringify({ id: s.id, thread_name: "Named desktop work", updated_at: "now" }) + "\n");

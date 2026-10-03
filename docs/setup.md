@@ -17,7 +17,7 @@ The companion is a watcher and lightweight session manager. Its desktop manager 
 
 ### Windows
 
-1. Download `Even-Pilot-1.1.6-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
+1. Download `Even-Pilot-1.1.7-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Even-Pilot**, **Start with Windows**, update controls and **Quit Even-Pilot**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -29,7 +29,7 @@ The ZIP is an optional portable alternative: extract the whole archive to a dedi
 The supplied binary targets x64/glibc Linux. The tested baseline is headless Ubuntu 26.04 LTS; Alpine/musl is not supported by this package. Install as a normal user, without `sudo`:
 
 ```sh
-sh ./Even-Pilot-1.1.6-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.7-Setup-linux-x64.run
 ```
 
 It installs its bundled runtime under `~/.local/lib/even-pilot`, creates `~/.local/bin/even-pilot`, starts monitoring and adds a removable PATH block for supported shells. Open a new shell before using the short command; in the current shell use the full path or the PATH command printed by the installer. This is a per-user global command, not an npm package installation.
@@ -101,7 +101,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install/upload `even-pilot-1.1.6.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
+1. Install/upload `even-pilot-1.1.7.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `even-pilot pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -245,7 +245,7 @@ To return a source to independent delivery use `even-pilot settings push direct`
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `even-pilot update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `even-pilot update`, then `even-pilot update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.6.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.7.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Even-Pilot**. Linux uses `even-pilot uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `even-pilot stop`; native terminals keep working.
 

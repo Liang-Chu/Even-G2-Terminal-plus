@@ -1,4 +1,20 @@
-# Release status — 1.1.6
+# Release status — 1.1.7
+
+1.1.7 retries host metadata independently of session activity, retains verified names during transient errors, and stops retrying disconnected or removed devices. Unchanged metadata does not emit a display update. Codex history retains bounded conversation records encountered by the existing lifecycle backscan, prefers explicit current user-input events over injected context, and handles seed boundaries and truncation without duplicate prompts or historical completion notifications.
+
+Checked 2026-10-03:
+
+| Check | Result |
+| --- | --- |
+| Windows source | 378 passed, 6 Linux-only tests skipped; type checking and production build passed |
+| Linux source | 381 passed, 3 Windows-only tests skipped; type checking and production build passed |
+| Codex observer | Independent review and 57/57 observer/connector/native-host tests passed, including 19 observer cases; large tool-output gaps, current human-input semantics, legacy fallback, repeated item IDs, distinct identical prompts, Unicode boundaries, retained-history limits and truncation covered |
+| Device names | Independent review and 13/13 Fleet tests passed; idle retries, backoff, pending-request coalescing, stale replacement/removal, disconnect/reconnect, verified-name retention and unchanged-metadata emission covered |
+| Actual Windows history | The affected session matches Codex's public history: 1 human prompt and 4 assistant messages; no native command was issued |
+
+Runtime packaging verifies inventories, matching Windows/Linux frontend assets, credential exclusion and download checksums before publication. Installer, updater and browser evidence below belongs to the stated earlier releases unless repeated above. The matching Hub package is installed separately and saved connections remain valid. Physical G2 verification of this patch remains pending.
+
+## 1.1.6 audit evidence (historical)
 
 1.1.6 enables scheduled verified installation by default on installed Windows/Linux companions, preserves existing opt-outs and keeps manual checks check-only. Same-version automatic failures have a persisted 24-hour retry delay. Headless companions recover finished/interrupted jobs without client polling. The phone Hub no longer contains the companion updater; desktop updates remain bound to the serving computer. G2 assistant rows use two preserved ideographic spaces (40 px in the pinned native text measurement) before their arrow, with no additional display writes.
 

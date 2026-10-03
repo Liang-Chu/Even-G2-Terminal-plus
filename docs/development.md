@@ -63,7 +63,7 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 
 ## 发布文件与私有文件
 
-`release/1.1.6/` 是准备上传的文件夹：Windows EXE/ZIP、Linux RUN/TAR.GZ、Hub EHPK、`SHA256SUMS.txt` 和简短发布说明。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
+`release/1.1.7/` 是准备上传的文件夹：Windows EXE/ZIP、Linux RUN/TAR.GZ、Hub EHPK、`SHA256SUMS.txt` 和简短发布说明。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 

@@ -13,8 +13,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Even-Pilot Setup")]
-[assembly: AssemblyFileVersion("1.1.6.0")]
-[assembly: AssemblyVersion("1.1.6.0")]
+[assembly: AssemblyFileVersion("1.1.7.0")]
+[assembly: AssemblyVersion("1.1.7.0")]
 
 class ReleaseFile { public string path { get; set; } public string sha256 { get; set; } public long bytes { get; set; } }
 class ReleasePayload { public string version { get; set; } public string buildId { get; set; } public ReleaseFile[] files { get; set; } }
@@ -34,7 +34,7 @@ class PilotInstaller : Form {
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen; BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         using (var image = Assembly.GetExecutingAssembly().GetManifestResourceStream("Even-Pilot.ico")) Icon = new Icon(image);
-        Controls.Add(new Label { Text = "Even-Pilot 1.1.6", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
+        Controls.Add(new Label { Text = "Even-Pilot 1.1.7", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
         Controls.Add(new Label { Text = removing ? "Remove the app. Connection settings will be retained.\nClose connected native terminals before uninstalling."
             : "Desktop monitor for Pi, Codex and Claude.\nRuntime included. No Node.js installation or setup commands.", AutoSize = true, Location = new Point(24, 65) });
         location.Text = root; location.Location = new Point(24, 124); location.Size = new Size(388, 28); location.ReadOnly = true; Controls.Add(location);

@@ -10,7 +10,7 @@ import { NotificationJournal } from "../apps/windows/src/notifications.js";
 import { setTimeout as delay } from "node:timers/promises";
 
 const a = "http://100.64.0.1:4317", b = "http://100.64.0.2:4317", key = "a".repeat(32);
-function fixture() {
+function fixture(identity?: (connection: { url: string; token: string }) => Promise<unknown>) {
   const calls: { url: string; token: string; path: string; data?: any }[] = [];
   const endpoints = new Map<string, { state: RuntimeState; online: (value: boolean, error?: string) => void; update: (value: RuntimeState) => void; viewed?: string; closed: boolean }>();
   const states: RuntimeState[] = [];
@@ -28,7 +28,7 @@ function fixture() {
       setViewedSession: value => { endpoint.viewed = value; },
       request: async (path, data) => {
         calls.push({ url: connection.url, token: connection.token, path, data });
-        if (path === "/api/host") return { id: connection.url, name: connection.url === a ? "liam" : "nuc", nameSource: "tailscale" };
+        if (path === "/api/host") return identity ? identity(connection) : { id: connection.url, name: connection.url === a ? "liam" : "nuc", nameSource: "tailscale" };
         if (path === "/api/state") return endpoint.state;
         if (path === "/api/sessions") return { sessions: [{ ...endpoint.state.session, runtimeStatus: endpoint.state.main.status, live: true, monitored: true,
           updatedAt: endpoint.state.monitoring!.sessions[0].updatedAt }], skipped: 0 };
@@ -45,6 +45,71 @@ function fixture() {
   const add = async () => { await fleet.add({ url: a, token: "token-for-laptop" }); await fleet.add({ url: b, token: "token-for-nuc" }, false, false); };
   return { fleet, calls, endpoints, states, connectionMessages, add };
 }
+
+const flushMetadata = () => new Promise<void>(done => setImmediate(done));
+
+test("an idle restored computer retries a failed name lookup without new SSE state events", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let reads = 0;
+  const f = fixture(async () => {
+    if (++reads === 1) throw new Error("Temporary network failure");
+    return { id: "laptop", name: "liam", nameSource: "tailscale" };
+  });
+  t.after(() => f.fleet.disconnect());
+  await f.fleet.add({ url: a, token: "local-key" }, true); await flushMetadata();
+  assert.equal(f.fleet.hosts()[0].name, "100.64.0.1");
+  assert.equal(reads, 1);
+  t.mock.timers.tick(1999); await flushMetadata(); assert.equal(reads, 1);
+  t.mock.timers.tick(1); await flushMetadata();
+  assert.equal(reads, 2); assert.equal(f.fleet.snapshot().source?.name, "liam");
+  assert.equal(f.fleet.snapshot().monitoring?.sessions[0].source?.name, "liam");
+  const emissions = f.states.length;
+  t.mock.timers.tick(60_000); await flushMetadata();
+  assert.equal(reads, 3); assert.equal(f.states.length, emissions, "unchanged name polls cause no extra display updates");
+  assert(f.calls.every(call => call.path === "/api/host" && call.data === undefined));
+});
+
+test("name lookup failures keep verified names, back off, and stop when disconnected", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let reads = 0;
+  const f = fixture(async () => {
+    if (++reads > 1) throw new Error("Temporary network failure");
+    return { id: "laptop", name: "liam", nameSource: "tailscale" };
+  });
+  t.after(() => f.fleet.disconnect());
+  await f.fleet.add({ url: a, token: "local-key" }, true); await flushMetadata();
+  t.mock.timers.tick(60_000); await flushMetadata(); assert.equal(reads, 2);
+  assert.equal(f.fleet.hosts()[0].name, "liam");
+  t.mock.timers.tick(2000); await flushMetadata(); assert.equal(reads, 3);
+  t.mock.timers.tick(3999); await flushMetadata(); assert.equal(reads, 3);
+  t.mock.timers.tick(1); await flushMetadata(); assert.equal(reads, 4);
+  f.endpoints.get(a)!.online(false);
+  t.mock.timers.tick(2 * 60_000); await flushMetadata(); assert.equal(reads, 4);
+  assert.equal(f.fleet.snapshot().monitoring?.watched, 1, "metadata retries never change Watch");
+  f.endpoints.get(a)!.online(true); await flushMetadata(); assert.equal(reads, 5);
+  f.fleet.disconnect(); t.mock.timers.tick(2 * 60_000); await flushMetadata(); assert.equal(reads, 5);
+});
+
+test("late and malformed identities cannot overwrite a replaced or removed connection", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let finish!: (value: unknown) => void, reads = 0;
+  const f = fixture(async connection => {
+    reads++;
+    if (connection.token === "old-key") return new Promise(done => { finish = done; });
+    return { id: "replacement", name: "current-name", nameSource: "tailscale" };
+  });
+  t.after(() => f.fleet.disconnect());
+  await f.fleet.add({ url: a, token: "old-key" }, true);
+  await f.fleet.add({ url: a, token: "new-key" }, true); await flushMetadata();
+  finish({ id: "stale", name: "stale-name", nameSource: "tailscale" }); await flushMetadata();
+  assert.equal(f.fleet.hosts()[0].name, "current-name");
+  f.fleet.remove(a); t.mock.timers.tick(2 * 60_000); await flushMetadata(); assert.equal(reads, 2);
+  let invalidReads = 0;
+  const invalid = fixture(async () => ++invalidReads === 1 ? { name: "broken" } : { id: "fixed", name: "fixed-name", nameSource: "tailscale" });
+  t.after(() => invalid.fleet.disconnect());
+  await invalid.fleet.add({ url: a, token: "key" }, true); await flushMetadata();
+  t.mock.timers.tick(2000); await flushMetadata(); assert.equal(invalid.fleet.hosts()[0].name, "fixed-name");
+});
 
 test("desktop restores only its own computer without contacting saved remote devices or changing Watch", async () => {
   const f = fixture(), saved = [{ url: a, token: "local-key" }, { url: b, token: "remote-key" }];

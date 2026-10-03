@@ -2,7 +2,7 @@
 
 首次部署按[完整安装连接指南](setup.zh-CN.md)操作；没有历史记忆的操作者／agent 从[运行手册](agent-runbook.md)开始。本页保留 Linux 命令和服务的详细参考。
 
-1.1.6 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。上一版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次补丁的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
+1.1.7 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。上一版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次补丁的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
 
 发行版仍需能运行官方 Node Linux 二进制；Alpine/musl 不适用此预编译包。ARM64 构建脚本可在对应 Linux 主机运行，但当前未进行 ARM64 实机验收。GNOME、KDE、XFCE、Kitty、xterm 的启动参数有回归测试；NUC 没有图形桌面，不能代替这些桌面的实机验收。
 
@@ -11,12 +11,12 @@
 在普通用户的终端里执行：
 
 ```sh
-sh ./Even-Pilot-1.1.6-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.7-Setup-linux-x64.run
 ```
 
 安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。安装后新开的 Bash、Zsh、Fish 或支持的 POSIX 登录 shell 可直接输入 `even-pilot`。当前终端先用完整路径，或执行 `export PATH="$HOME/.local/bin:$PATH"`；自定义 bin 目录按安装器输出添加。安装器保留用户自己的 shell 内容，遇到链接／不支持的 shell 会提示手工设置。首次安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
 
-自定义目录：`sh ./Even-Pilot-1.1.6-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。已安装的电脑端默认每天检查稳定版本并自动安装验证通过的更新；`even-pilot update off` 关闭，`on` 恢复，已有关闭设置保留。`even-pilot update` 立即更新，`update check` 只检查，`update status` 查看结果。也可下载新 `.run` 后执行 `sh ./文件名.run`，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。[更新详情](updates.md)
+自定义目录：`sh ./Even-Pilot-1.1.7-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。已安装的电脑端默认每天检查稳定版本并自动安装验证通过的更新；`even-pilot update off` 关闭，`on` 恢复，已有关闭设置保留。`even-pilot update` 立即更新，`update check` 只检查，`update status` 查看结果。也可下载新 `.run` 后执行 `sh ./文件名.run`，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。[更新详情](updates.md)
 
 运行环境可用时支持直接解压 `.tar.gz` 到专用文件夹，再运行 `./bin/even-pilot open`；不把便携文件覆盖到正在运行的版本目录。
 
