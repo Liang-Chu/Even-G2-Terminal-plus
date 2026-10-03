@@ -1,6 +1,6 @@
 # Publish Even-Pilot 1.1.8
 
-The release folder is `release/1.1.8`. Building packages does not publish them. This is a normal patch release; no npm distribution is included.
+The release folder is `release/1.1.8`. Building packages does not publish them. This is a normal patch release. The separate Linux npm package embeds the verified installer; the source checkout stays private to npm.
 
 ## GitHub
 
@@ -16,6 +16,27 @@ The release folder is `release/1.1.8`. Building packages does not publish them. 
 
 4. Leave **Set as a pre-release** unchecked, select **Set as the latest release**, then publish. This lets existing companions discover 1.1.8. Retain the documented known limitations. GitHub pre-releases are excluded from update checks. Installed companions with **Automatic updates** enabled check and install verified releases automatically; manual **Update** remains available. Keep installer filenames unchanged.
 5. Open the published page while signed out and confirm all downloads are public. Verify GitHub's installer asset SHA-256 digests against `SHA256SUMS.txt`; the updater requires those asset digests. Do not attach inventories, logs, source-build folders, real keys or Firebase JSON files.
+
+## npm — Linux
+
+`even-pilot@1.1.8` is already published as `latest`. The steps below record the release process; do not republish this immutable version.
+
+1. Build from the reviewed Linux installer and its adjacent `SHA256SUMS.txt`:
+
+   ```sh
+   npm run release:npm -- /absolute/path/Even-Pilot-1.1.8-Setup-linux-x64.run
+   ```
+
+   The output is `outputs/npm-1.1.8-<random>/even-pilot-1.1.8.tgz`. Keep the generated package separate from the source checkout.
+2. Inspect the packed file list, verify its installer digest, and test a normal-user Linux x64 installation with install scripts disabled. Run `even-pilot-setup`, open a new shell and check `even-pilot status`. Also verify existing-install upgrade, no downgrade, settings retention and uninstall. Put the verified tarball in `release/1.1.8` and record its checksum.
+3. With a publish-authorized npm account, publish only that tarball:
+
+   ```sh
+   npm publish ./release/1.1.8/even-pilot-1.1.8.tgz --access public --tag latest --ignore-scripts
+   ```
+
+   For interactive publishing, open the new authorization link printed by npm and approve it with your existing passkey/security key. No `--otp` argument is needed for this browser flow. A granular token instead requires **Read and write (publish and stage)** and **Bypass two-factor authentication**; see [npm token settings](https://docs.npmjs.com/creating-and-viewing-access-tokens/). Never put npm tokens in the source or tarball. Package versions cannot be overwritten; verify before publishing.
+4. Confirm `npm view even-pilot version` returns `1.1.8`, then install from the public registry as a clean Linux user. The user flow is `npm install -g even-pilot`, `even-pilot-setup`, then `even-pilot` in a new shell. No `sudo` is needed. The companion continues to use its own verified GitHub updater; npm publication does not replace the GitHub release.
 
 ## Even Hub
 

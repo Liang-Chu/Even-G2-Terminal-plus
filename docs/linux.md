@@ -8,13 +8,24 @@
 
 ## 1. 安装
 
-在普通用户的终端里执行：
+已有 Node 22+ 和 npm 时，在普通用户的终端里执行，不用 `sudo`：
+
+```sh
+npm install -g even-pilot
+even-pilot-setup
+```
+
+`even-pilot-setup` 完成本机安装；npm 跳过安装脚本时仍可使用。相同或更新的电脑端已安装时跳过，旧版本则升级并重启监控。npm 包只支持 Linux x64/glibc，包含经过校验的安装器，不依赖 GitHub 下载。首次 npm 安装只部署文件，接着新开 shell 运行 `even-pilot` 才启动监控。
+
+若 npm 提示 `EACCES`，改为 `npm install -g --prefix "$HOME/.local" even-pilot`，接着执行 `~/.local/bin/even-pilot-setup`；不使用 sudo。
+
+没有 npm 时下载 `.run`，在普通用户下执行：
 
 ```sh
 sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
 ```
 
-安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。安装后新开的 Bash、Zsh、Fish 或支持的 POSIX 登录 shell 可直接输入 `even-pilot`。当前终端先用完整路径，或执行 `export PATH="$HOME/.local/bin:$PATH"`；自定义 bin 目录按安装器输出添加。安装器保留用户自己的 shell 内容，遇到链接／不支持的 shell 会提示手工设置。首次安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
+安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。安装后新开的 Bash、Zsh、Fish 或支持的 POSIX 登录 shell 可直接输入 `even-pilot`。当前终端先用完整路径，或执行 `export PATH="$HOME/.local/bin:$PATH"`；自定义 bin 目录按安装器输出添加。安装器保留用户自己的 shell 内容，遇到链接／不支持的 shell 会提示手工设置。`.run` 默认安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
 
 自定义目录：`sh ./Even-Pilot-1.1.8-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。已安装的电脑端默认每天检查稳定版本并自动安装验证通过的更新；`even-pilot update off` 关闭，`on` 恢复，已有关闭设置保留。`even-pilot update` 立即更新，`update check` 只检查，`update status` 查看结果。也可下载新 `.run` 后执行 `sh ./文件名.run`，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。[更新详情](updates.md)
 
@@ -123,6 +134,8 @@ sudo loginctl enable-linger "$(id -un)"
 这改变的是该用户的系统登录策略，不由安装器擅自启用。有图形桌面的登录自启动通常无需这一步。查看后台日志：`journalctl --user -u even-pilot.service`。
 
 卸载：`~/.local/bin/even-pilot uninstall`。先自行关闭连接中的 CLI；检测到仍使用安装文件的终端时会拒绝卸载。连接 key、Watch 和通知订阅默认保留在 `~/.local/share/even-pilot`，也遵循 `XDG_DATA_HOME` 或 `EVEN_PILOT_DATA_DIR`。不要分享这个数据目录。
+
+通过 npm 安装时，完成上面的卸载后再执行 `npm uninstall -g even-pilot`，移除 setup 命令。仅卸载 npm 包不会停止或移除独立安装的监控端。电脑端自动更新继续使用 GitHub Releases，无需同步更新 npm 包；重新运行 setup 也不会降级已安装的更新版本。
 
 ## 5. 手机、Even Hub 和 Glance
 

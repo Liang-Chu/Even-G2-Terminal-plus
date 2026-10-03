@@ -1,6 +1,6 @@
 # Even-Pilot
 
-Watch Pi, Codex and Claude Code sessions on your phone and Even G2 while continuing to work in your native terminal. A lightweight companion runs on each Windows/Linux computer; the phone combines their watched sessions.
+Watch Pi, Codex and Claude Code sessions running on Windows/Linux through Even Hub on your phone and Even G2. Continue working in your native terminal; each computer runs a lightweight companion and the phone combines their watched sessions.
 
 See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
@@ -15,13 +15,22 @@ See the source computer, model, reported running-agent count and recent messages
 Install on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing CLI installation and model login stay in use.
 
 - **Windows:** download and run `Even-Pilot-1.1.8-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the desktop shortcut or double-click the tray icon.
-- **Linux / SSH:** download the Linux installer and run without `sudo`:
+- **Linux / SSH with Node 22+ and npm:** run as your normal user, without `sudo`:
+
+  ```sh
+  npm install -g even-pilot
+  even-pilot-setup
+  ```
+
+  Open a new shell, then run `even-pilot`. The setup command also works when npm skips install scripts and safely skips an already installed equal or newer version.
+
+  **Without npm:** download the bundled Linux installer:
 
   ```sh
   sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
   ```
 
-  Open a new shell, then run `even-pilot status`. In the current shell, use `~/.local/bin/even-pilot`. Node and backend dependencies are bundled; no global npm installation is needed.
+  Open a new shell, then run `even-pilot`. In the current shell, use `~/.local/bin/even-pilot`. Both installation methods include the companion's own Node runtime and backend dependencies.
 
 For startup after login/reboot: Windows tray → **Start with Windows**; Linux → [headless service setup](docs/setup.md#linux-headless-or-desktop).
 
@@ -92,6 +101,8 @@ Configure **Glance notifications** on the companion, then register the sender/ce
 Companions automatically install verified stable updates by default. Disable **Automatic updates** on that computer, or use Linux `even-pilot update off`; `on` restores it. To update now, use the Windows tray/manager or Linux `even-pilot update`.
 
 **Update the Hub app separately** by installing the matching `.ehpk` in Even Hub. Companion updates retain connections/Watch and leave native terminals running. [Update guide](docs/updates.md)
+
+An npm-installed companion uses the same automatic updater; `npm update` is not needed. To remove it, run `even-pilot uninstall`, then `npm uninstall -g even-pilot`. Saved settings remain. [Linux reference](docs/linux.md)
 
 ## More help
 

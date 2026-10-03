@@ -1,6 +1,6 @@
 # Even Hub description — Even-Pilot 1.1.8
 
-Even-Pilot brings your existing coding sessions to Even G2 while you keep working in your normal terminal.
+Even-Pilot lets you view coding sessions running on Windows/Linux through Even Hub and Even G2 while you keep working in your normal terminal.
 
 - Monitor Pi, Codex CLI/local Codex Desktop and Claude Code across Windows and Linux computers.
 - See reported running-agent counts, running/idle time, source computer and model, plus available agent task details.

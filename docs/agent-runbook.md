@@ -70,6 +70,7 @@ For notifications, first decide **direct** versus **central**. A phone's saved c
 | Remote-input native terminals | `apps/windows/src/connectors/`; Linux terminal adapter `apps/linux/src/platform.ts` |
 | Windows tray and installer | `apps/windows/desktop/Tray.cs`, `Installer.cs`, `build.ps1` |
 | Linux entry point, service, settings | `apps/linux/bin/even-pilot`, `src/desktop.ts`, `session-cli.ts`, `settings-cli.ts`, `install.mjs` |
+| Linux npm installation helper | `apps/npm/`, `scripts/package-npm.mjs` |
 | Phone and multi-computer viewer | `apps/evenhub/src/main.ts`, `bridge/fleet.ts`, `sessions/` |
 | G2 native UI/transport and voice | `apps/evenhub/src/g2/`, `voice/` |
 | Notifications/FCM/relay | `apps/windows/src/notifications.ts`, `push.ts`, `fcm.ts`, `notification-relay.ts` |
@@ -111,7 +112,9 @@ node tests/linux-installer-smoke.mjs "<generated-Setup.run>" --systemd
 
 Linux packaging needs the matching official Node archive in `outputs/toolchain`; the packaging script verifies official checksums and the build binary. Windows packaging downloads or uses verified cached runtime files. Both include production dependencies for offline installation. Smoke scripts use isolated directories; systemd and architecture acceptance require the corresponding host capabilities. [Build details](development.md)
 
-`npm run pack:evenhub` builds the smaller Hub-only frontend and packs the `.ehpk`. It is a separate artifact from both companions. Source `apps/evenhub/dist` is the desktop/browser build; `dist-hub` excludes desktop-only modules. No npm package publication is configured (`private: true`).
+`npm run pack:evenhub` builds the smaller Hub-only frontend and packs the `.ehpk`. It is a separate artifact from both companions. Source `apps/evenhub/dist` is the desktop/browser build; `dist-hub` excludes desktop-only modules.
+
+The source package retains `private: true`. `npm run release:npm -- /absolute/path/Even-Pilot-1.1.8-Setup-linux-x64.run` creates a separate Linux x64 npm tarball containing the verified installer; see [publishing](publishing.md#npm--linux). Installed users run `npm install -g even-pilot`, then `even-pilot-setup` and open a new shell for the native `even-pilot` command. The helper skips equal/newer installations, so it does not downgrade an automatically updated companion. It also works when npm disables install scripts. Removing it requires `even-pilot uninstall` before `npm uninstall -g even-pilot`; settings are retained.
 
 ## Deploy and hand over
 

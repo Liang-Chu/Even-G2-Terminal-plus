@@ -1,6 +1,6 @@
 # Even-Pilot
 
-在手机和 Even G2 上查看 Pi、Codex、Claude Code 会话，继续使用原生终端工作。每台 Windows/Linux 电脑运行轻量监控端，手机汇总它们已 Watch 的会话。
+通过手机 Even Hub 和 Even G2 查看 Windows/Linux 上运行的 Pi、Codex、Claude Code 会话。继续使用原生终端工作；每台电脑运行轻量监控端，手机汇总它们已 Watch 的会话。
 
 查看来源设备、模型、上报的运行 agent 数和最近消息。可选功能包括逐句语音输入、agent 任务详情，以及通过 Glance 发送完成通知。
 
@@ -15,13 +15,22 @@
 每台需要监控的电脑安装一次，必须与 CLI 使用**同一个系统用户**。已有 CLI 和模型登录继续使用。
 
 - **Windows：**下载并运行 `Even-Pilot-1.1.8-Setup-x64.exe`，点击 **Install**。管理页自动打开；以后使用桌面快捷方式或双击托盘图标。
-- **Linux／SSH：**下载 Linux 安装包，在普通用户下运行，不用 `sudo`：
+- **Linux／SSH，已有 Node 22+ 和 npm：**在普通用户下执行，不用 `sudo`：
+
+  ```sh
+  npm install -g even-pilot
+  even-pilot-setup
+  ```
+
+  新开 shell 后执行 `even-pilot`。npm 跳过安装脚本时，setup 命令也能完成安装；已安装相同或更新版本时会跳过。
+
+  **不使用 npm：**下载自带运行环境的 Linux 安装包：
 
   ```sh
   sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
   ```
 
-  新开 shell 后执行 `even-pilot status`。当前终端先用 `~/.local/bin/even-pilot`。包内已包含 Node 和后端依赖，不需要 npm 全局安装。
+  新开 shell 后执行 `even-pilot`。当前终端先用 `~/.local/bin/even-pilot`。两种安装方式都包含电脑端自己的 Node 运行时和后端依赖。
 
 自启动：Windows 托盘勾选 **Start with Windows**；Linux 按[无头服务配置](docs/setup.zh-CN.md#linux无头或桌面)。
 
@@ -92,6 +101,8 @@ Android 安装 [Glance](https://github.com/Liang-Chu/Glance)，接收每个会�
 电脑端默认自动安装验证通过的稳定更新。可在该电脑取消 **Automatic updates**，或运行 Linux `even-pilot update off`；`on` 恢复。立即更新用 Windows 托盘／管理页，或 Linux `even-pilot update`。
 
 **手机 Hub 单独更新**：在 Even Hub 安装匹配版本的 `.ehpk`。电脑端更新保留连接和 Watch，原生终端继续运行。[更新指南](docs/updates.md)
+
+npm 安装的电脑端使用同一个自动更新器，无需运行 `npm update`。卸载时先 `even-pilot uninstall`，再 `npm uninstall -g even-pilot`；保存的设置保留。[Linux 命令参考](docs/linux.md)
 
 ## 更多说明
 

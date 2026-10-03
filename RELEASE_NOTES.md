@@ -8,6 +8,7 @@ Fixes accumulated Claude agent counts and removes generated context from G2 ques
 - Opening G2 messages wraps only the visible preview rows. Session changes prioritize page updates over saved-selection writes, and obsolete queued text updates are skipped.
 - Voice settings retain the newest saved keys across delayed native storage operations and reconnects.
 - Glance senders accept your own Firebase project and reject registrations for a different project. Removed unused Hub UI and shortened the documentation.
+- Linux x64 can also be installed through npm. Its setup helper embeds the verified installer, preserves existing settings and terminals, and keeps newer companion versions.
 
 Update the Windows/Linux companion and install `even-pilot-1.1.8.ehpk` separately in Even Hub. Existing connections, Watch, voice and notification settings are retained; native CLI sessions keep running.
 
