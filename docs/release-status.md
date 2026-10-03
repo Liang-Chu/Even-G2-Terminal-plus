@@ -1,8 +1,23 @@
-# Release status — 1.1.0
+# Release status — 1.1.1
 
-Reviewed 2026-10-02. Windows, Linux and Hub share version 1.1.0. The audit fixes false Codex parent completion from copied child history, Windows delegated check results, interrupted update recovery, dead snapshot accumulation and monitoring failures from temporary storage errors. Ordinary Claude gains official read-only hooks with owned-settings cleanup, conservative child/background/cron tracking and queue-gap handling. Explicit Unwatch survives later native tasks; Updates has no extra device selector. Linux CLI is limited to monitoring/management/settings, includes Firebase and routing setup, and registers the command in supported shells. Daily update checks, explicit verified installation, health validation and rollback remain. No user credentials are bundled. This version is prepared locally for the maintainer to publish as a normal GitHub release.
+1.1.1 is a normal patch release. G2 uses a consistent New prompt label and an active-agent count row immediately underneath for the selected session. Native list focus is preserved by deferring count changes while browsing; expanded messages retain their existing native text view. Windows tray updates show clearer progress, lock overlapping requests and poll progress more frequently. Updating a companion does not update the phone Hub package; install the matching `.ehpk` separately.
 
-## Validation
+## 1.1.1 validation
+
+Checked 2026-10-03:
+
+| Check | Result |
+| --- | --- |
+| Windows source | 311 passed, 6 Linux-only tests skipped; type checking and web build passed |
+| Linux source | 314 passed, 3 Windows-only tests skipped; type checking and web build passed |
+| Windows desktop | Startup, installer-support and direct tray update tests passed; authenticated exact-version installation, progress and errors exercised with isolated transport |
+| G2 behavior | Active count uses the selected session; informational taps cannot invoke input; message indices remain correct; browsing and first-reply arrival preserve native focus; idle/offline removes the activity row on safe refresh |
+
+Release packaging verifies payload inventories, matching Windows/Linux frontend assets, credentials exclusion and download checksums before publication. Physical G2 acceptance of this patch is still pending. The historical installation and rollback results below apply to 1.1.0; those full installation scenarios were not repeated for this UI patch.
+
+## 1.1.0 audit evidence (historical)
+
+The following results were recorded for the 1.1.0 review on 2026-10-02. That audit fixed false Codex parent completion from copied child history, Windows delegated check results, interrupted update recovery, dead snapshot accumulation and monitoring failures from temporary storage errors. Ordinary Claude gained official read-only hooks with owned-settings cleanup, conservative child/background/cron tracking and queue-gap handling. Explicit Unwatch persists across later native tasks; Updates has no extra device selector. The Linux CLI is limited to monitoring/management/settings, includes Firebase and routing setup, and registers the command in supported shells. Daily update checks, explicit verified installation, health validation and rollback remain.
 
 | Check | Result |
 | --- | --- |

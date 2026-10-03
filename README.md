@@ -2,7 +2,7 @@
 
 Watch your Pi, Codex and Claude Code sessions from your phone and Even G2. Keep using the original terminal for full output. Connect multiple Windows/Linux computers, manage Watch, and optionally receive Glance completion notifications through each computer or one central sender.
 
-**1.1.0** · Windows 10/11 x64 · Linux x64/glibc · Even Hub/G2
+**1.1.1** · Windows 10/11 x64 · Linux x64/glibc · Even Hub/G2
 
 [Downloads](https://github.com/Liang-Chu/Even-Pilot/releases) · [中文步骤](README.zh-CN.md) · [Release notes](RELEASE_NOTES.md)
 
@@ -12,16 +12,16 @@ Your computer and CLI must use the same system user. Keep your existing Pi/Codex
 
 **Windows**
 
-1. Download `Even-Pilot-1.1.0-Setup-x64.exe` and run it. Click **Install**; Node and runtime dependencies are included.
+1. Download `Even-Pilot-1.1.1-Setup-x64.exe` and run it. Click **Install**; Node and runtime dependencies are included.
 2. The session management page opens. Later use the desktop shortcut or double-click the tray icon.
 3. To start at login, right-click the tray and enable **Start with Windows**. Quit only closes the tray; Unwatch and monitoring shutdown leave native terminals running.
 
 **Linux / SSH**
 
-1. Download `Even-Pilot-1.1.0-Setup-linux-x64.run` and install as your normal user:
+1. Download `Even-Pilot-1.1.1-Setup-linux-x64.run` and install as your normal user:
 
    ```sh
-   sh ./Even-Pilot-1.1.0-Setup-linux-x64.run
+   sh ./Even-Pilot-1.1.1-Setup-linux-x64.run
    ```
 
 2. Open a new supported shell, then run:
@@ -60,7 +60,7 @@ Use your own computer's address; `0.0.0.0` is a listening address. A reachable L
 
 ## 4. Connect Even Hub and G2
 
-1. Install/upload `even-pilot-1.1.0.ehpk` in Even Hub. Use Even App 2.2.10 or newer and connect G2 to the phone.
+1. Install/upload `even-pilot-1.1.1.ehpk` in Even Hub. Use Even App 2.2.10 or newer and connect G2 to the phone.
 2. On Windows open **Phone URL & key**; on Linux run `even-pilot pair`.
 3. In the phone Hub app, open **Connection**, enter the **Bridge URL** and **Connection key**, and choose **Save computer**. Enter the plain key, without `Bearer`. Hub connection currently uses manual entry; the QR is for compatible companion apps such as Glance.
 4. In **Sessions**, choose Watch for the sessions you need. Start Even-Pilot on G2; it returns to the last available watched session.
@@ -70,14 +70,16 @@ Connection details save automatically. To add another computer, use **Add comput
 ## 5. Daily use
 
 - **Phone:** choose a device/session, inspect folded tool records, manage Watch, or send a prompt to a supported session.
-- **G2 list:** the top row is **+ New prompt**, followed by the latest ten messages. Both role arrows are on the left. Swipe to select and tap to expand full text; long messages split into text parts. Earlier history stays on the phone/computer.
+- **G2 list:** the top row is **New prompt**, including in read-only sessions. While the selected session has active agents, a count row appears directly underneath, followed by the latest ten messages. Counts and new messages defer while browsing to preserve focus. Both role arrows are on the left. Swipe to select and tap a message to expand its full text; long messages split into text parts. Earlier history stays on the phone/computer. Read-only sessions still require their original terminal for input.
 - **G2 input:** tap to start/stop recording, hold to delete the last segment once per second. Double tap on an empty draft returns directly; otherwise choose **Send & exit** or **Exit only**. Voice is optional: save your own OpenAI/ElevenLabs key in **Voice** on the phone.
 - **Exit:** double tap the session list for normal exit confirmation. **Terminate task** is in the menu; it requests interruption only for a supported connector. Linux's watcher CLI provides no prompt or interruption commands.
 - **Glance:** optional per-session completion push, with suppression for the session currently displayed on G2. Scan the sender/center's QR, save and register in Glance. Follow the [Glance guide](https://github.com/Liang-Chu/Glance); configure direct/central routing in **Connection → Glance notifications** or Linux `settings`. [Routing guide](docs/notification-routing.md)
 
 ## Updates and known limitations
 
-Each companion checks public GitHub releases once a day. Installation starts only when you choose Update. The desktop Updates dialog targets the computer serving that page; the phone Hub targets its active computer. Disable automatic checks in the tray/management **Updates**, or run `even-pilot update off`; use `even-pilot update on` to restore them. Installed Linux updates use `even-pilot update`, rather than `npm update`. Settings and native terminals are retained; old payloads stay for running connectors. Hub updates require uploading the matching new Hub package. GitHub pre-releases are excluded from checks. 1.1.0 uses the regular latest-release channel so existing clients can discover it. [Update details](docs/updates.md)
+Each companion checks public GitHub releases once a day. Installation starts only when you choose Update. The desktop Updates dialog targets the computer serving that page; the phone Hub targets its active computer. Windows tray updates download and install directly, with progress and errors shown in the tray. Disable automatic checks in the tray/management **Updates**, or run `even-pilot update off`; use `even-pilot update on` to restore them. Installed Linux updates use `even-pilot update`, rather than `npm update`. Settings and native terminals are retained; old payloads stay for running connectors.
+
+**Updating the desktop/Linux companion does not update the phone Hub app.** Upload/install `even-pilot-1.1.1.ehpk` separately in Even Hub to receive the G2 changes. GitHub pre-releases are excluded from companion checks; 1.1.1 is a normal patch release. [Update details](docs/updates.md)
 
 Physical G2 gestures, Bluetooth responsiveness, live voice and centralized Glance delivery still need acceptance on your devices. Claude remains experimental. [Audit evidence and limits](docs/release-status.md)
 

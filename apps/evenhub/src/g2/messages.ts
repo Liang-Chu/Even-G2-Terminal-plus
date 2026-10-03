@@ -56,37 +56,55 @@ export function messageParts(text: string): string[] {
 export class MessageBrowser {
   private live: G2Messages = { messages: [], limited: false };
   private frozen?: G2Messages;
+  private liveActivity?: string;
+  private frozenActivity?: { label?: string };
+  private activityFocus = false;
   selected = 0;
   detail?: { message: G2Message; parts: string[]; part: number; revision: number };
   private revision = 0;
-  private cachedRows?: { history: G2Messages; input: string; compact: boolean; rows: MessageRow[] };
-  reset() { this.selected = 0; this.frozen = undefined; this.detail = undefined; }
+  private cachedRows?: { history: G2Messages; activity?: string; compact: boolean; rows: MessageRow[] };
+  reset() { this.selected = 0; this.activityFocus = false; this.frozen = undefined; this.frozenActivity = undefined; this.detail = undefined; }
   update(history: G2Messages) {
     this.live = history;
     // Startup can mount the input row before connection/history arrives. There
     // is no message focus to preserve yet: hydrate it without requiring Refresh.
-    if (this.frozen && !this.frozen.messages.length && history.messages.length) this.frozen = undefined;
+    if (this.frozen && !this.frozen.messages.length && history.messages.length && this.inputSelected) {
+      this.frozen = undefined; this.frozenActivity = undefined;
+    }
   }
+  updateActivity(label?: string) { this.liveActivity = label; }
   get history() { return this.frozen || this.live; }
   get messages() { return this.history.messages; }
-  get inputSelected() { return this.selected === 0; }
+  get inputSelected() { return this.selected === 0 && !this.activityFocus; }
+  get activitySelected() { return this.activityFocus; }
   get changed() {
     return !!this.frozen && (this.frozen.limited !== this.live.limited || this.frozen.messages.length !== this.live.messages.length || this.frozen.messages.some((message, i) =>
       message.id !== this.live.messages[i]?.id || message.text !== this.live.messages[i]?.text));
   }
-  hold() { this.frozen ||= this.live; }
+  hold() {
+    if (this.frozen) return;
+    this.frozen = this.live; this.frozenActivity = { label: this.liveActivity };
+  }
   refresh() {
-    if (this.detail || !this.inputSelected || !this.changed) return false;
-    this.frozen = undefined;
+    const activityChanged = this.frozenActivity && this.frozenActivity.label !== this.liveActivity;
+    if (this.detail || !this.inputSelected || !this.changed && !activityChanged) return false;
+    this.frozen = undefined; this.frozenActivity = undefined;
     return true;
   }
   scroll(direction: number) {
     if (this.detail) return;
     this.hold();
+    this.activityFocus = false;
     this.selected = Math.max(0, Math.min(this.messages.length, this.selected + direction));
   }
   selectInput() { this.reset(); }
+  selectActivity() { this.hold(); this.activityFocus = true; }
+  selectedRow(rows: readonly { key?: string }[]) {
+    const key = this.activityFocus ? "working-agents" : this.selected === 0 ? "input" : this.messages[this.selected - 1]?.id;
+    return rows.findIndex(row => row.key === key);
+  }
   open() {
+    if (this.activityFocus) return;
     const message = this.messages[this.selected - 1];
     if (!message) return;
     this.hold();
@@ -97,11 +115,12 @@ export class MessageBrowser {
     if (!this.detail) return;
     this.detail.part = Math.max(0, Math.min(this.detail.parts.length - 1, this.detail.part + direction));
   }
-  rows(canPrompt: boolean, inputLabel?: string, compact = false): MessageRow[] {
-    const input = inputLabel || (canPrompt ? "+ New prompt" : "Reply in the original Terminal");
-    if (this.cachedRows?.history === this.history && this.cachedRows.input === input && this.cachedRows.compact === compact) return this.cachedRows.rows;
-    const rows = [{ key: "input", label: input }, ...this.messages.map(message => ({ key: message.id, label: messageLabel(message, compact) }))];
-    this.cachedRows = { history: this.history, input, compact, rows };
+  rows(compact = false): MessageRow[] {
+    const activity = this.frozenActivity ? this.frozenActivity.label : this.liveActivity;
+    if (this.cachedRows?.history === this.history && this.cachedRows.activity === activity && this.cachedRows.compact === compact) return this.cachedRows.rows;
+    const rows = [{ key: "input", label: "New prompt" }, ...(activity ? [{ key: "working-agents", label: activity }] : []),
+      ...this.messages.map(message => ({ key: message.id, label: messageLabel(message, compact) }))];
+    this.cachedRows = { history: this.history, activity, compact, rows };
     return rows;
   }
 }

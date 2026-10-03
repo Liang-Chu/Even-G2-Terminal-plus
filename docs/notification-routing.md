@@ -1,6 +1,6 @@
 # Notification routing
 
-Each computer can send directly to Glance or forward completion events to one center. This works on Windows and Linux; use matching 1.1.0 companions.
+Each computer can send directly to Glance or forward completion events to one center. This works on Windows and Linux; use matching 1.1.1 companions.
 
 ## Independent sending
 

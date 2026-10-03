@@ -1,6 +1,6 @@
 # Linux 安装和运行
 
-1.1.0 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。已在 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6** 上验证。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
+1.1.1 的发布包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。上一版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次补丁的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
 
 发行版仍需能运行官方 Node Linux 二进制；Alpine/musl 不适用此预编译包。ARM64 构建脚本可在对应 Linux 主机运行，但当前未进行 ARM64 实机验收。GNOME、KDE、XFCE、Kitty、xterm 的启动参数有回归测试；NUC 没有图形桌面，不能代替这些桌面的实机验收。
 
@@ -9,12 +9,12 @@
 在普通用户的终端里执行：
 
 ```sh
-sh ./Even-Pilot-1.1.0-Setup-linux-x64.run
+sh ./Even-Pilot-1.1.1-Setup-linux-x64.run
 ```
 
 安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。安装后新开的 Bash、Zsh、Fish 或支持的 POSIX 登录 shell 可直接输入 `even-pilot`。当前终端先用完整路径，或执行 `export PATH="$HOME/.local/bin:$PATH"`；自定义 bin 目录按安装器输出添加。安装器保留用户自己的 shell 内容，遇到链接／不支持的 shell 会提示手工设置。首次安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
 
-自定义目录：`sh ./Even-Pilot-1.1.0-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。更新时下载新版本的 `.run`，按同样的 `sh ./文件名.run` 命令执行即可，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。
+自定义目录：`sh ./Even-Pilot-1.1.1-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。更新时下载新版本的 `.run`，按同样的 `sh ./文件名.run` 命令执行即可，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。
 
 运行环境可用时支持直接解压 `.tar.gz` 到专用文件夹，再运行 `./bin/even-pilot open`；不把便携文件覆盖到正在运行的版本目录。
 
@@ -59,7 +59,7 @@ even-pilot new claude --cwd /your/project
 ~/.local/bin/even-pilot new codex --cwd ~/project --name "My task"
 ```
 
-`watch` 只监控，`unwatch` 只取消监控，两者都不打开或关闭终端。`select` 才打开或复用终端并选中会话；`new` 创建独立原生终端。1.1.0 的 Linux CLI 仅提供监控、管理和设置，已移除 `send`、`interrupt`、`terminal` 包装命令；实际 prompt 在原生终端或受支持的手机／G2 页面输入。
+`watch` 只监控，`unwatch` 只取消监控，两者都不打开或关闭终端。`select` 才打开或复用终端并选中会话；`new` 创建独立原生终端。自 1.1.0 起，Linux CLI 仅提供监控、管理和设置，已移除 `send`、`interrupt`、`terminal` 包装命令；实际 prompt 在原生终端或受支持的手机／G2 页面输入。
 
 `sessions --watched` 只列已 Watch；`sessions --json` 输出完整 key，便于脚本调用。`even-pilot --help` 查看全部命令。自己的 Pi/Codex 仍用原本的 `pi`／`codex` 启动；如需断开 SSH 后继续，先进入自己的 tmux 会话。
 

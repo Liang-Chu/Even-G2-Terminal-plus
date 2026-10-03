@@ -116,7 +116,7 @@ test("rejected rich pages recover to a visible native list and readable messages
     const startupAttempts = code === 1 ? 3 : 2;
     assert.equal(attempted.length, startupAttempts); assert.equal(attempted[0].containerTotalNum, 6);
     const list = attempted.at(-1).listObject[0];
-    assert.deepEqual(list.itemContainer.itemName, ["+ New prompt", "← Complete answer", "→ Question"]);
+    assert.deepEqual(list.itemContainer.itemName, ["New prompt", "← Complete answer", "→ Question"]);
     assert.deepEqual([list.width, list.height], [560, 222]);
     assert.match(f.statuses.at(-1)!, new RegExp(`G2 connected · basic view .*\\(${code}\\)`));
     f.display.handleEvent({ listEvent: { containerID: 8, eventType: 2, currentSelectItemIndex: 1 } } as any);
@@ -129,7 +129,7 @@ test("rejected rich pages recover to a visible native list and readable messages
     f.display.handleEvent({ textEvent: { eventType: 2, containerID: 1 } } as any); await wait();
     assert.equal(attempted.length, before); assert.equal(f.texts.length, writes);
     f.display.handleEvent({ textEvent: { eventType: 3 } } as any); await wait();
-    assert.ok(attempted.at(-1).listObject); assert.match(f.preview(), /^> \+ New prompt/);
+    assert.ok(attempted.at(-1).listObject); assert.match(f.preview(), /^> New prompt/);
     f.device("disconnected"); f.device("connected"); await wait();
     assert.ok(attempted.slice(startupAttempts - 1).every(page => page.containerTotalNum <= 3), "reconnect keeps the working layout instead of retrying the rejected one");
   }
@@ -213,7 +213,7 @@ test("opening before the phone connects shows a connection notice then existing 
     { id: 2, at: 2, role: "assistant", text: "Existing answer" },
   ] }, true); await wait(350);
   const labels = (f.layouts.at(-1) as any).listObject[0].itemContainer.itemName;
-  assert.deepEqual(labels, ["+ New prompt", "← Existing answer", "→ Existing question"]);
+  assert.deepEqual(labels, ["New prompt", "← Existing answer", "→ Existing question"]);
   const count = f.layouts.length;
   f.display.handleEvent({ listEvent: { containerID: 8, eventType: 2, currentSelectItemIndex: 2 } } as any);
   f.display.update({ ...state(), transcript: [

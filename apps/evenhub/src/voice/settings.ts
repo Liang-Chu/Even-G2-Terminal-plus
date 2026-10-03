@@ -20,7 +20,7 @@ export class VoiceSettings {
     this.dialog = document.createElement("dialog");
     this.dialog.className = "voice-settings";
     this.dialog.innerHTML = `<form><div class="dialog-heading"><h2>Voice input</h2><button type="button" data-close class="subtle" aria-label="Close voice settings">✕</button></div>
-      <p>Select + New prompt to edit. Tap to start/stop recording, hold to delete. Double tap opens Send &amp; exit / Exit only, with Send &amp; exit selected. Confirm to return to the session; an empty draft sends nothing.</p>
+      <p>Select New prompt to edit. Tap to start/stop recording, hold to delete. Double tap opens Send &amp; exit / Exit only, with Send &amp; exit selected. Confirm to return to the session; an empty draft sends nothing.</p>
       <label for="voice-provider">Speech service</label><select id="voice-provider"><option value="whisper">OpenAI</option><option value="elevenlabs">ElevenLabs Scribe</option></select>
       <div data-openai-model><label for="voice-model">Transcription model</label><select id="voice-model"><option value="whisper-1">Whisper · complete result</option><option value="gpt-transcribe">GPT Transcribe · stream text sooner</option></select></div>
       <p class="caption" data-model></p><label for="voice-key">API key</label><input id="voice-key" type="password" autocomplete="off" spellcheck="false" maxlength="4096" placeholder="Paste your speech service key">

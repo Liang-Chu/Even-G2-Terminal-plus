@@ -2,7 +2,7 @@
 
 在 Windows 或 Linux 正常使用 **Pi / Codex / Claude Code**，在手机和 Even G2 上查看进度、切换已 Watch 的会话、发送文字或语音。完整输出仍在原生终端里。
 
-**1.1.0** · Windows 10/11 x64 · Linux x64/glibc · Even Hub/G2。支持多台电脑及独立／集中 Glance 通知；最新真机交互仍待验收。
+**1.1.1** · Windows 10/11 x64 · Linux x64/glibc · Even Hub/G2。支持多台电脑及独立／集中 Glance 通知；最新真机交互仍待验收。
 
 [下载](https://github.com/Liang-Chu/Even-Pilot/releases) · [English](README.md) · [发布说明](RELEASE_NOTES.md)
 
@@ -23,7 +23,7 @@
 
 ### Windows
 
-1. 双击 **Even-Pilot-1.1.0-Setup-x64.exe**，点击 **Install**。安装本身可离线完成，无需管理员权限。
+1. 双击 **Even-Pilot-1.1.1-Setup-x64.exe**，点击 **Install**。安装本身可离线完成，无需管理员权限。
 2. 完成后自动打开会话管理页，桌面和开始菜单生成 **Even-Pilot** 快捷方式。以后直接双击快捷方式。默认端口为 **4317**。
 3. 新安装默认位于 `%LOCALAPPDATA%\Programs\Even-Pilot`。检测到正在运行的便携版时，默认在原目录升级，保留 `.local` 的 key、Watch 和订阅；可用 **Browse** 选择位置。
 4. 如需开机启动，右键托盘，勾选 **Start with Windows**。以后登录 Windows 时安静启动；双击托盘打开管理页。
@@ -36,10 +36,10 @@ Windows 设置 → 应用 → **Even-Pilot** 可卸载。卸载前关闭连接�
 
 ### Linux（桌面或 SSH / NUC）
 
-1. 下载 **Even-Pilot-1.1.0-Setup-linux-x64.run**，在文件所在目录运行，**不要加 sudo**：
+1. 下载 **Even-Pilot-1.1.1-Setup-linux-x64.run**，在文件所在目录运行，**不要加 sudo**：
 
    ```sh
-   sh ./Even-Pilot-1.1.0-Setup-linux-x64.run
+   sh ./Even-Pilot-1.1.1-Setup-linux-x64.run
    ```
 
 2. 有图形桌面会打开管理页，以后从应用菜单打开 **Even-Pilot**。无桌面时安装器打印管理地址。新开一个支持的 shell 后直接运行 `even-pilot`；`even-pilot pair` 打印 URL、connection key 和 Glance 二维码。当前终端可先用 `~/.local/bin/even-pilot`，或执行安装器打印的 PATH 命令。Even Hub 目前手工填写 URL/key。
@@ -47,7 +47,7 @@ Windows 设置 → 应用 → **Even-Pilot** 可卸载。卸载前关闭连接�
 4. 可选登录自启动：`even-pilot autostart on`。服务器要在退出 SSH 后、重启后持续运行，按 [Linux 指南](docs/linux.md)启用用户 lingering。
 5. `even-pilot status` 查看状态；`even-pilot stop` 停监控，`even-pilot start` 启动，`even-pilot uninstall` 卸载。退出网页、停止后台和 Unwatch 都不终止 CLI。卸载前自行关闭连接中的终端；key 保留在 `~/.local/share/even-pilot`。
 
-**更新：**运行 `even-pilot update` 下载、校验并安装 GitHub 的最新常规发布，不使用 `npm update`。GitHub 预发布不参与检查；1.1.0 通过常规最新发布供现有客户端发现。也可下载本次 `.run` 手工升级，key、Watch 和推送设置保留。
+**更新：**运行 `even-pilot update` 下载、校验并安装 GitHub 的最新常规发布，不使用 `npm update`。GitHub 预发布不参与检查；1.1.1 通过常规最新发布供现有客户端发现。也可下载本次 `.run` 手工升级，key、Watch 和推送设置保留。
 
 **纯 SSH 管理：**运行 `even-pilot sessions` 列出会话，用短 KEY 执行 `even-pilot watch KEY`、`even-pilot unwatch KEY` 或 `even-pilot select KEY`。`even-pilot new codex --cwd ~/project` 在无头环境中创建 tmux 终端；`even-pilot settings` 管理推送和 Firebase，`even-pilot pair` 显示连接信息。CLI 只负责监控和管理，不提供发送 prompt 或中断任务命令；实际输入在原生终端或已支持的手机／G2 页面完成。不要求浏览器，完整示例见 [Linux 指南](docs/linux.md)。
 
@@ -104,7 +104,7 @@ Windows 设置 → 应用 → **Even-Pilot** 可卸载。卸载前关闭连接�
 
 ## 5. 在 Even Hub 连接桌面
 
-1. 在 Even Hub 上传／安装 **even-pilot-1.1.0.ehpk**，使用 Even App **2.2.10 或更新版本**，确认 G2 已连接手机。
+1. 在 Even Hub 上传／安装 **even-pilot-1.1.1.ehpk**，使用 Even App **2.2.10 或更新版本**，确认 G2 已连接手机。
 2. 桌面点击 **Phone URL & key**，复制 **Bridge URL** 和 **Connection key**。URL 应使用上一步手机能打开的电脑地址。
 3. 手机的 Even Hub 中打开 **Even-Pilot → Connection**，粘贴两项，点击 **Save computer**。Key 只填原值，不加 `Bearer`。
 4. 在手机 **Sessions** 首页确认设备显示 **Online**，再从眼镜打开 Even-Pilot。默认进入上次打开的已 Watch 会话；没有时先在手机或桌面勾选 Watch。
@@ -128,7 +128,7 @@ Windows 设置 → 应用 → **Even-Pilot** 可卸载。卸载前关闭连接�
 
 - **手机页面：**顶部 **Sessions / Conversation / G2** 切换。点会话立即进入 Conversation，可查看反馈和发送 prompt；连续工具记录默认折叠成 **Tools · N calls**，点开看详情；运行信息收在 **Session details**。G2 预览和诊断在 G2 页，连接和语音设置仍在顶部。**Watching** 表示已监控，再点一次取消监控，不停止终端。
 - **会话管理：**桌面每次显式打开时默认 Watch 最近 24 小时更新的会话。勾选 Watch 不弹窗口，选中才打开；Unwatch 不影响原终端。眼镜只显示当前在线的已 Watch 会话，系统菜单 **Sessions** 切换。
-- **眼镜会话页：**原生单列列表，最上面是 **+ New prompt**，单击进入编辑。下面最多保留最近十条消息，最新在前；每条只占一行，正文超长以 `...` 截断。两种箭头都在左侧：`←` 为 agent，`→` 为你。首次历史到达时自动显示，无需手动刷新。滑动选择、单击展开全文，双击回到列表；超长全文用菜单 **Next part / Previous part** 查看，更早历史在手机或电脑查看。
+- **眼镜会话页：**原生单列列表，最上面统一显示 **New prompt**；支持远程输入的会话单击进入编辑，只读会话仍在原生终端输入。当前会话有活跃 agent 时，下一行显示数量，再下面是最近十条消息，最新在前。浏览期间数量和新消息延后更新，避免重置光标。每条消息只占一行，超长以 `...` 截断；箭头均在左侧，`←` 为 agent，`→` 为你。首次历史到达时自动显示。滑动选择、单击消息展开全文，双击回到列表；超长全文用菜单 **Next part / Previous part** 查看，更早历史在手机或电脑查看。
 - **退出与终止：**列表页双击弹出退出确认，正在运行的任务继续。**Terminate task** 请求中断受支持的当前任务，排在应用菜单项首位、**Sessions** 前面；系统项由固件插入，不能固定整个菜单的行号。停在输入行时自动合并新消息；浏览列表、全文或编辑时保留位置，出现 **+new** 后从全文／编辑页返回即可载入最新消息。
 - **编辑页：**单击开始／停止录音；长按删除上一段，每秒一段；空白草稿双击直接返回会话；有文字、已录音或等待转写时，双击弹出原生确认，默认选中 **Send & exit**（发送并返回会话），另一项 **Exit only**（丢弃草稿并返回会话）。单击确认；确认页双击返回编辑，保留草稿。空草稿不发送。菜单第一项 **Back** 丢弃草稿并返回，后面保留 **Send**。转写未完成时等完整结果再发送，失败不发送残缺草稿。
 - **语音设置：**手机 **Voice** 中选择 OpenAI 或 ElevenLabs，填写自己的 API key 并保存。默认保存在手机，**Clear all keys** 可清除。语音 key 与 connection key 不同，详见[语音说明](docs/voice.md)。
@@ -143,16 +143,16 @@ Windows 设置 → 应用 → **Even-Pilot** 可卸载。卸载前关闭连接�
 安装版再次运行对应系统的安装包即可更新，保留原 key 和 Watch；便携版和源码的手动更新见[更新与源码构建](docs/development.md)。新 Hub 包需要重新上传安装。
 
 - [API 要求和端点](docs/api.md) · [连接器与兼容性](docs/connectors.md) · [G2 摘要格式](docs/g2-output-contract.md)
-- [文档目录](docs/README.md) · [1.1.0 发布说明](RELEASE_NOTES.md) · [验证结果与已知限制](docs/release-status.md)
+- [文档目录](docs/README.md) · [1.1.1 发布说明](RELEASE_NOTES.md) · [验证结果与已知限制](docs/release-status.md)
 
 Claude 连接器暂列实验支持：实际模型响应和真实终端取消尚未完成验收。当前 Hub 完整布局、手势和蓝牙性能仍需实机复测，具体边界见[发布状态](docs/release-status.md)。
 
 ## 应用更新
 
-- 默认每天检查一次 GitHub 常规发布，只提示，不自动安装。Windows 托盘和手机／桌面管理页的 **Updates** 可查看版本并点击更新；桌面页更新提供当前页面的电脑，手机 Hub 更新当前选中的电脑，不再提供额外设备下拉框。GitHub 预发布不参与检查；本次 1.1.0 作为常规最新发布提供更新。
+- 默认每天检查一次 GitHub 常规发布，只提示，不自动安装。Windows 托盘和手机／桌面管理页的 **Updates** 可查看版本并点击更新；桌面页更新提供当前页面的电脑，手机 Hub 更新打开弹窗时的当前电脑，不再提供额外设备下拉框。托盘直接下载和安装，显示下载百分比、安装状态及错误，不跳转浏览器。GitHub 预发布不参与检查；1.1.1 是常规补丁发布。
 - 关闭 **Automatically check for updates** 后不再后台请求或显示新版本提醒，设置保存在对应电脑，重启后仍有效。**Check now** 可手动检查。
 - Linux：`even-pilot update` 更新，`update check` 只检查，`update off` 关闭自动检查，`update on` 恢复，`update status` 查看状态。命令也可写完整路径 `~/.local/bin/even-pilot`。
 - 更新校验 GitHub 发布的 SHA-256，保留连接及监控设置，仅重启监控后台；启动检查失败会尝试恢复之前版本。已有原生终端继续运行。源代码目录不自动覆盖，先使用安装器安装即可启用应用内更新。
-- 发布下载：[GitHub Releases](https://github.com/Liang-Chu/Even-Pilot/releases)。Hub 包仍在 Even Hub 中单独上传／更新。详见[更新说明](docs/updates.md)。
+- **电脑端更新不会更新手机 Hub 应用。**请在 Even Hub 单独上传／安装 `even-pilot-1.1.1.ehpk`，眼镜才能获得本次改动。下载见 [GitHub Releases](https://github.com/Liang-Chu/Even-Pilot/releases)，详细步骤见[更新说明](docs/updates.md)。
 
 本次准备的是 GitHub 分发的安装包，未发布 npm 包。发布步骤和 Even Hub 可粘贴的简介见[发布指南](docs/publishing.md)。

@@ -199,7 +199,7 @@ test("G2 choices use SDK taps immediately and reject expired or disconnected sel
   const state = { ...initialState(), connected: true, session: { key: "session", cwd: "" }, interactions: [choice] };
   display.update(state, true); assert.match(body, /Which option/); display.scroll(1); assert.match(body, /2\/2 Yes/);
   display.handleEvent({ textEvent: { eventType: 3 } } as any);
-  assert.equal(replies.length, 0); assert.match(body, /pending choice/);
+  assert.equal(replies.length, 0); assert.match(body, /^> New prompt\n/);
   await delay(120); display.toggle(); display.handleEvent({ textEvent: { eventType: 0 } } as any); await delay(120);
   assert.equal(replies.length, 1); assert.deepEqual(replies[0].answer.answers, { q: "yes" });
   display.update({ ...state, interactions: [{ ...choice, id: "second", expiresAt: Date.now() - 1 }] }, true);

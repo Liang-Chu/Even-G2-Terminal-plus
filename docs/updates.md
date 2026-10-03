@@ -4,9 +4,11 @@ Published installers come from [Liang-Chu/Even-Pilot Releases](https://github.co
 
 ## Windows and management page
 
-1. Open **Updates** in the desktop page to update the computer serving that page. In the phone Hub it targets the active computer when the dialog opens. There is no additional computer selector. You can also use the Windows tray's **Check for updates**.
+1. Open **Updates** in the desktop page to update the computer serving that page. In the phone Hub it targets the active computer when the dialog opens. There is no additional computer selector. From the Windows tray, choose **Check for updates**, then **Update to …** when a version is available.
 2. Review the installed and available versions. Choose **Update to …** to start downloading and installing on that computer.
 3. The monitoring backend reconnects after installation. Native CLI windows remain open.
+
+The tray starts the download/install directly and shows **Downloading update: …%** followed by **Installing update…**. Progress is polled more frequently during work. Update actions are disabled while a request or installation is in progress, and failures are shown directly; the tray does not open a browser to perform the update.
 
 Clear **Automatically check for updates** to disable background release requests and reminders on that computer. The preference persists across restarts and applies to all connected screens. Manual **Check now** remains available. Installation never starts automatically just because a release was found.
 
@@ -28,7 +30,7 @@ The updater uses the fixed public repository over HTTPS, an exact platform/versi
 
 Installers retain old payload directories because working native terminals may still use them. The installer starts the new backend and checks its version. If startup fails, it restores the previous selection and attempts to restart it. Configuration, pairing keys, Watch and notification settings remain in their existing data directory. Existing terminals load connector changes when reopened, or Pi when reloaded while idle.
 
-Hub packages have their own Even Hub installation/update flow; a backend update does not replace the phone Hub package.
+**Updating a Windows/Linux companion does not replace the phone Hub package.** To receive the 1.1.1 G2 changes, upload/install `even-pilot-1.1.1.ehpk` separately through Even Hub. Existing phone connection and voice settings remain saved.
 
 ## Control API
 

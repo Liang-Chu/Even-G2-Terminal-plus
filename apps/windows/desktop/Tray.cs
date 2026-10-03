@@ -11,8 +11,8 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Even-Pilot")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.0.0")]
-[assembly: System.Reflection.AssemblyVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.1.0")]
 
 // Native tray UI. The bridge and its Pi sessions have an independent lifetime.
 class PilotTray : ApplicationContext {
@@ -36,6 +36,9 @@ class PilotTray : ApplicationContext {
     readonly ToolStripMenuItem updateAction = new ToolStripMenuItem("Check for updates");
     DateTime updatesAt = DateTime.MinValue;
     string availableVersion, notifiedVersion;
+    string updatePhase = "idle";
+    int updateProgress;
+    bool installSupported;
     bool updating;
     static int Port() {
         int value; string configured = Environment.GetEnvironmentVariable("EVEN_PILOT_PORT");
@@ -63,11 +66,7 @@ class PilotTray : ApplicationContext {
         autoStart.Click += (s, e) => ToggleStartup();
         menu.Items.Add(autoStart);
         updateAction.Click += async (s, e) => await UpdateAction(); menu.Items.Add(updateAction);
-        autoUpdates.Click += async (s, e) => {
-            if (updating) return;
-            try { await UpdateRequest("/api/updates/settings", new { automaticChecks = !autoUpdates.Checked }); await ReadUpdates(false); }
-            catch { updateAction.Text = "Update settings unavailable"; }
-        };
+        autoUpdates.Click += async (s, e) => await ToggleAutomaticUpdates();
         menu.Items.Add(autoUpdates);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit Even-Pilot", null, (s, e) => Quit());
@@ -106,40 +105,66 @@ class PilotTray : ApplicationContext {
         }
     }
     async Task<Dictionary<string, object>> UpdateRequest(string path, object body = null) {
-        using (var content = body == null ? null : new StringContent(json.Serialize(body), Encoding.UTF8, "application/json"))
-        using (var response = body == null ? await http.GetAsync(path) : await http.PostAsync(path, content)) {
-            response.EnsureSuccessStatusCode();
-            return json.Deserialize<Dictionary<string, object>>(await response.Content.ReadAsStringAsync());
-        }
+        return await TrayUpdateActions.Request(http, json, path, body);
+    }
+    void ApplyUpdates(Dictionary<string, object> data, bool manual) {
+        string previousPhase = updatePhase;
+        bool automatic = Convert.ToBoolean(data["automaticChecks"]);
+        autoUpdates.Checked = automatic;
+        var available = data["available"] as Dictionary<string, object>;
+        availableVersion = available == null ? null : Convert.ToString(available["version"]);
+        if (!automatic && !manual) availableVersion = null;
+        updatePhase = Convert.ToString(data["phase"]);
+        updateProgress = Convert.ToInt32(data["progress"]);
+        installSupported = Convert.ToBoolean(data["installSupported"]);
+        bool working = TrayUpdateActions.Working(updatePhase);
+        updatesAt = DateTime.UtcNow.AddSeconds(working ? 2 : 60);
+        updateAction.Text = TrayUpdateActions.Label(updatePhase, updateProgress, availableVersion, installSupported);
+        updateAction.Enabled = autoUpdates.Enabled = !working;
+        if (working) icon.Text = "Even-Pilot · " + updateAction.Text;
+        string error = data["error"] == null ? null : Convert.ToString(data["error"]);
+        if (!working && (manual || TrayUpdateActions.Working(previousPhase)) && !String.IsNullOrEmpty(error))
+            icon.ShowBalloonTip(7000, TrayUpdateActions.Working(previousPhase) ? "Even-Pilot update failed" : "Even-Pilot updates", error, ToolTipIcon.Warning);
+        else if (!working && availableVersion != null && (manual || automatic && notifiedVersion != availableVersion)) {
+            notifiedVersion = availableVersion;
+            icon.ShowBalloonTip(7000, "Even-Pilot update available", "Version " + availableVersion + ". Right-click the tray icon and choose Update to install.", ToolTipIcon.Info);
+        } else if (manual && availableVersion == null && !working)
+            icon.ShowBalloonTip(5000, "Even-Pilot updates", String.IsNullOrEmpty(error) ? "No newer release available." : error, ToolTipIcon.Info);
     }
     async Task ReadUpdates(bool manual) {
         if (updating) return; updating = true; updatesAt = DateTime.UtcNow.AddSeconds(60);
         try {
-            var data = await UpdateRequest("/api/updates");
-            bool automatic = Convert.ToBoolean(data["automaticChecks"]);
-            autoUpdates.Checked = automatic;
-            var available = data["available"] as Dictionary<string, object>;
-            availableVersion = available == null ? null : Convert.ToString(available["version"]);
-            if (!automatic && !manual) availableVersion = null;
-            bool working = Convert.ToString(data["phase"]) == "downloading" || Convert.ToString(data["phase"]) == "installing";
-            autoUpdates.Enabled = !working;
-            updateAction.Enabled = !working;
-            updateAction.Text = working ? "Updating…" : availableVersion != null && Convert.ToBoolean(data["installSupported"]) ? "Update to " + availableVersion : "Check for updates";
-            if (!working && availableVersion != null && (manual || automatic && notifiedVersion != availableVersion)) {
-                notifiedVersion = availableVersion;
-                icon.ShowBalloonTip(7000, "Even-Pilot update available", "Version " + availableVersion + ". Right-click the tray icon to update.", ToolTipIcon.Info);
-            } else if (manual && availableVersion == null) icon.ShowBalloonTip(5000, "Even-Pilot updates", data["error"] == null ? "No newer release available." : Convert.ToString(data["error"]), ToolTipIcon.Info);
-        } catch { updateAction.Text = "Check for updates"; }
+            ApplyUpdates(await UpdateRequest("/api/updates"), manual);
+        } catch {
+            updatesAt = DateTime.UtcNow.AddSeconds(TrayUpdateActions.Working(updatePhase) ? 2 : 60);
+            if (!TrayUpdateActions.Working(updatePhase)) updateAction.Text = "Check for updates";
+        }
         finally { updating = false; }
     }
     async Task UpdateAction() {
-        if (updating) return;
+        if (updating || TrayUpdateActions.Working(updatePhase)) return;
+        updating = true; updateAction.Enabled = autoUpdates.Enabled = false;
+        bool installing = availableVersion != null && installSupported;
+        updateAction.Text = installing ? "Starting update…" : "Checking for updates…";
         try {
-            if (availableVersion != null && updateAction.Text.StartsWith("Update to ")) {
-                await UpdateRequest("/api/updates/install", new { version = availableVersion });
-            } else await UpdateRequest("/api/updates/check", new { });
-            await ReadUpdates(true);
-        } catch { icon.ShowBalloonTip(5000, "Even-Pilot updates", "Could not check or start the update. Open Updates in the manager for details.", ToolTipIcon.Warning); }
+            // This click is the explicit install action. Never open the browser
+            // or install a version that has not been offered by the backend.
+            ApplyUpdates(await TrayUpdateActions.Perform(http, json, availableVersion, installSupported), true);
+        } catch (Exception error) {
+            updatesAt = DateTime.UtcNow.AddSeconds(2);
+            updateAction.Text = TrayUpdateActions.Label(updatePhase, updateProgress, availableVersion, installSupported);
+            updateAction.Enabled = autoUpdates.Enabled = !TrayUpdateActions.Working(updatePhase);
+            icon.ShowBalloonTip(7000, "Even-Pilot updates", TrayUpdateActions.Error(error), ToolTipIcon.Warning);
+        } finally { updating = false; }
+    }
+    async Task ToggleAutomaticUpdates() {
+        if (updating || TrayUpdateActions.Working(updatePhase)) return;
+        updating = true; updateAction.Enabled = autoUpdates.Enabled = false;
+        try { ApplyUpdates(await UpdateRequest("/api/updates/settings", new { automaticChecks = !autoUpdates.Checked }), false); }
+        catch (Exception error) {
+            updateAction.Enabled = autoUpdates.Enabled = true;
+            icon.ShowBalloonTip(7000, "Even-Pilot update settings", TrayUpdateActions.Error(error), ToolTipIcon.Warning);
+        } finally { updating = false; }
     }
     async Task<bool> Refresh() {
         if (checking || exiting) return false;
@@ -152,7 +177,7 @@ class PilotTray : ApplicationContext {
                 if (exiting) return false;
                 string label = Convert.ToString(data["running"]) + " running / " + Convert.ToString(data["watched"]) + " watched";
                 status.Text = "Background: Running"; activity.Text = label;
-                string tooltip = "Even-Pilot · " + label;
+                string tooltip = "Even-Pilot · " + (TrayUpdateActions.Working(updatePhase) ? TrayUpdateActions.Label(updatePhase, updateProgress, null, false) : label);
                 icon.Text = tooltip.Substring(0, Math.Min(63, tooltip.Length));
                 startBackground.Enabled = false;
                 return true;
@@ -304,5 +329,39 @@ class PilotTray : ApplicationContext {
                 }
             }
         }
+    }
+}
+
+// Kept separate from the tray lifetime so transport and explicit install
+// behavior can be verified without launching a browser or touching sessions.
+internal static class TrayUpdateActions {
+    internal static bool Working(string phase) { return phase == "downloading" || phase == "installing"; }
+    internal static string Label(string phase, int progress, string version, bool supported) {
+        if (phase == "downloading") return "Downloading update: " + Math.Max(0, Math.Min(100, progress)) + "%";
+        if (phase == "installing") return "Installing update…";
+        return version != null && supported ? "Update to " + version : "Check for updates";
+    }
+    internal static async Task<Dictionary<string, object>> Request(HttpClient http, JavaScriptSerializer json, string path, object body = null) {
+        using (var content = body == null ? null : new StringContent(json.Serialize(body), Encoding.UTF8, "application/json"))
+        using (var response = body == null ? await http.GetAsync(path) : await http.PostAsync(path, content)) {
+            string text = await response.Content.ReadAsStringAsync();
+            Dictionary<string, object> data;
+            try { data = json.Deserialize<Dictionary<string, object>>(text); }
+            catch { throw new InvalidOperationException("The monitor returned invalid update information. Try again."); }
+            if (!response.IsSuccessStatusCode) {
+                object message;
+                throw new InvalidOperationException(data != null && data.TryGetValue("error", out message) && message is string
+                    ? (string)message : "Update request returned HTTP " + (int)response.StatusCode + ". Try again.");
+            }
+            if (data == null) throw new InvalidOperationException("The monitor returned invalid update information. Try again.");
+            return data;
+        }
+    }
+    internal static Task<Dictionary<string, object>> Perform(HttpClient http, JavaScriptSerializer json, string version, bool supported) {
+        if (version != null && supported) return Request(http, json, "/api/updates/install", new { version = version });
+        return Request(http, json, "/api/updates/check", new { });
+    }
+    internal static string Error(Exception error) {
+        return error is InvalidOperationException ? error.Message : "Could not reach the monitoring backend. Use Start background in the tray, then try again.";
     }
 }

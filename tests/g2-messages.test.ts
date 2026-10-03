@@ -13,8 +13,8 @@ const wait = () => new Promise(resolve => setTimeout(resolve, 140));
 test("conversation uses one visible native list, top input and newest-first directional labels", () => {
   const browser = new MessageBrowser();
   browser.update({ messages: [message("latest", "user"), message("previous")], limited: false });
-  const entries = browser.rows(true);
-  assert.deepEqual(entries.map(row => row.label), ["+ New prompt", "→ latest", "← previous"]);
+  const entries = browser.rows();
+  assert.deepEqual(entries.map(row => row.label), ["New prompt", "→ latest", "← previous"]);
   const layout = nativeLayout({ layoutKey: "messages:s", body: "", entries, conversationList: true });
   assert.deepEqual(validateEvenHubPageContainer(layout), { valid: true });
   assert.equal(layout.containerTotalNum, 6); assert.equal(layout.textObject!.length, 1);
@@ -57,11 +57,11 @@ test("Chinese conversation rows fill the native width instead of being cut at 63
   }
   const browser = new MessageBrowser();
   browser.update({ messages: [message("wide", "assistant", "中".repeat(100))], limited: false });
-  const normal = browser.rows(true), compact = browser.rows(true, undefined, true);
+  const normal = browser.rows(), compact = browser.rows(true);
   assert.notEqual(compact[1].label, normal[1].label);
   assert.deepEqual(compact.map(row => row.key), normal.map(row => row.key));
-  assert.equal(browser.rows(true, undefined, true), compact, "fallback rows are cached separately");
-  assert.deepEqual(browser.rows(true), normal);
+  assert.equal(browser.rows(true), compact, "fallback rows are cached separately");
+  assert.deepEqual(browser.rows(), normal);
 });
 
 test("UTF-8 bounded native message parts preserve the entire expanded response", () => {
@@ -70,6 +70,18 @@ test("UTF-8 bounded native message parts preserve the entire expanded response",
     assert.equal(parts.join(""),text); assert.ok(parts.length>1);
     assert.ok(parts.every(part=>Buffer.byteLength(part)<=NATIVE_TEXT_BYTES && Buffer.from(part).toString()===part));
   }
+});
+
+test("the first reply cannot replace a selected activity row until returning to input", () => {
+  const browser = new MessageBrowser();
+  browser.updateActivity("… agents: 3"); browser.hold(); browser.selectActivity();
+  const mounted = browser.rows();
+  browser.updateActivity(); browser.update({ messages: [message("first")], limited: false });
+  assert.equal(browser.rows(), mounted);
+  assert.equal(browser.selectedRow(mounted), 1);
+  assert.equal(browser.refresh(), false);
+  browser.selectInput();
+  assert.deepEqual(browser.rows().map(row => row.label), ["New prompt", "← first"]);
 });
 
 test("long Chinese and emoji replies open with visible content in the first page operation", async t => {
@@ -101,10 +113,10 @@ test("native list holds the latest ten messages stable until returning to the li
   const history = glassesMessages({ ...initialState(), transcript: Array.from({ length:14 },(_,i)=>({id:i,at:i,role:i%2?"assistant" as const:"user" as const,text:"Message "+i})) });
   assert.equal(history.messages.length,10); assert.equal(history.limited,true);
   const browser=new MessageBrowser(); browser.update({...history,messages:history.messages.slice().reverse()}); browser.hold();
-  const rows = browser.rows(true);
+  const rows = browser.rows();
   browser.update({messages:[message("new")],limited:false});
-  assert.equal(browser.rows(true), rows, "status and stream updates reuse fitted native labels");
-  assert.equal(browser.rows(true).length,11); assert.equal(browser.messages[0].text,"Message 13"); assert.equal(browser.changed,true);
+  assert.equal(browser.rows(), rows, "status and stream updates reuse fitted native labels");
+  assert.equal(browser.rows().length,11); assert.equal(browser.messages[0].text,"Message 13"); assert.equal(browser.changed,true);
   browser.scroll(2); browser.open(); assert.equal(browser.detail!.message.text,"Message 12");
   browser.back(); browser.selectInput(); assert.equal(browser.messages[0].text,"new"); assert.equal(browser.changed,false);
 });
@@ -140,6 +152,8 @@ test("read-only Codex messages can expand without offering a working input actio
   t.after(() => display.dispose());
   display.update({ ...initialState(), connected: true, session: { key: "s", cwd: "test", tunnel: "codex" },
     capabilities: { prompt: false, interrupt: false }, currentAssistantText: "Readable response" }, true);
+  assert.match(body, /^> New prompt\n/);
+  assert.doesNotMatch(body, /Reply in the original/);
   display.toggle(); assert.equal(opens, 0); assert.match(body, /original terminal/);
   display.scroll(1); display.toggle(); assert.match(body, /^Readable response/); assert.equal(opens, 0);
 });

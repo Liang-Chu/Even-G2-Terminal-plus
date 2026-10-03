@@ -18,6 +18,6 @@ Start with the [step-by-step setup guide](../README.md).
 | Runtime design | [Architecture](architecture.md) |
 | Tested platforms and remaining limits | [Release status](release-status.md) |
 
-[1.1.0 release notes](../RELEASE_NOTES.md)
+[1.1.1 release notes](../RELEASE_NOTES.md)
 
 [Independent and centralized notification routing](notification-routing.md)

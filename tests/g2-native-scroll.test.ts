@@ -64,6 +64,49 @@ test("native conversation taps select every row without any JavaScript swipe eve
  display.handleEvent({listEvent:{containerID:8}} as any);assert.equal(opens,1,"omitted protobuf index is input row zero");
 });
 
+test("working count is below New prompt, inert on tap, and does not shift message actions", async t => {
+  const { bridge, layouts } = bridgeRecorder(); let opens = 0;
+  const display = new G2Display(() => {}, () => {}, undefined, { renderer,
+    input: { open: () => opens++, toggleRecording() {} } });
+  t.after(() => display.dispose());
+  display.update({ ...runtime("Latest reply"), main: { status: "running" },
+    subagents: { active: 3, mainDelegated: true },
+    monitoring: { running: 12, watched: 12, since: 0, sessions: [] } }, true);
+  await display.init(bridge as any); await wait();
+  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName,
+    ["New prompt", "… agents: 3", "← Latest reply"]);
+  display.handleEvent({ listEvent: { containerID: 8, currentSelectItemIndex: 1 } } as any);
+  display.handleEvent({ sysEvent: { eventType: 0 } } as any); await wait();
+  assert.equal(opens, 0, "system click duplicates cannot act through the informational row");
+  assert.ok(layouts.at(-1).listObject, "the count never opens an empty message page");
+  display.handleEvent({ listEvent: { containerID: 8, currentSelectItemIndex: 2 } } as any); await wait();
+  assert.equal(pageText(layouts.at(-1)), "Latest reply");
+  assert.equal(opens, 0);
+});
+
+test("working row changes preserve native browsing focus and disappear after return when idle or offline", async t => {
+  const { bridge, layouts } = bridgeRecorder(); const previews: any[] = [];
+  const display = new G2Display(() => {}, () => {}, undefined, { renderer: {
+    ...renderer, render: frame => { previews.push(frame); return []; },
+  } });
+  t.after(() => display.dispose());
+  const state = { ...runtime("First reply"), main: { status: "running" as const },
+    subagents: { active: 3, mainDelegated: true } };
+  display.update(state, true); await display.init(bridge as any); await wait();
+  display.handleEvent({ listEvent: { containerID: 8, eventType: 2, currentSelectItemIndex: 2 } } as any); await wait();
+  assert.equal(previews.at(-1).list.selected, 2, "phone preview follows the actual message row");
+  const before = layouts.length;
+  display.update({ ...state, main: { status: "idle" }, subagents: { active: 0 } }, true); await wait(2200);
+  assert.equal(layouts.length, before, "count updates cannot reset firmware focus");
+  assert.equal(layouts.at(-1).listObject[0].itemContainer.itemName[1], "… agents: 3");
+  display.back(); await wait();
+  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName, ["New prompt", "← First reply"]);
+  display.update(state, true); await wait(2200);
+  assert.equal(layouts.at(-1).listObject[0].itemContainer.itemName[1], "… agents: 3");
+  display.update(state, false); await wait(2200);
+  assert.deepEqual(layouts.at(-1).listObject[0].itemContainer.itemName, ["New prompt", "← First reply"]);
+});
+
 test("gesture diagnostics retain event metadata but never conversation or audio", async t => {
  const {bridge}=bridgeRecorder(),traces:any[]=[];
  const display=new G2Display(()=>{},()=>{},undefined,{renderer,inputTrace:value=>traces.push(value)});
@@ -273,7 +316,7 @@ test("opening a running session shows newest rows and expanded native scrolling 
   display.handleEvent({ listEvent: { currentSelectItemIndex: 1 } } as any); await wait();
   const body = pageText(layouts.at(-1));
   assert.ok(body.indexOf("Continue on desktop") < body.indexOf("Context line 1:"), "newest row appears first");
-  assert.equal(layouts.at(-1).listObject[0].itemContainer.itemName[0], "+ New prompt");
+  assert.equal(layouts.at(-1).listObject[0].itemContainer.itemName[0], "New prompt");
   display.scroll(1); display.scroll(1); display.toggle(); await wait();
   const expanded = layouts.at(-1).textObject.find((item: any) => item.containerID === 1);
   assert.equal(expanded.isEventCapture, 1); assert.match(expanded.content, /Context line 1:/); assert.match(expanded.content, /Context line 18:/);

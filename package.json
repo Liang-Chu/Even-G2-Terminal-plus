@@ -1,6 +1,6 @@
 {
   "name": "even-pilot",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "Native Pi, Codex and Claude terminal monitoring for Windows, Linux, Even Hub and G2",
@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build",
-    "pack:evenhub": "npm run build:hub && evenhub pack apps/evenhub/app.json apps/evenhub/dist-hub -o even-pilot-1.1.0.ehpk --sdk-ver 0.0.16",
+    "pack:evenhub": "npm run build:hub && evenhub pack apps/evenhub/app.json apps/evenhub/dist-hub -o even-pilot-1.1.1.ehpk --sdk-ver 0.0.16",
     "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/windows/desktop/build.ps1",
     "desktop:test": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/desktop/run.ps1",
     "desktop": "powershell -NoProfile -Command \"Start-Process -FilePath ./Even-Pilot.exe -WindowStyle Hidden\"",

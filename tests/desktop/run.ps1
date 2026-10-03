@@ -14,3 +14,8 @@ $pilotInstallerTests = Join-Path $pilotTestDirectory 'installer-tests.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Installer support tests failed to compile.' }
 & $pilotInstallerTests (Join-Path $pilotRoot 'Even-Pilot.updated.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Installer support tests failed.' }
+$pilotTrayUpdateTests = Join-Path $pilotTestDirectory 'tray-update-tests.exe'
+& $pilotCompiler /nologo /target:exe /main:TrayUpdateTests "/out:$pilotTrayUpdateTests" /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Net.Http.dll /reference:System.Web.Extensions.dll (Join-Path $PSScriptRoot 'TrayUpdateTests.cs') (Join-Path $pilotRoot 'apps/windows/desktop/Tray.cs') (Join-Path $pilotRoot 'apps/windows/desktop/DesktopPaths.cs') (Join-Path $pilotRoot 'apps/windows/desktop/StartupRegistration.cs')
+if ($LASTEXITCODE -ne 0) { throw 'Tray update tests failed to compile.' }
+& $pilotTrayUpdateTests
+if ($LASTEXITCODE -ne 0) { throw 'Tray update tests failed.' }

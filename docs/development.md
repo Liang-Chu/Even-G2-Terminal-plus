@@ -61,19 +61,19 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 
 ## 发布文件与私有文件
 
-`release/1.1.0/` 是准备上传的文件夹：Windows EXE/ZIP、Linux RUN/TAR.GZ、Hub EHPK、`SHA256SUMS.txt` 和简短发布说明。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
+`release/1.1.1/` 是准备上传的文件夹：Windows EXE/ZIP、Linux RUN/TAR.GZ、Hub EHPK、`SHA256SUMS.txt` 和简短发布说明。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 
 ## G2 显示与兼容诊断
 
-当前会话页使用原生单列列表：输入行在最上方，后面最多十条最新消息。两种箭头均在左侧：agent 使用 ←，用户使用 →。列表和 itemWidth 均为 560 px，标签按字体的 544 px 可用宽度和官方 64 字符上限截断，结尾加 ...。混合页面保留一个静态原生文字容器，列表仍是唯一事件捕获控件。只有同一布局缩短标签后被接受，才保留 63 UTF-8 字节的 compact labels 限制；若这次重试仍失败，原生 basic view 会重新尝试完整宽度。此前报告不足以证明固件统一采用字节上限。文字状态栏独立按像素裁切，不使用列表字节限制。
+当前会话页使用原生单列列表：输入行在最上方，统一显示 New prompt，只读会话也保留此标签，但不改变其输入权限。当前会话有活跃 agent 时紧接着显示数量行，再后面最多十条最新消息。两种箭头均在左侧：agent 使用 ←，用户使用 →。列表和 itemWidth 均为 560 px，标签按字体的 544 px 可用宽度和官方 64 字符上限截断，结尾加 ...。混合页面保留一个静态原生文字容器，列表仍是唯一事件捕获控件。只有同一布局缩短标签后被接受，才保留 63 UTF-8 字节的 compact labels 限制；若这次重试仍失败，原生 basic view 会重新尝试完整宽度。此前报告不足以证明固件统一采用字节上限。文字状态栏独立按像素裁切，不使用列表字节限制。
 
 对照实现：[Even Transit](https://github.com/langerhans/even-transit/blob/main/src/pages/results.ts)、[eveng2-demo](https://github.com/bigdra50/eveng2-demo/blob/main/src/pages/list.ts) 都使用原生列表和文字容器；它们的 itemWidth 为 566 或 560 px。[G2CC 的作者实测记录](https://github.com/expectbugs/G2CC/blob/master/docs/G2_BLE_PROTOCOL.md) 也描述了原生文字区域对页面绘制的作用，但这不是 SDK 对所有设备的保证。
 
 `npm run build` 生成桌面/浏览器通用的 `apps/evenhub/dist`；`npm run build:hub` 生成 `apps/evenhub/dist-hub`，编译时排除桌面专用会话管理、配对弹窗和 CSS。`npm run pack:evenhub` 只打包后者。会话管理模块按需导入，语音设置弹窗第一次打开时创建，已保存的 key 仍在启动时恢复。固定版本 @evenrealities/pretext 0.1.4 的字形、范围和字距表在构建时无损压缩，测量函数保持上游实现；测试逐项比对解码表和测量结果，许可保留。
 
-列表捕获事件，原生固件负责滑动、高亮；不依赖逐次滑动回调。点击索引映射到已挂载快照中的消息，展开后由单个文字容器原生滚动。已移除气泡布局、隐藏列表和自绘光标。尚未连接会话时显示连接提示；只有输入行的空快照不阻止第一批历史加载，收到历史后自动重建一次。停在输入行时，新消息每两秒合并更新；列表浏览、全文阅读和编辑期间冻结当前快照，显示 +new，从全文／编辑页返回时读取最新消息。菜单不提供 Refresh messages 或 New prompt。这样不会通过重建列表重置用户正在操作的原生焦点。列表接口不支持就地更新行或设置选中位置，见[官方显示接口](https://github.com/even-realities/everything-evenhub/blob/main/plugins/everything-evenhub/skills/glasses-ui/SKILL.md)。
+列表捕获事件，原生固件负责滑动、高亮；不依赖逐次滑动回调。点击索引映射到已挂载快照中的消息，展开后由单个文字容器原生滚动。已移除气泡布局、隐藏列表和自绘光标。尚未连接会话时显示连接提示；空快照不阻止第一批历史加载，收到历史后自动重建一次。停在输入行时，新消息每两秒合并更新；列表浏览、全文阅读和编辑期间冻结消息和活跃数量快照，显示 +new，从全文／编辑页返回时读取最新值。菜单不提供 Refresh messages 或 New prompt。这样不会通过重建列表重置用户正在操作的原生焦点。列表接口不支持就地更新行或设置选中位置，见[官方显示接口](https://github.com/even-realities/everything-evenhub/blob/main/plugins/everything-evenhub/skills/glasses-ui/SKILL.md)。
 
 顶部和底部均为 16 px 字体，底部仅有上方分割线。四个图片区域为 288×34、288×34、288×26、288×26，共 34,560 像素，与原生列表不重叠。PNG 在页面替换前准备，每条栏的两张图共享一次队列占用并顺序发送，只发送变化的区域；列表滑动不写图片、不重建页面。图片更新不能原子提交，真机仍可能分块补齐。展开文本每部分不超过 900 UTF-8 字节，直接随页面创建发送；部分间通过菜单切换。模拟返回值不能代表眼镜画面或真实 BLE 延迟。
 
@@ -89,4 +89,4 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 
 既有内部所有权标记用于安全更新监控扩展和自启动项。Windows 启动重试只记录无凭据诊断；检查模式等待实际安装版本完成并返回结果。更新任务记录唯一任务 ID、worker/installer PID 和心跳，后端重启后恢复锁；确认进程已退出的失败任务可重试。
 
-监控设置和完成日志写入失败时保留待提交数据并重试；完成事件持久化后才对推送或轮询可见。旧原生终端快照逐批清理，先处理最终完成事件，再验证进程已退出且快照未变化；CLI 历史和活跃终端不参与清理。NotificationRelay 保存出站队列，中心将入站游标与事件原子提交后才确认；专用 relay key 只允许通知接口。1.1.0 Linux CLI 仅提供连接、会话管理、Watch 和设置；发送 prompt 和取消任务只保留在受支持的手机／G2 页面与原生终端。
+监控设置和完成日志写入失败时保留待提交数据并重试；完成事件持久化后才对推送或轮询可见。旧原生终端快照逐批清理，先处理最终完成事件，再验证进程已退出且快照未变化；CLI 历史和活跃终端不参与清理。NotificationRelay 保存出站队列，中心将入站游标与事件原子提交后才确认；专用 relay key 只允许通知接口。自 1.1.0 起，Linux CLI 仅提供连接、会话管理、Watch 和设置；发送 prompt 和取消任务只保留在受支持的手机／G2 页面与原生终端。

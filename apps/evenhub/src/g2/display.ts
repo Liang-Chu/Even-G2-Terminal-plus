@@ -341,6 +341,7 @@ export class G2Display {
     if (this.choice()) { void this.answerChoice(); return; }
     if (this.composer) { this.options.input?.toggleRecording(); return; }
     if (this.messages.detail) return;
+    if (this.messages.activitySelected) return;
     if (this.messages.inputSelected) this.openInput();
     else { this.messages.open(); this.schedule(); }
   }
@@ -436,6 +437,10 @@ export class G2Display {
         if (type === 3) { this.taps.input(type); return; }
         const entry = this.nativeFrame.entries?.[index];
         if (!entry) return;
+        if (entry.key === "working-agents") {
+          this.messages.selectActivity(); this.browsingMessages = true; this.messageNavigationAt = Date.now();
+          this.schedule(); return;
+        }
         const target = entry?.key === "input" ? 0 : this.messages.messages.findIndex(message => message.id === entry?.key) + 1;
         if (entry.key !== "input" && target <= 0) return;
         this.scroll(target - this.messages.selected);
@@ -551,8 +556,12 @@ export class G2Display {
     finally { this.sessionSwitching = false; this.schedule(); }
   }
   private syncMessages() {
-    if (!this.state || this.conversationState === this.state) return;
-    const previous = this.conversationState, state = this.state;
+    if (!this.state) return;
+    const state = this.state;
+    const count = sessionAgentCount(state, this.online && state.source?.online !== false);
+    this.messages.updateActivity(/^[1-9]\d*\+?$/.test(count) ? `… agents: ${count}` : undefined);
+    if (this.conversationState === state) return;
+    const previous = this.conversationState;
     const unchanged = previous && previous.session.key === state.session.key && previous.main.status === state.main.status
       && previous.assistantOpen === state.assistantOpen && previous.currentAssistantText === state.currentAssistantText
       && previous.transcript.length === state.transcript.length && previous.transcript.every((entry, index) =>
@@ -570,8 +579,7 @@ export class G2Display {
     if (this.messages.refresh()) this.messageRefreshAt = now;
   }
   private messageRows(compact = this.compactLabels) {
-    return this.messages.rows(this.state?.capabilities?.prompt !== false,
-      this.choiceHidden && this.state?.interactions?.length ? "Review pending choice" : undefined, compact);
+    return this.messages.rows(compact);
   }
   private choice() {
     return this.mode === "terminal" && !this.composer && !this.messages.detail && !this.choiceHidden ? this.state?.interactions?.[0] : undefined;
@@ -736,7 +744,8 @@ export class G2Display {
     if (detail) return [this.header(), title, detail.parts[detail.part], "",
       `${this.messages.changed ? "+new · " : ""}${detail.parts.length > 1 ? `${detail.part + 1}/${detail.parts.length} · Menu: parts · ` : ""}Double: back`];
     const rows = this.messageRows();
-    const body = rows.map((row, index) => (this.messages.selected === index ? "> " : "  ") + row.label).join("\n");
+    const selected = this.messages.selectedRow(rows);
+    const body = rows.map((row, index) => (selected === index ? "> " : "  ") + row.label).join("\n");
     const hint = `${this.messages.changed ? "+new · " : ""}Tap: open · Double: exit`;
     const older = this.messages.history.limited ? " · Older: phone/PC" : "";
     return [this.header(), title, body, "", `${hint} · ${this.statusLabel()} ${this.status().replace(/^\S+ ?/, "")}${older}`];
@@ -845,7 +854,7 @@ export class G2Display {
   private renderPreview(frame: NativeFrame, parts: string[]) {
     const previewKey = JSON.stringify([!!frame.picker, !!frame.plain, frame.footer, ...parts]);
     if (previewKey === this.lastRendered) return;
-    this.renderedTiles = this.renderer!.render({ prefix: parts[0], title: parts[1], body: parts[2], status: parts[3], footer: frame.footer || parts[4], bodyPadding: frame.detail ? G2_READING_PADDING : 0, list: frame.conversationList || frame.confirmation ? { labels: frame.entries!.map(entry => entry.label), selected: frame.confirmation ? this.draftConfirmation?.selected || 0 : this.messages.selected } : undefined }, Date.now(), !frame.picker && !frame.plain);
+    this.renderedTiles = this.renderer!.render({ prefix: parts[0], title: parts[1], body: parts[2], status: parts[3], footer: frame.footer || parts[4], bodyPadding: frame.detail ? G2_READING_PADDING : 0, list: frame.conversationList || frame.confirmation ? { labels: frame.entries!.map(entry => entry.label), selected: frame.confirmation ? this.draftConfirmation?.selected || 0 : this.messages.selectedRow(frame.entries!) } : undefined }, Date.now(), !frame.picker && !frame.plain);
     this.lastRendered = previewKey;
     if (this.renderer!.canvas) this.options.frame?.(this.renderer!.canvas);
   }

@@ -120,7 +120,7 @@ test("expanded message remains stable during streaming and returning to input re
   let body = "";
   const display = new G2Display((_, b) => { body = b; }, () => {}); t.after(() => display.dispose());
   const text = Array.from({ length: 21 }, (_, i) => `Line ${i + 1}`).join("\n");
-  display.update(state("current", text), true); assert.match(body, /Line 1/); assert.match(body, /^> \+ New prompt/);
+  display.update(state("current", text), true); assert.match(body, /Line 1/); assert.match(body, /^> New prompt/);
   display.scroll(1); display.toggle(); const reading = body;
   assert.match(body, /Line 21/);
   display.update(state("current", text + "\nNew arrival"), true);
@@ -150,7 +150,7 @@ test("SDK layout keeps separate header and native Sessions menu; restores a watc
   assert.equal(opened, "previous"); assert.equal(layout.containerTotalNum, 6);
   assert.equal(layout.textObject.length, 1); assert.match(pageText(layout), /Latest reply/);
   const capture=layout.listObject[0];assert.equal(capture.containerID,8);assert.equal(capture.isEventCapture,1);
-  assert.equal(capture.itemContainer.itemName[0],"+ New prompt");
+  assert.equal(capture.itemContainer.itemName[0],"New prompt");
   assert.equal(layout.imageObject.length, 4);
   assert.deepEqual(layout.imageObject.map((image: any) => [image.xPosition, image.yPosition, image.width, image.height]),
     [[0,0,288,34],[288,0,288,34],[0,262,288,26],[288,262,288,26]]);

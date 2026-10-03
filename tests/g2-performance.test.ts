@@ -72,7 +72,7 @@ test("static headers and body-only updates reuse the actual canvas PNG encodings
     const count = encodings;
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint" }, 90_000);
     assert.equal(encodings, count + 2, "footer changes leave both top tiles cached");
-    const list = { labels: ["+ New prompt", "← Agent answer", "→ User question"], selected: 0 };
+    const list = { labels: ["New prompt", "← Agent answer", "→ User question"], selected: 0 };
     const before = encodings;
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint", list }, 90000);
     renderer.render({ ...frame, prefix: "liam · agents: 0 |", footer: "Different hint", list: { ...list, selected: 2 } }, 90000);
