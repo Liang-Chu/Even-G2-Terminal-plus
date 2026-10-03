@@ -4,17 +4,19 @@ Watch Pi, Codex and Claude Code sessions running on Windows/Linux through Even H
 
 See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
-**1.1.8** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Source 1.1.8** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
-[Download](https://github.com/Liang-Chu/Even-Pilot/releases) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md) · [Release notes](RELEASE_NOTES.md)
+[Windows / Hub downloads](https://github.com/Liang-Chu/Even-Pilot/releases) · [Linux on npm](https://www.npmjs.com/package/even-pilot) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
+
+**Available now:** Linux npm **1.1.8**. GitHub currently has **1.1.7** Windows and Hub packages; their **1.1.8** files are prepared but awaiting upload. This guide describes **1.1.8**; its latest features require the matching **1.1.8** packages.
 
 ## Quick start
 
 ### 1. Install the companion
 
-Install on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing CLI installation and model login stay in use.
+Start with a working Pi, Codex or Claude Code installation. Install Even-Pilot on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing model login stays in use; Even-Pilot does not install the CLIs.
 
-- **Windows:** download and run `Even-Pilot-1.1.8-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the desktop shortcut or double-click the tray icon.
+- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases), download the Windows `Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the desktop shortcut or double-click the tray icon. System Node/npm is not required.
 - **Linux / SSH with Node 22+ and npm:** run as your normal user, without `sudo`:
 
   ```sh
@@ -22,12 +24,24 @@ Install on each computer you want to watch, as the **same OS user who runs the C
   even-pilot-setup
   ```
 
-  Open a new shell, then run `even-pilot`. The setup command also works when npm skips install scripts and safely skips an already installed equal or newer version.
-
-  **Without npm:** download the bundled Linux installer:
+  Setup deploys the companion; start it and print the connection details in a **new shell**:
 
   ```sh
-  sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
+  even-pilot
+  even-pilot pair
+  ```
+
+  This also works over SSH without a browser. Setup works when npm skips install scripts and retains an equal or newer installed version. If npm reports `EACCES`, use a user-owned installation:
+
+  ```sh
+  npm install -g --prefix "$HOME/.local" even-pilot
+  ~/.local/bin/even-pilot-setup
+  ```
+
+  **Without npm:** download the Linux `Setup-linux-x64.run` from Releases, then run the downloaded file (replace `VERSION` with its version):
+
+  ```sh
+  sh ./Even-Pilot-VERSION-Setup-linux-x64.run
   ```
 
   Open a new shell, then run `even-pilot`. In the current shell, use `~/.local/bin/even-pilot`. Both installation methods include the companion's own Node runtime and backend dependencies.
@@ -42,16 +56,16 @@ For startup after login/reboot: Windows tray → **Start with Windows**; Linux �
 | Codex CLI / local Codex Desktop | Automatic observation; a new session appears after its first saved prompt. | Ordinary sessions are read-only |
 | Claude Code (experimental) | The installer adds monitor hooks. Check `/hooks`; observation starts with the next prompt. Reopen while idle if hooks are missing. | Ordinary sessions are read-only |
 
-For Codex/Claude remote input, use **+ New terminal** in the manager to create a connector session. Choose **Tunnel** and the project directory; Claude also asks for Channel confirmation in its terminal. [Capabilities and limits](docs/connectors.md)
+For Codex/Claude remote input, use **+ New terminal** in the manager to create a connector session. Choose **Tunnel** and the project directory; Claude also asks for Channel confirmation in its terminal. Headless Linux needs `tmux`; Claude's Linux connector also needs `python3`. [Linux prerequisites](docs/setup.md#linux-headless-or-desktop) · [Capabilities and limits](docs/connectors.md)
 
 ### 3. Connect the phone
 
 1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
-2. Install `even-pilot-1.1.8.ehpk` in Even Hub and connect G2 in Even App.
+2. Install the `even-pilot-VERSION.ehpk` phone package from the chosen GitHub release in Even Hub, then connect G2 in Even App. Use matching companion/Hub releases for the documented features.
 3. Get this computer's URL and key: Windows **Connect phone**; Linux `even-pilot pair`.
 4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
-Use the computer's reachable address, such as `http://COMPUTER_IP:4317`; replace `COMPUTER_IP` with its Tailscale IP. Enter the key without `Bearer`. The phone saves connections automatically; repeat for other computers. Keep the companion running and the computer awake.
+Use the reachable URL printed by **Connect phone** / `pair`, such as `http://COMPUTER_IP:4317`; `COMPUTER_IP` is the computer's Tailscale IP. Enter the key without `Bearer` and keep it private. The phone saves connections automatically; repeat for other computers. Keep the companion running and the computer awake. On Linux, `pair` prints information; `even-pilot` starts monitoring.
 
 Each desktop manager shows only its own computer. Hub uses manual URL/key entry; the QR is for Glance. If connection fails, first open the Bridge URL in the phone browser. [Troubleshooting](docs/setup.md#troubleshooting)
 
@@ -64,6 +78,8 @@ In **Sessions**, enable **Watch**, then open Even-Pilot on G2. G2 returns to the
 - Selecting a saved session can open its terminal. Quitting the tray or stopping monitoring leaves native terminals running.
 
 [Session management](docs/setup.md#watch-and-native-terminal-operations)
+
+To check the connection, run a short task in a watched CLI session. Its new messages and running/idle state should appear on the phone and G2. For a Glance completion test, close Even-Pilot on G2 before running the task; the session being viewed there suppresses its own notification.
 
 ## G2 controls
 
@@ -81,7 +97,7 @@ In an input-capable session, open **New prompt**. Tap to record/stop each senten
 
 ### Pi subagents
 
-Already using the official Pi subagent extension? Keep it. Otherwise, run Linux `even-pilot enable-pi-subagents` or follow the [Windows script steps](docs/pi-extensions.md#第一步添加到-pi-的配置目录), then `/reload` while Pi is idle. This optional tool is separate from the basic monitor. [Installation and verification](docs/pi-extensions.md)
+Already using the official Pi subagent extension? Keep it. Otherwise, run Linux `even-pilot enable-pi-subagents` or follow the [Windows PowerShell steps](docs/setup.md#optional-official-pi-subagents), then `/reload` while Pi is idle. This optional tool is separate from the basic monitor. [Installation and verification](docs/pi-extensions.md)
 
 ### Glance completion notifications
 

@@ -19,15 +19,15 @@ even-pilot-setup
 
 若 npm 提示 `EACCES`，改为 `npm install -g --prefix "$HOME/.local" even-pilot`，接着执行 `~/.local/bin/even-pilot-setup`；不使用 sudo。
 
-没有 npm 时下载 `.run`，在普通用户下执行：
+没有 npm 时从 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 `.run`，在普通用户下执行，把 `VERSION` 换成下载文件的版本号。当前已发布版本见 [README](../README.zh-CN.md)：
 
 ```sh
-sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
+sh ./Even-Pilot-VERSION-Setup-linux-x64.run
 ```
 
 安装本身可离线完成。默认应用目录 `~/.local/lib/even-pilot`，启动命令 `~/.local/bin/even-pilot`；应用菜单里也有 Even-Pilot。安装后新开的 Bash、Zsh、Fish 或支持的 POSIX 登录 shell 可直接输入 `even-pilot`。当前终端先用完整路径，或执行 `export PATH="$HOME/.local/bin:$PATH"`；自定义 bin 目录按安装器输出添加。安装器保留用户自己的 shell 内容，遇到链接／不支持的 shell 会提示手工设置。`.run` 默认安装后自动启动后台；有图形桌面时打开浏览器，否则打印手机／电脑可访问的地址。
 
-自定义目录：`sh ./Even-Pilot-1.1.8-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。已安装的电脑端默认每天检查稳定版本并自动安装验证通过的更新；`even-pilot update off` 关闭，`on` 恢复，已有关闭设置保留。`even-pilot update` 立即更新，`update check` 只检查，`update status` 查看结果。也可下载新 `.run` 后执行 `sh ./文件名.run`，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。[更新详情](updates.md)
+自定义目录：`sh ./Even-Pilot-VERSION-Setup-linux-x64.run --dir /your/path`。不立即启动：追加 `--no-start`。已安装的电脑端默认每天检查稳定版本并自动安装验证通过的更新；`even-pilot update off` 关闭，`on` 恢复，已有关闭设置保留。`even-pilot update` 立即更新，`update check` 只检查，`update status` 查看结果。也可下载新 `.run` 后执行 `sh ./文件名.run`，**不使用 `npm update`**。安装器保留 connection key、Watch 和推送设置，并重启监控后台；保留旧版本文件供已打开的终端继续使用。待任务结束后重开连接器，Pi 可在空闲时 `/reload`。[更新详情](updates.md)
 
 运行环境可用时支持直接解压 `.tar.gz` 到专用文件夹，再运行 `./bin/even-pilot open`；不把便携文件覆盖到正在运行的版本目录。
 

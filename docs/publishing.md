@@ -16,6 +16,7 @@ The release folder is `release/1.1.8`. Building packages does not publish them. 
 
 4. Leave **Set as a pre-release** unchecked, select **Set as the latest release**, then publish. This lets existing companions discover 1.1.8. Retain the documented known limitations. GitHub pre-releases are excluded from update checks. Installed companions with **Automatic updates** enabled check and install verified releases automatically; manual **Update** remains available. Keep installer filenames unchanged.
 5. Open the published page while signed out and confirm all downloads are public. Verify GitHub's installer asset SHA-256 digests against `SHA256SUMS.txt`; the updater requires those asset digests. Do not attach inventories, logs, source-build folders, real keys or Firebase JSON files.
+6. Update the availability notice in both root READMEs once the 1.1.8 Windows and Hub assets are public. Keep the npm link and the step-by-step setup commands.
 
 ## npm — Linux
 

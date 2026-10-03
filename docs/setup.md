@@ -6,7 +6,7 @@ This guide starts from a computer with a working Pi, Codex or Claude Code login.
 
 | Component | Where it runs | What it does |
 | --- | --- | --- |
-| Windows EXE or Linux `.run` companion | Each computer whose sessions you want to watch | Reads local CLI events/history, keeps Watch settings and serves an API/manager on TCP 4317 |
+| Windows EXE or Linux companion (npm / `.run`) | Each computer whose sessions you want to watch | Reads local CLI events/history, keeps Watch settings and serves an API/manager on TCP 4317 |
 | Even Hub `.ehpk` | Phone, through Even Hub | Connects to one or more companions and drives the G2 display/input |
 | Original Pi/Codex/Claude CLI | Its original computer and user account | Runs the actual task and retains full output and its own model login |
 | Glance, optional | Phone | Receives completion notifications from a configured sender |
@@ -17,7 +17,7 @@ The companion is a watcher and lightweight session manager. Its desktop manager 
 
 ### Windows
 
-1. Download `Even-Pilot-1.1.8-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases).
+1. Download the Windows `Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases). See the [README's current availability](../README.md) for published package versions.
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Even-Pilot**, **Start with Windows**, update controls and **Quit Even-Pilot**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -26,20 +26,31 @@ The ZIP is an optional portable alternative: extract the whole archive to a dedi
 
 ### Linux (headless or desktop)
 
-The supplied binary targets x64/glibc Linux. The tested baseline is headless Ubuntu 26.04 LTS; Alpine/musl is not supported by this package. Install as a normal user, without `sudo`:
+The companion targets x64/glibc Linux. The tested baseline is headless Ubuntu 26.04 LTS; Alpine/musl is not supported by this package. Install as a normal user, without `sudo`.
+
+**With Node 22+ and npm:**
 
 ```sh
-sh ./Even-Pilot-1.1.8-Setup-linux-x64.run
+npm install -g even-pilot
+even-pilot-setup
 ```
 
-It installs its bundled runtime under `~/.local/lib/even-pilot`, creates `~/.local/bin/even-pilot`, starts monitoring and adds a removable PATH block for supported shells. Open a new shell before using the short command; in the current shell use the full path or the PATH command printed by the installer. This is a per-user global command, not an npm package installation.
+If npm reports `EACCES`, use `npm install -g --prefix "$HOME/.local" even-pilot`, then `~/.local/bin/even-pilot-setup`. The helper works when npm disables install scripts, upgrades older installations and retains equal or newer versions.
+
+**Without npm:** download the Linux `Setup-linux-x64.run` from Releases and execute the downloaded filename. Replace `VERSION` with its version:
 
 ```sh
-even-pilot status
+sh ./Even-Pilot-VERSION-Setup-linux-x64.run
+```
+
+Both methods install the bundled runtime under `~/.local/lib/even-pilot`, create `~/.local/bin/even-pilot` and add a removable PATH block for supported shells. The native companion is independent of the npm setup helper. First npm setup only deploys files; the `.run` starts monitoring by default. Open a **new shell**, then start monitoring and print connection details:
+
+```sh
+even-pilot
 even-pilot pair
 ```
 
-On a desktop, the app entry opens the browser manager. On a headless server:
+In the original shell, use `~/.local/bin/even-pilot` or the PATH command printed by setup. On a desktop, the app entry opens the browser manager. On a headless server:
 
 ```sh
 even-pilot start
@@ -83,10 +94,19 @@ Claude asks for **local development channel** confirmation in its native termina
 
 The basic monitor and multi-agent extension are different. Reuse an already loaded official subagent example. Otherwise:
 
-- Windows installer: follow the [script steps](pi-extensions.md#第一步添加到-pi-的配置目录), which resolve the active payload from `install.json`. The script is inside that payload. Portable/source users run `scripts/enable-pi-subagents.ps1` from their extracted/check-out directory.
+- Windows installer: in **PowerShell**, with Pi 0.87.1+ installed, run the following. Replace the first line if you used a custom installation directory. Portable/source users can run `scripts/enable-pi-subagents.ps1` from their extracted/check-out directory.
 - Linux: run `even-pilot enable-pi-subagents`.
 
+```powershell
+$pilotRoot = Join-Path $env:LOCALAPPDATA 'Programs\Even-Pilot'
+$pilotInstall = Get-Content -Raw (Join-Path $pilotRoot 'install.json') | ConvertFrom-Json
+$pilotScript = Join-Path $pilotRoot ('versions\' + $pilotInstall.current + '\scripts\enable-pi-subagents.ps1')
+powershell -NoProfile -ExecutionPolicy Bypass -File $pilotScript
+```
+
 Then wait for Pi to become idle and run `/reload`. The installer fetches the matching official example; child roles inherit the current model/login. Installing it makes the tool available, but the model chooses whether to delegate. See the [verification prompt and detailed steps](pi-extensions.md). Other third-party extensions may only report a lower bound such as `1+`.
+
+To verify in Pi, ask it to use two `scout` subagents for a read-only project check. Confirm an actual `subagent` tool call and two task results in the terminal.
 
 ## Make the phone and computer reachable
 
@@ -101,7 +121,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install/upload `even-pilot-1.1.8.ehpk` in Even Hub. Use Even App 2.2.10+ and connect G2 to the phone.
+1. Install the `even-pilot-VERSION.ehpk` phone package from the chosen GitHub release in Even Hub. Use matching companion/Hub releases, Even App 2.2.10+ and connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `even-pilot pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -245,9 +265,11 @@ To return a source to independent delivery use `even-pilot settings push direct`
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `even-pilot update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `even-pilot update`, then `even-pilot update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-**Companion updates do not install the phone package.** Install the matching `even-pilot-1.1.8.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+**Companion updates do not install the phone package.** Install the matching `.ehpk` separately in Even Hub. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Even-Pilot**. Linux uses `even-pilot uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `even-pilot stop`; native terminals keep working.
+
+For an npm installation, run `npm uninstall -g even-pilot` after the native uninstall to remove the setup helper. Saved settings remain.
 
 ## Troubleshooting
 
