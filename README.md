@@ -4,11 +4,11 @@ Watch Pi, Codex and Claude Code sessions running on Windows/Linux through Even H
 
 See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
-**Source 1.1.8** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Companion 1.1.8 · Pilot Hub 1.1.9** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows / Hub downloads](https://github.com/Liang-Chu/Even-Pilot/releases) · [Linux on npm](https://www.npmjs.com/package/even-pilot) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
 
-**Available now:** Linux npm **1.1.8**. GitHub currently has **1.1.7** Windows and Hub packages; their **1.1.8** files are prepared but awaiting upload. This guide describes **1.1.8**; its latest features require the matching **1.1.8** packages.
+**Available now:** Linux npm **1.1.8**. GitHub currently has **1.1.7** Windows and Hub packages; Windows **1.1.8** and Pilot Hub **1.1.9** are prepared but awaiting upload. This guide describes that compatible pair. The phone app is named **Pilot**; the computer companion remains **Even-Pilot**.
 
 ## Quick start
 
@@ -61,7 +61,7 @@ For Codex/Claude remote input, use **+ New terminal** in the manager to create a
 ### 3. Connect the phone
 
 1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
-2. Install the `even-pilot-VERSION.ehpk` phone package from the chosen GitHub release in Even Hub, then connect G2 in Even App. Use matching companion/Hub releases for the documented features.
+2. Install **Pilot 1.1.9** (`pilot-1.1.9.ehpk`) separately in Even Hub, then connect G2 in Even App. It works with **Even-Pilot 1.1.8** companions; the two version numbers need not match.
 3. Get this computer's URL and key: Windows **Connect phone**; Linux `even-pilot pair`.
 4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
@@ -71,7 +71,7 @@ Each desktop manager shows only its own computer. Hub uses manual URL/key entry;
 
 ### 4. Choose sessions
 
-In **Sessions**, enable **Watch**, then open Even-Pilot on G2. G2 returns to the last available watched session and lists only watched, reachable sessions. If a session is missing on desktop, check **All sessions**.
+In **Sessions**, enable **Watch**, then open Pilot on G2. G2 returns to the last available watched session and lists only watched, reachable sessions. If a session is missing on desktop, check **All sessions**.
 
 - **Watch** monitors without opening a terminal; **Unwatch** never stops a task or terminal.
 - Opening the desktop manager defaults Watch to sessions updated within 24 hours. Refresh/reconnect does not reset Watch; manual Unwatch survives later tasks and network loss.
@@ -79,7 +79,7 @@ In **Sessions**, enable **Watch**, then open Even-Pilot on G2. G2 returns to the
 
 [Session management](docs/setup.md#watch-and-native-terminal-operations)
 
-To check the connection, run a short task in a watched CLI session. Its new messages and running/idle state should appear on the phone and G2. For a Glance completion test, close Even-Pilot on G2 before running the task; the session being viewed there suppresses its own notification.
+To check the connection, run a short task in a watched CLI session. Its new messages and running/idle state should appear on the phone and G2. For a Glance completion test, close Pilot on G2 before running the task; the session being viewed there suppresses its own notification.
 
 ## G2 controls
 
@@ -116,7 +116,7 @@ Configure **Glance notifications** on the companion, then register the sender/ce
 
 Companions automatically install verified stable updates by default. Disable **Automatic updates** on that computer, or use Linux `even-pilot update off`; `on` restores it. To update now, use the Windows tray/manager or Linux `even-pilot update`.
 
-**Update the Hub app separately** by installing the matching `.ehpk` in Even Hub. Companion updates retain connections/Watch and leave native terminals running. [Update guide](docs/updates.md)
+**Update Pilot separately** by installing its `.ehpk` in Even Hub. Pilot 1.1.9 works with companion 1.1.8. Companion updates retain connections/Watch and leave native terminals running. [Update guide](docs/updates.md)
 
 An npm-installed companion uses the same automatic updater; `npm update` is not needed. To remove it, run `even-pilot uninstall`, then `npm uninstall -g even-pilot`. Saved settings remain. [Linux reference](docs/linux.md)
 

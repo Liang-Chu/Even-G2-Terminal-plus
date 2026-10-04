@@ -1,3 +1,4 @@
+import { name as hubName } from "../../app.json";
 import {
   waitForEvenAppBridge, CreateStartUpPageContainer, RebuildPageContainer, TextContainerUpgrade,
   ImageRawDataUpdate,
@@ -770,7 +771,7 @@ export class G2Display {
       return { body: "", entries, picker: true, choice: true, sessionKey: key,
         heading: nativeHeading(q.text), layoutKey: "choice:" + JSON.stringify([key, choice.id, entries]) };
     }
-    if (this.mode === "terminal" && !key) return { body: parts[2], plain: true, heading: "Even-Pilot", layoutKey: "connection-notice" };
+    if (this.mode === "terminal" && !key) return { body: parts[2], plain: true, heading: hubName, layoutKey: "connection-notice" };
     if (this.mode === "terminal" && !this.composer && !this.choice()) {
       const detail = this.messages.detail;
       if (detail) return { body: detail.parts[detail.part], sessionKey: key,
@@ -792,7 +793,7 @@ export class G2Display {
     this.refreshMessages();
     // Fit once against actual pixels in the renderer/native heading. An earlier
     // fixed character budget discarded title text while the display had room.
-    const title = (this.mode === "sessions" ? "Sessions" : this.state?.session.key ? sessionHeader(this.state) : "Even-Pilot").replace(/\s+/g, " ").trim().slice(0, 512);
+    const title = (this.mode === "sessions" ? "Sessions" : this.state?.session.key ? sessionHeader(this.state) : hubName).replace(/\s+/g, " ").trim().slice(0, 512);
     if (this.draftConfirmation) return ["", "Send and leave editor?",
       ["Send & exit", "Exit only"].map((label, index) => (index === this.draftConfirmation!.selected ? "> " : "  ") + label).join("\n"), "", "Tap: confirm · Double: back"];
     if (this.mode === "sessions") {

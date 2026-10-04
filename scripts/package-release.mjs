@@ -4,12 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { prepareRuntime, inventory as runtimeInventory, buildInstaller } from './installer.mjs';
+import { packHub } from './package-hub.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-const manifest = JSON.parse(readFileSync(join(root, 'apps/evenhub/app.json'), 'utf8'));
 if (process.platform !== 'win32') throw new Error('Build the Windows release on Windows.');
-if (manifest.version !== pkg.version) throw new Error('Desktop and Hub versions differ.');
 if (!readFileSync(join(root, 'apps/windows/desktop/Tray.cs'), 'utf8').includes(`AssemblyFileVersion("${pkg.version}.0")`))
   throw new Error('EXE file version differs from package version.');
 const npm = process.env.npm_execpath;
@@ -32,7 +31,7 @@ const allowlist = [
   'apps/windows/desktop/Even-Pilot.TerminalInterrupt.exe',
   'apps/evenhub/dist', 'apps/evenhub/app.json', 'apps/evenhub/THIRD_PARTY_NOTICES.md', 'packages',
   'scripts/enable-pi-subagents.ps1',
-  'docs/architecture.md', 'docs/connectors.md', 'docs/linux.md', 'docs/glance-push.md', 'docs/glance-qr-v1.md',
+  'docs/architecture.md', 'docs/connectors.md', 'docs/linux.md', 'docs/glance-push.md', 'docs/glance-qr-v1.md', 'docs/hub-release-notes.md',
   'docs/g2-output-contract.md', 'docs/pi-extensions.md', 'docs/voice.md', 'docs/release-status.md', 'docs/README.md', 'docs/api.md', 'docs/development.md', 'docs/notification-routing.md', 'docs/updates.md', 'docs/publishing.md', 'docs/even-hub-description.md',
   'docs/setup.md', 'docs/setup.zh-CN.md', 'docs/agent-runbook.md',
 ];
@@ -74,9 +73,7 @@ writeFileSync(join(destination, 'inventory.json'), JSON.stringify({ version: pkg
 // Desktop runtime stays in dist; the Hub package excludes desktop-only assets.
 run(process.execPath, [npm, "run", "build:hub"]);
 for (const source of walk(join(root, "apps/evenhub/dist-hub"))) copy(source, join(destination, "hub", relative(join(root, "apps/evenhub/dist-hub"), source)));
-const hub = join(destination, `even-pilot-${pkg.version}.ehpk`);
-run(process.execPath, [join(root, 'node_modules/@evenrealities/evenhub-cli/main.js'), 'pack',
-  join(stage, 'apps/evenhub/app.json'), join(destination, 'hub'), '-o', hub, '--sdk-ver', '0.0.16']);
+const hub = packHub(destination, join(destination, 'hub'));
 const zip = join(destination, `Even-Pilot-${pkg.version}-windows.zip`);
 const literal = value => "'" + value.replaceAll("'", "''") + "'";
 run('powershell.exe', ['-NoProfile', '-Command', `Compress-Archive -LiteralPath ${literal(stage)} -DestinationPath ${literal(zip)} -CompressionLevel Optimal`]);

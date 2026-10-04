@@ -4,11 +4,11 @@
 
 查看来源设备、模型、上报的运行 agent 数和最近消息。可选功能包括逐句语音输入、agent 任务详情，以及通过 Glance 发送完成通知。
 
-**源码 1.1.8** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**电脑端 1.1.8 · Pilot Hub 1.1.9** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows／Hub 下载](https://github.com/Liang-Chu/Even-Pilot/releases) · [Linux npm 包](https://www.npmjs.com/package/even-pilot) · [English](README.md) · [完整配置](docs/setup.zh-CN.md)
 
-**当前可用：**Linux npm **1.1.8** 已发布。GitHub 的 Windows 和 Hub 包目前为 **1.1.7**；两者的 **1.1.8** 文件已准备好，尚待上传。本文说明 **1.1.8**；最新功能需要对应的 **1.1.8** 包。
+**当前可用：**Linux npm **1.1.8** 已发布。GitHub 的 Windows 和 Hub 包目前为 **1.1.7**；Windows **1.1.8** 和 Pilot Hub **1.1.9** 已准备好，尚待上传。本文说明这组兼容版本。手机应用名为 **Pilot**，电脑端仍为 **Even-Pilot**。
 
 ## 先跑通
 
@@ -61,7 +61,7 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 ### 3. 连接手机
 
 1. 通过互联网访问电脑时，手机和电脑都安装 [Tailscale](https://tailscale.com/download)，加入同一个 tailnet 并保持连接。能互通的局域网也可以。
-2. 在 Even Hub 安装所选 GitHub 版本的 `even-pilot-VERSION.ehpk` 手机包，再在 Even App 连好 G2。使用匹配的电脑端／Hub 版本以获得本文描述的功能。
+2. 在 Even Hub 单独安装 **Pilot 1.1.9**（`pilot-1.1.9.ehpk`），再在 Even App 连好 G2。它配合 **Even-Pilot 1.1.8** 电脑端使用，两者版本号不必相同。
 3. 获取该电脑的 URL/key：Windows 点击 **Connect phone**；Linux 运行 `even-pilot pair`。
 4. 手机应用打开 **Connection → Connect another computer**，填入 **Bridge URL** 和 **Connection key**，点击 **Connect computer**。
 
@@ -79,7 +79,7 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 
 [会话管理](docs/setup.zh-CN.md#watch-与原生终端)
 
-验证连接：在已 Watch 的原生 CLI 会话运行一个短任务，手机和 G2 应看到新消息及运行／空闲状态。测试 Glance 完成通知时，先在 G2 退出 Even-Pilot 再运行任务；正在查看的会话会抑制自己的通知。
+验证连接：在已 Watch 的原生 CLI 会话运行一个短任务，手机和 G2 应看到新消息及运行／空闲状态。测试 Glance 完成通知时，先在 G2 退出 Pilot 再运行任务；正在查看的会话会抑制自己的通知。
 
 ## G2 操作
 
@@ -116,7 +116,7 @@ Android 安装 [Glance](https://github.com/Liang-Chu/Glance)，接收每个会�
 
 电脑端默认自动安装验证通过的稳定更新。可在该电脑取消 **Automatic updates**，或运行 Linux `even-pilot update off`；`on` 恢复。立即更新用 Windows 托盘／管理页，或 Linux `even-pilot update`。
 
-**手机 Hub 单独更新**：在 Even Hub 安装匹配版本的 `.ehpk`。电脑端更新保留连接和 Watch，原生终端继续运行。[更新指南](docs/updates.md)
+**Pilot 单独更新**：在 Even Hub 安装它的 `.ehpk`。Pilot 1.1.9 配合电脑端 1.1.8 使用；电脑端更新保留连接和 Watch，原生终端继续运行。[更新指南](docs/updates.md)
 
 npm 安装的电脑端使用同一个自动更新器，无需运行 `npm update`。卸载时先 `even-pilot uninstall`，再 `npm uninstall -g even-pilot`；保存的设置保留。[Linux 命令参考](docs/linux.md)
 

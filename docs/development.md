@@ -59,11 +59,11 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 对刚生成的目录运行 `node tests/release-smoke.mjs "<发布目录>"` 和 `node tests/installer-smoke.mjs "<发布目录>"`。前者检查便携包；后者验证真正的安装 EXE、无系统 Node/npm 的启动、Windows 卸载注册、重装保留 key、升级保留工作进程、卸载保护以及保留数据。均使用隔离目录，不读取实际 CLI 历史或运行付费模型任务。
 
 
-代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。版本修改需同步 package.json、lockfile、Hub manifest、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本和发布文档。
+代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。电脑端版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本和发布文档。Hub 名称／版本由 `apps/evenhub/app.json` 单独管理；`npm run pack:evenhub` 按该版本生成 `pilot-<版本>.ehpk`，不要求与电脑端同号。目前 Pilot Hub 1.1.9 配合 Even-Pilot 电脑端 1.1.8 使用。
 
 ## 发布文件与私有文件
 
-`release/1.1.8/` 是准备上传的文件夹：Windows EXE/ZIP、Linux RUN/TAR.GZ、Hub EHPK、`SHA256SUMS.txt` 和简短发布说明。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
+`release/1.1.8/` 保留已验证的电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明。更名后的 Hub 包位于 `release/hub-1.1.9/`，用 `pilot-1.1.9.ehpk` 替代旧 Hub 包上传。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 

@@ -1,3 +1,4 @@
+import { name as hubName } from "../../app.json";
 import { ListContainerProperty, ListItemContainerProperty, TextContainerProperty, ImageContainerProperty,
   MenuContainerProperty, MenuItemProperty } from "@evenrealities/even_hub_sdk";
 import { G2_IMAGE_REGIONS, G2_READING_PADDING } from "./renderer.js";
@@ -25,7 +26,7 @@ export interface NativeText { id: number; name: string; content: string; color?:
 export function nativeTexts(frame: NativeFrame): NativeText[] {
   if (frame.entries) return [];
   return [{ id: 1, name: "pilot-body", content: frame.body, color: 4 },
-    ...(frame.plain ? [{ id: 6, name: "pilot-heading", content: frame.heading || "Even-Pilot", color: 4 },
+    ...(frame.plain ? [{ id: 6, name: "pilot-heading", content: frame.heading || hubName, color: 4 },
       { id: 7, name: "pilot-hint", content: frame.footer || "Double: back", color: 4 }] : [])];
 }
 

@@ -3,7 +3,7 @@
 ## Setup
 
 1. Upload the current `.ehpk` listed in the README and use the current native desktop backend.
-2. In the phone's Even-Pilot page, tap **Voice** beside **Connection**.
+2. In the phone's Pilot page, tap **Voice** beside **Connection**.
 3. Select **OpenAI** or **ElevenLabs Scribe** (`scribe_v2`), paste that service's API key, choose auto/Chinese/English, and Save. OpenAI's model selector offers `whisper-1` (existing default) and optional `gpt-transcribe` with streamed text. They use the same OpenAI key; the account must allow the chosen model.
 
 OpenAI has scheduled `whisper-1` removal for February 26, 2027. Before that date, switch to **GPT Transcribe** in Voice settings if you use OpenAI transcription. [Official deprecation schedule](https://developers.openai.com/api/docs/deprecations)
