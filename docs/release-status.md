@@ -1,10 +1,32 @@
-# Release status — Terminal+ 1.1.12
+# Release status — Terminal+ 1.1.13
 
-Terminal+ **1.1.12** defaults new or model-less OpenAI voice configurations to **GPT Transcribe**, with streamed text. Explicit Whisper selections, providers and API keys remain saved. The companion and Hub share the version and keep Hub ID `local.terminalplus.app`. GitHub and npm publication of 1.1.12 remain pending verification; physical phone/G2 acceptance is unverified.
+**1.1.13** fixes Claude observation of large native transcripts through bounded head/tail reads and recovers blocked queues containing definitely retired events with no recoverable first prompt. Missing history and uncertain/live events still do not establish completion. Existing Terminal+ Hub installations continue to work with the fixed companion. The native companion has been installed on the NUC with its live Claude process preserved; GitHub/npm publication and physical phone/G2 acceptance remain pending.
 
 Existing Even-Pilot users still need one manual installer upgrade because older verified updaters may reject the repository redirect or renamed assets. Existing data, service and configuration identifiers remain for settings retention. See [migration](updates.md#migration-from-even-pilot).
 
-## Current 1.1.12 verification — 2026-10-07–08
+## Current 1.1.13 verification — 2026-10-08
+
+| Check | Result |
+| --- | --- |
+| Windows source | 457 tests: 448 passed, 9 skipped, 0 failed; includes the shared reader, retired-event queue and large-transcript observer regression checks |
+| Windows desktop | All three C# desktop test suites passed |
+| Windows final packages | Final portable smoke and actual 1.1.11 → 1.1.13 installer reinstall/upgrade smoke passed |
+| Windows update worker | Actual 1.1.11 → 1.1.13 update passed failed-health rollback, healthy restart, saved preference/key retention and native-process survival |
+| Linux source | 457 tests: 454 passed, 3 skipped |
+| Linux final installer | Actual same-version 1.1.13 reinstall and 1.1.11 → 1.1.13 upgrade passed |
+| Linux update worker | Failed-health rollback and successful restart checks passed, including the exact prior 1.1.7 installation used for the NUC upgrade |
+| Linux runtime verification | Independent checks verified 252 source files and all 635 native manifest files |
+| Linux npm package | Local fresh-install and custom-root upgrade checks passed all 84 assertions; five-file allowlist passed |
+| Actual NUC transcript, read-only | A 42 MiB Claude transcript required 2,162,689 bytes of reads; retained 97 visible messages and matching session identity. This did not update the live backend |
+| NUC deployment | Official installer `--update` upgraded live 1.1.7 → 1.1.13 and exited 0. Verification retained the entire configuration hash, all 16 Watch flags and original Claude PID 2800624/start identity, and confirmed backend 1.1.13 with the new repository. The old 1,024-event queue drained to zero; a fresh actual Claude hook arrived automatically without a synthetic event or paid test prompt. The large session now reports 41 recent messages, `live: true`, `monitored: true` and `runtimeStatus: running`; monitoring also reports it watched/running. Recent-history and automated G2-eligibility checks passed; physical phone/G2 acceptance still requires the user check |
+| NUC phone/G2 APIs | Over the Tailscale address, authenticated history and runtime-state requests returned HTTP 200 with the phone origin allowed. History retained 54 user and 46 assistant messages; connected runtime retained 21 user and 19 assistant messages. Windows could reach the NUC web endpoint. These API checks do not establish physical G2 rendering |
+| Hub package | Official CLI produced a 118,808-byte `.ehpk`; physical phone installation and G2 acceptance remain unverified |
+| Publication | GitHub and npm 1.1.13 publication pending |
+
+## Previous 1.1.12 verification — 2026-10-07–08
+
+These results describe the 1.1.12 voice-default release and do not establish 1.1.13 acceptance or publication.
+
 
 | Check | Result |
 | --- | --- |
@@ -76,6 +98,6 @@ Runtime packaging checks allowed production files and bundled dependencies, inve
 - **Platforms:** release installers target Windows 10/11 x64 and Linux x64/glibc. Windows binaries are unsigned. ARM64, Alpine/musl and Linux graphical desktops have not been physically validated.
 - **Notifications:** configure a direct sender or one forwarding center and register Glance separately. No Firebase, connection or speech credentials are shipped. The session actually displayed on G2 suppresses its own completion notification while the viewing lease is valid.
 
-Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install `terminal-plus-1.1.12.ehpk` separately with Terminal+ 1.1.12 companions. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
+Updating a companion retains its pairing and settings and leaves native CLI sessions running. Existing Terminal+ Hub installations work with the 1.1.13 companion fix; install a new `.ehpk` separately only when updating Hub. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
 
 See [setup](../README.md), [release notes](../RELEASE_NOTES.md), [connector limits](connectors.md) and [Glance setup](glance-push.md).

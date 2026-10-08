@@ -1,4 +1,4 @@
-# Terminal+ 1.1.12 for Linux
+# Terminal+ 1.1.13 for Linux
 
 Install the Linux companion to watch local Pi, Codex and Claude Code sessions through Even Hub on your phone and Even G2. Continue using your native terminal, with optional voice input and per-session completion notifications through Glance.
 

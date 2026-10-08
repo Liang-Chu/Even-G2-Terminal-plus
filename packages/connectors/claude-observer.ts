@@ -7,6 +7,7 @@ import type { RuntimeState } from "../cockpit-state/types.js";
 import { promptLabel } from "../cockpit-state/selectors.js";
 import { connectorKey } from "./identity.js";
 import { claudeHistory } from "./catalog.js";
+import { readClaudeTranscript } from "./claude-transcript.js";
 import { canonicalPath } from "../pi-runtime/sessions.js";
 import { writeLocalJson, uuidPattern } from "../pi-runtime/native-protocol.js";
 import { claudeProcessIdentity } from "../../apps/windows/src/connectors/claude-interrupt.js";
@@ -142,7 +143,7 @@ export class ClaudeObserver {
     if (!path.endsWith(id + ".jsonl")) return false;
     try {
       const info = await lstat(path);
-      return info.isFile() && !info.isSymbolicLink() && info.size <= 32 * 1024 * 1024 &&
+      return info.isFile() && !info.isSymbolicLink() &&
         canonicalPath(await realpath(path)).startsWith(canonicalPath(await realpath(this.root)) + sep);
     } catch (error: any) {
       // UserPromptSubmit can run before Claude commits its first transcript
@@ -159,9 +160,10 @@ export class ClaudeObserver {
       if (!await this.validPath(session.path, session.id)) return;
       const info = await lstat(session.path), cached = this.historyStats.get(session.id);
       if (session.historyLoaded && cached?.modified === info.mtimeMs && cached.size === info.size) return;
-      const data = claudeHistory(await readFile(session.path, "utf8"), session.path, info.mtimeMs);
+      const recent = await readClaudeTranscript(session.path, this.root);
+      const data = claudeHistory(recent.content, session.path, recent.modified, recent.metadata);
       if (!data) return;
-      this.historyStats.set(session.id, { modified: info.mtimeMs, size: info.size }); session.historyLoaded = true;
+      this.historyStats.set(session.id, { modified: recent.modified, size: recent.size }); session.historyLoaded = true;
       session.name ||= data.session.name || promptLabel(data.messages.find(row => row.role === "user")?.text || "") || undefined;
       session.model ||= data.session.model;
       let budget = 60_000;
@@ -272,11 +274,38 @@ export class ClaudeObserver {
     if (session.warning === ambiguousChildWarning && !session.children.some(id => session.childEvents?.some(event => event.id === id && event.ambiguous)))
       session.warning = undefined;
   }
+  private async definitivelyRetired(owner: ClaudeOwner) {
+    if (this.options.alive) {
+      try { return await this.options.alive(owner) === false; } catch { return false; }
+    }
+    try { process.kill(owner.pid, 0); }
+    catch (error: any) { return error.code === "ESRCH"; }
+    try {
+      const identity = await claudeProcessIdentity(owner.pid);
+      return typeof identity === "string" && /^\d{1,20}$/.test(identity) && identity !== owner.started;
+    } catch { return false; }
+  }
   private async event(raw: any) {
     if (raw?.version !== 1 || !uuidPattern.test(raw.eventId || "") || !uuidPattern.test(raw.session_id || "") ||
         !names.has(raw.hook_event_name) || !Number.isFinite(raw.at) || raw.at > this.now() + 60_000 ||
         typeof raw.cwd !== "string" || typeof raw.transcript_path !== "string" || !ownerValid(raw.owner)) return false;
-    const validPath = await this.validPath(raw.transcript_path, raw.session_id, raw.hook_event_name === "UserPromptSubmit");
+    let validPath: boolean | undefined;
+    try { validPath = await this.validPath(raw.transcript_path, raw.session_id, raw.hook_event_name === "UserPromptSubmit"); }
+    catch (error: any) {
+      if (error.code !== "ENOENT" || raw.hook_event_name !== "UserPromptSubmit" || !await this.definitivelyRetired(raw.owner)) throw error;
+      // A retired owner cannot commit its first transcript. Drain its obsolete
+      // prompt while retaining lifecycle uncertainty, never a completion.
+      this.missingEvents = [...new Set([...this.missingEvents, raw.at])].sort((a, b) => a - b).slice(-256);
+      if (Number.isFinite(raw.gapThrough)) this.missingThrough = Math.max(this.missingThrough, raw.gapThrough);
+      if (raw.gapUnconfirmed === true) this.gapUnconfirmed = true;
+      const session = this.sessions.get(raw.session_id);
+      if (session && sameOwner(session.owner, raw.owner)) {
+        session.unknownChildren = true; session.warning = "Claude monitor received invalid or missing event data; completion is unconfirmed.";
+        this.announce(session);
+      }
+      this.dirty = true;
+      return true;
+    }
     if (validPath === false) return false;
     if (!["SubagentStart", "SubagentStop"].includes(raw.hook_event_name) && raw.agent_id) return true;
     let session = this.sessions.get(raw.session_id);

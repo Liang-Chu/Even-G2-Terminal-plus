@@ -204,6 +204,95 @@ test("a delayed valid first transcript blocks only that session's completion", a
   assert.equal(f.journal.list().length, 2); assert.equal(f.journal.list()[1].sessionKey, delayed.key);
 });
 
+test("retired missing first prompts drain without completion and persist their lifecycle gap", async t => {
+  const f = await fixture(t), s = await f.session();
+  await rm(s.path); f.setAlive(false);
+  const prompt = await s.emit("UserPromptSubmit", { at: Date.now() - 10_000 });
+  await f.observer.poll();
+  assert.equal((await readdir(f.queue)).length, 0);
+  assert.equal(f.events.filter(event => event.completion).length, 0);
+  const saved = JSON.parse(await readFile(join(f.root, "claude-monitor-state.json"), "utf8"));
+  assert.ok(saved.processed.includes(prompt.eventId));
+  assert.ok(saved.missingEvents.includes(prompt.at));
+  assert.equal(saved.sessions.length, 0, "An obsolete prompt does not register a disconnected session");
+});
+
+test("retired missing prompts preserve a known owner's uncertainty across restart", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); await f.observer.poll();
+  const original = await readFile(s.path);
+  await rm(s.path); f.setAlive(false);
+  await s.emit("UserPromptSubmit"); await f.observer.poll();
+  assert.equal((await readdir(f.queue)).length, 0);
+  assert.match(f.host.getRuntime(s.key).store.state.commandStatus!, /invalid or missing/);
+  assert.equal(f.journal.list().length, 0);
+  await f.observer.stop(); f.advance();
+  const events: ClaudeObservation[] = [], restarted = new ClaudeObserver(event => events.push(event), f.options);
+  t.after(() => restarted.stop());
+  await writeFile(s.path, original); f.setAlive(true);
+  await s.emit("Stop", { background_tasks: [], session_crons: [] }); await restarted.poll();
+  assert.equal(events.filter(event => event.completion).length, 0);
+  assert.ok(JSON.parse(await readFile(join(f.root, "claude-monitor-state.json"), "utf8")).sessions[0].unknownChildren);
+});
+
+test("a full queue of retired missing prompts frees capacity for a new live owner", async t => {
+  const f = await fixture(t), retired = await f.session(), active = await f.session();
+  await rm(retired.path); await f.observer.stop();
+  const liveOwner = { pid: 4321, started: "8765" };
+  const observer = new ClaudeObserver(event => { f.events.push(event); f.host.observeClaude(event); }, {
+    ...f.options, alive: async owner => owner.pid === liveOwner.pid,
+  });
+  t.after(() => observer.stop());
+  const at = Date.now() - 20_000;
+  await Promise.all(Array.from({ length: 1024 }, async (_, index) => {
+    const eventId = randomUUID(), eventAt = at + index;
+    await writeFile(join(f.queue, `${eventAt}-${eventId}.json`), JSON.stringify({
+      version: 1, eventId, at: eventAt, hook_event_name: "UserPromptSubmit", session_id: retired.id,
+      transcript_path: retired.path, cwd: f.root, owner: { pid: 1234, started: "5678" },
+    }));
+  }));
+  assert.equal((await readdir(f.queue)).length, 1024);
+  await observer.poll();
+  assert.equal((await readdir(f.queue)).length, 960);
+  const { writeClaudeHookEvent } = await import(new URL("../apps/windows/src/claude-monitor-hook.mjs", import.meta.url).href);
+  assert.equal(writeClaudeHookEvent(f.root, {
+    version: 1, eventId: randomUUID(), at: Date.now(), hook_event_name: "UserPromptSubmit", session_id: active.id,
+    transcript_path: active.path, cwd: f.root,
+  }, liveOwner), true, "Draining obsolete records allows the official hook writer to publish again");
+  for (let index = 0; index < 16; index++) await observer.poll();
+  assert.equal((await readdir(f.queue)).length, 0);
+  assert.equal(f.host.getRuntime(active.key).store.state.connected, true);
+  assert.equal(f.host.getRuntime(active.key).store.state.main.status, "running");
+  assert.equal(f.events.filter(event => event.completion).length, 0);
+});
+
+test("uncertain retirement probes keep a missing first prompt queued", async t => {
+  const f = await fixture(t), s = await f.session();
+  await rm(s.path); await s.emit("UserPromptSubmit"); await f.observer.stop();
+  for (const alive of [async () => undefined as unknown as boolean, async () => { throw Object.assign(new Error("Probe denied"), { code: "EPERM" }); }]) {
+    const observer = new ClaudeObserver(event => f.events.push(event), { ...f.options, alive });
+    await observer.poll(); await observer.stop();
+    assert.equal((await readdir(f.queue)).length, 1);
+  }
+  const observer = new ClaudeObserver(event => f.events.push(event), { ...f.options, alive: undefined });
+  t.after(() => observer.stop());
+  t.mock.method(process, "kill", () => { throw Object.assign(new Error("Probe denied"), { code: "EPERM" }); });
+  await observer.poll();
+  assert.equal((await readdir(f.queue)).length, 1);
+  assert.equal(f.events.filter(event => event.completion).length, 0);
+});
+
+test("a definitively absent process allows its missing first prompt to drain", async t => {
+  const f = await fixture(t), s = await f.session();
+  await rm(s.path); await s.emit("UserPromptSubmit"); await f.observer.stop();
+  const observer = new ClaudeObserver(event => f.events.push(event), { ...f.options, alive: undefined });
+  t.after(() => observer.stop());
+  t.mock.method(process, "kill", () => { throw Object.assign(new Error("Process absent"), { code: "ESRCH" }); });
+  await observer.poll();
+  assert.equal((await readdir(f.queue)).length, 0);
+  assert.equal(f.events.filter(event => event.completion).length, 0);
+});
+
 test("late trusted child stops use child timestamps without regressing parent registries", async t => {
   const f = await fixture(t), s = await f.session();
   await s.emit("UserPromptSubmit"); const start = await s.emit("SubagentStart", { agent_id: "child" }); await f.observer.poll();

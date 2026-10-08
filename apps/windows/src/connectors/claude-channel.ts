@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { readFile, stat, realpath } from "node:fs/promises";
+import { stat, realpath } from "node:fs/promises";
 import { readdirSync, unlinkSync } from "node:fs";
 import { join, sep } from "node:path";
 import { homedir } from "node:os";
@@ -9,6 +9,7 @@ import { ConnectorMonitor } from "../../../../packages/connectors/monitor.js";
 import { connectorKey } from "../../../../packages/connectors/identity.js";
 import { ClaudeEvents } from "../../../../packages/connectors/claude-events.js";
 import { claudeHistory } from "../../../../packages/connectors/catalog.js";
+import { readClaudeTranscript } from "../../../../packages/connectors/claude-transcript.js";
 import { canonicalPath } from "../../../../packages/pi-runtime/sessions.js";
 import { writeLocalJson, readLocalJson, type NativeCommand } from "../../../../packages/pi-runtime/native-protocol.js";
 import { G2_SUMMARY_OPEN, G2_SUMMARY_CLOSE } from "../../../../packages/cockpit-state/g2-reply.js";
@@ -126,7 +127,7 @@ lines.on("line", line => {
   if (!message || typeof message !== "object" || Array.isArray(message)) return;
   const respond = (result: unknown) => send({ jsonrpc: "2.0", id: message.id, result });
   if (message.method === "initialize") respond({ protocolVersion: message.params?.protocolVersion || "2024-11-05",
-    serverInfo: { name: "even-pilot", version: "1.1.12" },
+    serverInfo: { name: "even-pilot", version: "1.1.13" },
     capabilities: { experimental: { "claude/channel": {}, "claude/channel/permission": {} }, tools: {} },
     instructions: "Terminal+ forwards the user's G2 prompts to this same session. Respond normally in the terminal. Preserve requested <g2-summary> summary markers. The reply tool may additionally send a concise glasses reply; it does not replace the full terminal response.",
   });
@@ -173,11 +174,12 @@ const timer = setInterval(async () => {
     const path = await realpath(source);
     if (!canonicalPath(path).startsWith(canonicalPath(root) + sep) || !path.endsWith(sessionId + ".jsonl")) return;
     const info = await stat(path);
-    if (info.mtimeMs === modified || info.size > 32 * 1024 * 1024) return;
-    const sourceText = await readFile(path, "utf8");
-    const history = claudeHistory(sourceText, path, info.mtimeMs);
+    if (info.mtimeMs === modified) return;
+    const recent = await readClaudeTranscript(source, root);
+    const sourceText = recent.content;
+    const history = claudeHistory(sourceText, path, recent.modified, recent.metadata);
     if (!history || monitor.snapshot.instance !== instance || transcriptPath !== source || !ready) return;
-    modified = info.mtimeMs;
+    modified = recent.modified;
     monitor.store.dispatch({ type: "session.updated", session: {
       ...(history.session.name ? { name: history.session.name } : {}),
       ...(history.session.model ? { model: history.session.model } : {}),

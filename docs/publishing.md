@@ -1,17 +1,17 @@
-# Publish Terminal+ 1.1.12
+# Publish Terminal+ 1.1.13
 
-This guide covers the unified Windows/Linux companion and Terminal+ Hub release **1.1.12**. Building packages does not publish them. Do not claim download or npm availability until the public assets are verified. The source package retains `private: true`.
+This guide covers the unified Windows/Linux companion and Terminal+ Hub release **1.1.13**. Building packages does not publish them. Do not claim download or npm availability until the public assets are verified. The source package retains `private: true`.
 
 ## GitHub
 
 1. Commit reviewed source changes and push to [Liang-Chu/Even-G2-Terminal-plus](https://github.com/Liang-Chu/Even-G2-Terminal-plus). Check that `.local`, credentials, generated payloads and `outputs` remain ignored. Keep `package-lock.json` and third-party notices.
-2. Build and validate native packages, Hub package, standalone guides and checksums. Stage the reviewed files in `release/github-1.1.12` only after the checks pass; use [release status](release-status.md) to record the actual evidence.
-3. Open **Releases → Draft a new release**. Create tag **v1.1.12** on the reviewed source commit. Use title **Terminal+ 1.1.12** and only the first **Terminal+ 1.1.12** section of `RELEASE_NOTES.md` as the release body; omit the labeled history. Attach:
+2. Build and validate native packages, Hub package, standalone guides and checksums. Stage the reviewed files in `release/github-1.1.13` only after the checks pass; use [release status](release-status.md) to record the actual evidence.
+3. Open **Releases → Draft a new release**. Create tag **v1.1.13** on the reviewed source commit. Use title **Terminal+ 1.1.13** and only the first **Terminal+ 1.1.13** section of `RELEASE_NOTES.md` as the release body; omit the labeled history. Attach:
 
-   - `Terminal-plus-1.1.12-Setup-x64.exe` — Windows installer.
-   - `Terminal-plus-1.1.12-Setup-linux-x64.run` — Linux installer.
-   - `Terminal-plus-1.1.12-windows.zip` and `Terminal-plus-1.1.12-linux-x64.tar.gz` — optional portable packages.
-   - `terminal-plus-1.1.12.ehpk` — phone/G2 package.
+   - `Terminal-plus-1.1.13-Setup-x64.exe` — Windows installer.
+   - `Terminal-plus-1.1.13-Setup-linux-x64.run` — Linux installer.
+   - `Terminal-plus-1.1.13-windows.zip` and `Terminal-plus-1.1.13-linux-x64.tar.gz` — optional portable packages.
+   - `terminal-plus-1.1.13.ehpk` — phone/G2 package.
    - `SHA256SUMS.txt`, `HUB_SHA256SUMS.txt`, `RELEASE_NOTES.md` and `SETUP.md`.
 
 4. For a validated stable release, leave **Set as a pre-release** unchecked and select **Set as the latest release**. The new companion updater requires installer filenames matching the release tag and GitHub's SHA-256 asset digests. Pre-releases are excluded from update checks. Do not mark a Hub-only release as Latest without matching native installers.
@@ -25,25 +25,25 @@ Publish the separate **terminal-plus** setup package after validating the matchi
 1. Build from the reviewed Linux installer and its adjacent `SHA256SUMS.txt`:
 
    ```sh
-   npm run release:npm -- /absolute/path/Terminal-plus-1.1.12-Setup-linux-x64.run
+   npm run release:npm -- /absolute/path/Terminal-plus-1.1.13-Setup-linux-x64.run
    ```
 
-   The output is `outputs/npm-1.1.12-<random>/terminal-plus-1.1.12.tgz`. Inspect the packed file allowlist and installer digest. Keep this package separate from the source checkout.
-2. Test a normal-user Linux x64 installation with install scripts disabled and enabled. Run `terminal-plus-setup`, open a new shell and check `terminal-plus status`. Verify upgrade from Even-Pilot, no downgrade, saved identity/Watch/notification settings, compatibility alias and uninstall. Copy the verified tarball to `release/1.1.12` and record its checksum.
+   The output is `outputs/npm-1.1.13-<random>/terminal-plus-1.1.13.tgz`. Inspect the packed file allowlist and installer digest. Keep this package separate from the source checkout.
+2. Test a normal-user Linux x64 installation with install scripts disabled and enabled. Run `terminal-plus-setup`, open a new shell and check `terminal-plus status`. Verify upgrade from Even-Pilot, no downgrade, saved identity/Watch/notification settings, compatibility alias and uninstall. Copy the verified tarball to `release/1.1.13` and record its checksum.
 3. With a publish-authorized npm account, publish only that tarball:
 
    ```sh
-   npm publish ./release/1.1.12/terminal-plus-1.1.12.tgz --access public --tag latest --ignore-scripts
+   npm publish ./release/1.1.13/terminal-plus-1.1.13.tgz --access public --tag latest --ignore-scripts
    ```
 
    Use npm's authorization flow for the authorized account. Never put npm credentials in the source or tarball.
-4. Confirm `npm view terminal-plus version` returns `1.1.12`, verify the public tarball digest, and install from the public registry as a clean Linux user. The user flow is `npm install -g terminal-plus`, `terminal-plus-setup`, then `terminal-plus` in a new shell. No `sudo` is needed. Only then record verified public availability in release status. Companion updates continue to use verified GitHub Releases.
+4. Confirm `npm view terminal-plus version` returns `1.1.13`, verify the public tarball digest, and install from the public registry as a clean Linux user. The user flow is `npm install -g terminal-plus`, `terminal-plus-setup`, then `terminal-plus` in a new shell. No `sudo` is needed. Only then record verified public availability in release status. Companion updates continue to use verified GitHub Releases.
 
 ## Even Hub
 
-1. Upload the validated `terminal-plus-1.1.12.ehpk` through your Even Hub publishing account. Set the listing name to **Terminal+**, matching the manifest and device app name. Keep package ID `local.terminalplus.app`; the name and ID omit the reviewer's reserved word.
+1. Upload the validated `terminal-plus-1.1.13.ehpk` through your Even Hub publishing account. Set the listing name to **Terminal+**, matching the manifest and device app name. Keep package ID `local.terminalplus.app`; the name and ID omit the reviewer's reserved word.
 2. Paste [Even Hub description](even-hub-description.md), and use your own current screenshots, shared app icon and other fields required by the form. The description states that a computer companion is required.
-3. When migrating a listing from `local.evenpilot.app`, the portal may require a new listing/install. Do not assume phone settings transfer. Re-enter each computer's existing URL/key and your voice transcription key if needed, then verify live sessions and voice settings with Terminal+ 1.1.12 companions.
+3. When migrating a listing from `local.evenpilot.app`, the portal may require a new listing/install. Do not assume phone settings transfer. Re-enter each computer's existing URL/key and your voice transcription key if needed, then verify live sessions and voice settings with Terminal+ 1.1.13 companions.
 
 Desktop/Linux updates do not install the phone package. Publish/install it separately even when all packages share a version.
 

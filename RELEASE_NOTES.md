@@ -1,4 +1,11 @@
-# Terminal+ 1.1.12
+# Terminal+ 1.1.13
+
+- Keeps active Claude sessions visible when their native transcript exceeds the former 32 MiB whole-file limit. Reads a bounded 64 KiB head and 2 MiB tail instead of scanning the entire history.
+- Discards definitely retired events whose first prompt cannot be recovered, allowing current Claude events to progress through a blocked queue. Missing history or uncertain/live events do not imply completion.
+
+Update the Windows/Linux companion to 1.1.13. Existing Terminal+ Hub installations continue to work; this Claude monitoring fix does not require a phone/G2 update. Existing settings and native CLI processes are retained. See [release status](https://github.com/Liang-Chu/Even-G2-Terminal-plus/blob/v1.1.13/docs/release-status.md) for verification and publication status.
+
+# Terminal+ 1.1.12 — history
 
 - New and model-less OpenAI voice configurations default to **GPT Transcribe**, with streamed text.
 - Existing explicit Whisper choices, providers and API keys remain saved.

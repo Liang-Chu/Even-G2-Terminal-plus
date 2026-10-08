@@ -59,11 +59,11 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 对刚生成的目录运行 `node tests/release-smoke.mjs "<发布目录>"` 和 `node tests/installer-smoke.mjs "<发布目录>"`。前者检查便携包；后者验证真正的安装 EXE、无系统 Node/npm 的启动、Windows 卸载注册、重装保留 key、升级保留工作进程、卸载保护以及保留数据。均使用隔离目录，不读取实际 CLI 历史或运行付费模型任务。
 
 
-代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本、`apps/evenhub/app.json` 和发布文档。Windows/Linux 与 Hub 本次统一为 **1.1.12**。`npm run pack:evenhub` 生成 `terminal-plus-<版本>.ehpk`；Hub 保持 `package_id` 为 `local.terminalplus.app`，名称和 ID 均不含 reviewer 禁止的 `even`。从 `local.evenpilot.app` 迁移时，门户可能要求新建条目／重新安装，旧应用保存的手机连接和语音 key 不保证迁移，必要时重新填写。
+代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本、`apps/evenhub/app.json` 和发布文档。Windows/Linux 与 Hub 本次统一为 **1.1.13**。`npm run pack:evenhub` 生成 `terminal-plus-<版本>.ehpk`；Hub 保持 `package_id` 为 `local.terminalplus.app`，名称和 ID 均不含 reviewer 禁止的 `even`。从 `local.evenpilot.app` 迁移时，门户可能要求新建条目／重新安装，旧应用保存的手机连接和语音 key 不保证迁移，必要时重新填写。
 
 ## 发布文件与私有文件
 
-验证通过后，将电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明整理到 `release/1.1.12/`，Hub 的 `terminal-plus-1.1.12.ehpk` 和校验和整理到 `release/hub-1.1.12/`。安装器和便携包包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。生成这些文件不等于已经发布；实际验证和发布情况见[发布状态](release-status.md)。
+验证通过后，将电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明整理到 `release/1.1.13/`，Hub 的 `terminal-plus-1.1.13.ehpk` 和校验和整理到 `release/hub-1.1.13/`。安装器和便携包包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。生成这些文件不等于已经发布；实际验证和发布情况见[发布状态](release-status.md)。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 

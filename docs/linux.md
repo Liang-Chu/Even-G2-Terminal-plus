@@ -2,7 +2,7 @@
 
 首次部署按[完整安装连接指南](setup.zh-CN.md)操作；没有历史记忆的操作者／agent 从[运行手册](agent-runbook.md)开始。本页保留 Linux 命令和服务的详细参考。
 
-Terminal+ 1.1.12 包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。历史版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次更名的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
+Terminal+ 1.1.13 包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。历史版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次更名的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
 
 发行版仍需能运行官方 Node Linux 二进制；Alpine/musl 不适用此预编译包。ARM64 构建脚本可在对应 Linux 主机运行，但当前未进行 ARM64 实机验收。GNOME、KDE、XFCE、Kitty、xterm 的启动参数有回归测试；NUC 没有图形桌面，不能代替这些桌面的实机验收。
 

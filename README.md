@@ -4,11 +4,11 @@ Watch Pi, Codex and Claude Code sessions running on Windows/Linux through Even H
 
 See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
-**Terminal+ 1.1.12** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.13** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows / Linux / Hub downloads](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
 
-The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.12**.
+The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide targets **1.1.13**; see [release status](docs/release-status.md) for verification and publication.
 
 ## Quick start
 
@@ -16,11 +16,11 @@ The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Comma
 
 Start with a working Pi, Codex or Claude Code installation. Install Terminal+ on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing model login stays in use; Terminal+ does not install the CLIs.
 
-- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.12-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
-- **Linux / SSH:** download `Terminal-plus-1.1.12-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
+- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.13-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
+- **Linux / SSH:** download `Terminal-plus-1.1.13-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
 
   ```sh
-  sh ./Terminal-plus-1.1.12-Setup-linux-x64.run
+  sh ./Terminal-plus-1.1.13-Setup-linux-x64.run
   ```
 
   Open a **new shell**, then run `terminal-plus` and `terminal-plus pair`. In the current shell, use `~/.local/bin/terminal-plus`. The installer includes its own Node runtime and backend dependencies.
@@ -57,12 +57,14 @@ For startup after login/reboot: Windows tray → **Start with Windows**; Linux �
 | Codex CLI / local Codex Desktop | Automatic observation; a new session appears after its first saved prompt. | Ordinary sessions are read-only |
 | Claude Code (experimental) | The installer adds monitor hooks. Check `/hooks`; observation starts with the next prompt. Reopen while idle if hooks are missing. | Ordinary sessions are read-only |
 
+Claude monitoring reads a bounded beginning and recent tail of large transcripts. The monitor can discard definitely retired events with no recoverable first prompt; missing history never marks a task as complete. Full history stays in the native CLI.
+
 For Codex/Claude remote input, use **+ New terminal** in the manager to create a connector session. Choose **Tunnel** and the project directory; Claude also asks for Channel confirmation in its terminal. Headless Linux needs `tmux`; Claude's Linux connector also needs `python3`. [Linux prerequisites](docs/setup.md#linux-headless-or-desktop) · [Capabilities and limits](docs/connectors.md)
 
 ### 3. Connect the phone
 
 1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
-2. Install **Terminal+ 1.1.12** (`terminal-plus-1.1.12.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.12** Windows/Linux companion.
+2. Install **Terminal+ 1.1.13** (`terminal-plus-1.1.13.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.13** Windows/Linux companion.
 3. Get this computer's URL and key: Windows **Connect phone**; Linux `terminal-plus pair`.
 4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
@@ -114,6 +116,8 @@ Configure **Glance notifications** on the companion, then register the sender/ce
 [Companion and forwarding setup](docs/setup.md#optional-glance-notifications)
 
 ## Updates
+
+For the 1.1.13 Claude monitoring fixes, update the companion. Existing Terminal+ Hub installations continue to work; a phone/G2 update is optional for this fix.
 
 **Upgrading from Even-Pilot:** manually run the new Terminal+ installer once. Older updaters may fail after the repository rename. Existing installation/data/service roots and `EVEN_PILOT_*` settings remain for compatibility; your connection key, Watch and notification settings are retained. [Migration and update guide](docs/updates.md#migration-from-even-pilot)
 

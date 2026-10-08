@@ -1,4 +1,4 @@
-# Even Hub description — Terminal+ 1.1.12
+# Even Hub description — Terminal+ 1.1.13
 
 Terminal+ lets you view coding sessions running on Windows/Linux through Even Hub and Even G2 while you keep working in your normal terminal.
 

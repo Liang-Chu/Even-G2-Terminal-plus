@@ -2,7 +2,7 @@
 
 从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Terminal+ 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
 
-本文对应 **Terminal+ 1.1.12**。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
+本文对应 **Terminal+ 1.1.13**。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
 
 ## 先分清四个部分
 
@@ -19,7 +19,7 @@ Terminal+ 是监控和简单会话管理端。桌面管理页只控制提供这�
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.12-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.13-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Terminal+**、**Start with Windows**、更新和 **Quit Terminal+**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -83,6 +83,8 @@ Lingering 是系统用户服务策略，安装器不会擅自开启。没有用�
 | Codex CLI／Codex Desktop 本地会话 | 无需插件或重开；新会话保存第一条 prompt 后被发现 | 普通会话只读；prompt／控制需要连接器 |
 | Claude Code | 安装时添加官方监控 Hooks；下一次 prompt 开始监控，用 `/hooks` 检查；未加载时等任务结束后重开 | 普通会话只读；远程输入需要实验 Channel 连接器 |
 
+超过 32 MiB 的 Claude transcript 仍可通过读取开头 64 KiB 和末尾 2 MiB 进行监控，无需扫描整个历史。已确定退出且无法恢复首条 prompt 的旧事件可移出队列；不确定／仍活动的事件和缺失历史不会被当成任务完成。完整历史保留在原生 CLI。
+
 需要远程输入时，在管理页 **+ New terminal** 选择 **Tunnel** 和已有项目目录，创建连接器会话。Linux 也可以：
 
 ```sh
@@ -114,7 +116,7 @@ terminal-plus new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. 在 Even Hub 单独安装 **Terminal+ 1.1.12**（`terminal-plus-1.1.12.ehpk`）。使用 **Terminal+ 1.1.12** 电脑端和 Even App 2.2.10+，再连好 G2。
+1. 在 Even Hub 单独安装 **Terminal+ 1.1.13**（`terminal-plus-1.1.13.ehpk`）。使用 **Terminal+ 1.1.13** 电脑端和 Even App 2.2.10+，再连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `terminal-plus pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -258,7 +260,7 @@ terminal-plus settings
 
 已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `terminal-plus update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `terminal-plus update`，再用 `terminal-plus update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-**电脑更新不更新手机／G2 应用。**Even Hub 需单独安装它的 `.ehpk`，配合 Terminal+ 1.1.12 电脑端。从 `local.evenpilot.app` 迁移到 `local.terminalplus.app` 时，可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写各电脑已有的 URL/key 和转写 key。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+1.1.13 的 Claude 监控修复只需更新电脑端；已有 Terminal+ Hub 继续兼容。**电脑更新不更新手机／G2 应用。**需要更新 Hub 时，再单独安装它的 `.ehpk`。从 `local.evenpilot.app` 迁移到 `local.terminalplus.app` 时，可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写各电脑已有的 URL/key 和转写 key。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
 Windows 在 **设置 → 应用 → Terminal+** 卸载，Linux `terminal-plus uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `terminal-plus stop`。
 

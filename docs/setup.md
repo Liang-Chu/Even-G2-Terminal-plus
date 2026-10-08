@@ -2,7 +2,7 @@
 
 This guide starts from a computer with a working Pi, Codex or Claude Code login. No previous Terminal+ configuration is assumed. For the shortest path, see the [quickstart](../README.md); [中文版](setup.zh-CN.md).
 
-These instructions cover **Terminal+ 1.1.12**. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
+These instructions cover **Terminal+ 1.1.13**. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
 
 ## What you install
 
@@ -19,7 +19,7 @@ The companion is a watcher and lightweight session manager. Its desktop manager 
 
 ### Windows
 
-1. Download `Terminal-plus-1.1.12-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
+1. Download `Terminal-plus-1.1.13-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Terminal+**, **Start with Windows**, update controls and **Quit Terminal+**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -83,6 +83,8 @@ Use the same OS user and configuration directories for the companion and the CLI
 | Codex CLI / local Codex Desktop | No plugin or reopen. New sessions appear after their first saved prompt; local rollout files drive observation. | Ordinary sessions are read-only; prompt/control require a connector session |
 | Claude Code | Official monitor hooks are added at installation/preparation. Its next prompt establishes observation. Check `/hooks`; if not loaded, reopen only after the current task finishes. | Ordinary sessions are read-only; remote prompt/control require the experimental Channel connector |
 
+Claude transcripts larger than 32 MiB remain observable through bounded reads of the first 64 KiB and last 2 MiB, without scanning the whole history. The queue can discard definitely retired events whose first prompt cannot be recovered; uncertain/live events and missing history never imply completion. Full history remains in the native CLI.
+
 For remote input to Codex/Claude, create a separate connector session using **+ New terminal**, choose **Tunnel** and an existing project path. On Linux you can also use:
 
 ```sh
@@ -123,7 +125,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install **Terminal+ 1.1.12** (`terminal-plus-1.1.12.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.12** companions and Even App 2.2.10+, then connect G2 to the phone.
+1. Install **Terminal+ 1.1.13** (`terminal-plus-1.1.13.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.13** companions and Even App 2.2.10+, then connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `terminal-plus pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -267,7 +269,7 @@ To return a source to independent delivery use `terminal-plus settings push dire
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `terminal-plus update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `terminal-plus update`, then `terminal-plus update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-**Companion updates do not install the phone/G2 app.** Install its `.ehpk` separately in Even Hub with Terminal+ 1.1.12 companions. Moving from `local.evenpilot.app` to `local.terminalplus.app` may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+The 1.1.13 Claude monitoring fix requires only the companion update; existing Terminal+ Hub installations continue to work. **Companion updates do not install the phone/G2 app.** Install a new `.ehpk` separately in Even Hub when you choose to update it. Moving from `local.evenpilot.app` to `local.terminalplus.app` may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Terminal+**. Linux uses `terminal-plus uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `terminal-plus stop`; native terminals keep working.
 

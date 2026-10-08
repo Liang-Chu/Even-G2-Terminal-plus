@@ -1,4 +1,4 @@
-import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
@@ -10,6 +10,7 @@ import { connectorKey } from "./identity.js";
 import { resolveAgent } from "./command.js";
 import { stdioRpc, type AgentRpc } from "./rpc.js";
 import { claudeQuestionText } from "./claude-questions.js";
+import { readClaudeTranscript, type ClaudeTranscriptMetadata } from "./claude-transcript.js";
 
 export function codexHistory(thread: any): SessionHistory {
   const messages: SessionHistory["messages"] = [];
@@ -41,16 +42,18 @@ export async function readCodexHistory(rpc: Pick<AgentRpc, "request">, id: strin
   }
 }
 
-export function claudeHistory(content: string, path: string, modified: number): SessionHistory | undefined {
-  let id = "", cwd = "", name: string | undefined, model: string | undefined;
+export function claudeHistory(content: string, path: string, modified: number, metadata?: ClaudeTranscriptMetadata): SessionHistory | undefined {
+  let id = metadata?.id || "", cwd = metadata?.cwd || "", name: string | undefined, model: string | undefined;
   const messages: SessionHistory["messages"] = [];
   let incomplete = false;
   for (const line of content.split("\n")) {
     if (!line.trim()) continue;
     let row: any; try { row = JSON.parse(line); } catch { incomplete = true; continue; }
+    if (!row || typeof row !== "object" || Array.isArray(row)) { incomplete = true; continue; }
     if (row.isSidechain) continue;
-    if (typeof row.sessionId === "string") id = row.sessionId;
-    if (typeof row.cwd === "string") cwd = row.cwd;
+    if (metadata && typeof row.sessionId === "string" && row.sessionId !== metadata.id) { incomplete = true; continue; }
+    if (!metadata && typeof row.sessionId === "string") id = row.sessionId;
+    if (!metadata && typeof row.cwd === "string") cwd = row.cwd;
     if (row.type === "custom-title" && typeof row.customTitle === "string") name = row.customTitle;
     const message = row.message;
     if (!message || !["user", "assistant"].includes(message.role)) continue;
@@ -77,7 +80,7 @@ interface Options {
 export class ConnectorCatalog implements SessionCatalog {
   private pi: SessionRepository;
   private references = new Map<string, { tunnel: "codex" | "claude"; id: string; cwd: string; path?: string }>();
-  private cache = new Map<string, { modified: number; size: number; history: SessionHistory }>();
+  private cache = new Map<string, { modified: number; size: number; ino: number; dev: number; history: SessionHistory }>();
   private pending = new Map<string, SessionSummary>();
   private rpc?: AgentRpc;
   private connecting?: Promise<Pick<AgentRpc, "request" | "close">>;
@@ -124,13 +127,21 @@ export class ConnectorCatalog implements SessionCatalog {
         if (!file.isFile() || file.isSymbolicLink() || !file.name.endsWith(".jsonl")) continue;
         const path = join(directory, file.name);
         try {
+          const parent = await lstat(directory);
+          if (!parent.isDirectory() || parent.isSymbolicLink()) continue;
           const info = await lstat(path);
-          if (info.size > 32 * 1024 * 1024 || !canonicalPath(await realpath(path)).startsWith(actualRoot + sep)) continue;
+          if (!info.isFile() || info.isSymbolicLink() || !canonicalPath(await realpath(path)).startsWith(actualRoot + sep)) continue;
           const cached = this.cache.get(path);
-          let history = cached?.modified === info.mtimeMs && cached.size === info.size ? cached.history : undefined;
-          if (!history) history = claudeHistory(await readFile(path, "utf8"), path, info.mtimeMs);
+          let history = cached?.modified === info.mtimeMs && cached.size === info.size && cached.ino === info.ino && cached.dev === info.dev ? cached.history : undefined;
+          let modified = info.mtimeMs, size = info.size;
+          if (!history) {
+            const transcript = await readClaudeTranscript(path, root);
+            history = claudeHistory(transcript.content, path, transcript.modified, transcript.metadata);
+            if (history) history.truncated ||= transcript.truncated;
+            modified = transcript.modified; size = transcript.size;
+          }
           if (!history) continue;
-          this.cache.set(path, { modified: info.mtimeMs, size: info.size, history });
+          this.cache.set(path, { modified, size, ino: info.ino, dev: info.dev, history });
           this.references.set(history.session.key, { tunnel: "claude", id: history.session.id, cwd: history.session.cwd, path });
           rows.push(history);
         } catch { /* A concurrently removed/locked native file is retried on the next scan. */ }
