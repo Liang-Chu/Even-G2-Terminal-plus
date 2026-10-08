@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { processAlive, readLocalJson, uuidPattern } from "../../../packages/pi-runtime/native-protocol.js";
 import { fetchUpdateResource } from "./update-fetch.js";
 
-export const updateRepository = "Liang-Chu/Even-Pilot";
+export const updateRepository = "Liang-Chu/Even-G2-Terminal-plus";
 const day = 24 * 60 * 60_000;
 const maxAsset = 200 * 1024 * 1024;
 export class UpdateError extends Error { constructor(message: string, readonly status = 400) { super(message); } }
@@ -29,8 +29,8 @@ export function newerVersion(candidate: string, current: string) {
   return false;
 }
 export function releaseAssetName(version: string, platform: string, arch: string) {
-  if (platform === "win32" && arch === "x64") return `Even-Pilot-${version}-Setup-x64.exe`;
-  if (platform === "linux" && ["x64", "arm64"].includes(arch)) return `Even-Pilot-${version}-Setup-linux-${arch}.run`;
+  if (platform === "win32" && arch === "x64") return `Terminal-plus-${version}-Setup-x64.exe`;
+  if (platform === "linux" && ["x64", "arm64"].includes(arch)) return `Terminal-plus-${version}-Setup-linux-${arch}.run`;
   return undefined;
 }
 export function parseUpdateRelease(data: any, current: string, platform: string, arch: string): UpdateRelease | undefined {
@@ -192,7 +192,7 @@ export class UpdateService {
   private async metadata(signal: AbortSignal) {
     const response = await (this.options.fetch || fetchUpdateResource)(`https://api.github.com/repos/${updateRepository}/releases/latest`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]), redirect: "error",
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "Even-Pilot/" + this.options.version }, credentials: "omit" });
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "Terminal-plus/" + this.options.version }, credentials: "omit" });
     if (!response.ok) {
       await response.body?.cancel();
       if (response.status === 404) throw new UpdateError("No public release is available yet", 503);

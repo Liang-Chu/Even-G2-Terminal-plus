@@ -24,8 +24,8 @@ function identify(sessions: SessionSummary[], query: string) {
   const matches = sessions.filter(session => session.name === query ||
     (/^[a-f0-9]{6,32}$/i.test(query) && session.key.startsWith(query.toLowerCase())));
   if (matches.length !== 1) throw new Error(matches.length
-    ? "Ambiguous session. Use a longer key from `even-pilot sessions --json`."
-    : "Session not found. Run `even-pilot sessions` and use its key or exact title.");
+    ? "Ambiguous session. Use a longer key from `terminal-plus sessions --json`."
+    : "Session not found. Run `terminal-plus sessions` and use its key or exact title.");
   return matches[0];
 }
 
@@ -39,9 +39,9 @@ export async function runSessionCommand(command: string, args: string[], context
   if (values.help) { context.write(sessionHelp); return; }
   const allowed = command === "sessions" ? ["json", "watched", "cwd"] : command === "new" ? ["cwd", "name"] : [];
   if (!sessionCommands.has(command) || Object.keys(values).some(key => !allowed.includes(key)))
-    throw new Error("Invalid command/options. Run `even-pilot --help`.");
+    throw new Error("Invalid command/options. Run `terminal-plus --help`.");
   const arity = command === "sessions" ? 0 : 1;
-  if (positionals.length !== arity) throw new Error("Invalid arguments. Run `even-pilot --help`; quote titles containing spaces.");
+  if (positionals.length !== arity) throw new Error("Invalid arguments. Run `terminal-plus --help`; quote titles containing spaces.");
   if (command === "new" && !["pi", "codex", "claude"].includes(positionals[0])) throw new Error("Choose pi, codex or claude.");
   if (values.name !== undefined && (!values.name.trim() || values.name.length > 128)) throw new Error("Name must be between 1 and 128 characters.");
   const api = async (path: string, body?: object): Promise<any> => {
@@ -50,7 +50,7 @@ export async function runSessionCommand(command: string, args: string[], context
     catch {
       throw new Error(body
         ? "Connection lost; the operation may have been accepted. Check the native terminal and session state before retrying. Nothing was resent."
-        : "Cannot reach the monitor. Run `even-pilot start`, then try again.");
+        : "Cannot reach the monitor. Run `terminal-plus start`, then try again.");
     }
     let result: any;
     try { result = await response.json(); }
@@ -62,7 +62,7 @@ export async function runSessionCommand(command: string, args: string[], context
   };
   if (command === "new") {
     await api("/api/session/new", { tunnel: positionals[0], cwd: resolve(values.cwd || context.cwd || process.cwd()), name: values.name });
-    context.write("Terminal launch requested. Run `even-pilot sessions` after the CLI initializes; `tmux ls` lists headless terminals.");
+    context.write("Terminal launch requested. Run `terminal-plus sessions` after the CLI initializes; `tmux ls` lists headless terminals.");
     return;
   }
   const catalog = await api("/api/sessions" + (command === "sessions" && values.cwd ? "?cwd=" + encodeURIComponent(resolve(values.cwd)) : ""));

@@ -115,18 +115,18 @@ export async function runSettingsCommand(args: string[], context: SettingsContex
   try { parsed = parseArgs({ args, allowPositionals: true, options: {
     url: { type: "string" }, "key-file": { type: "string" }, credentials: { type: "string" }, help: { type: "boolean", short: "h" },
   } }); }
-  catch { throw new Error("Invalid settings arguments. Run `even-pilot settings --help`."); }
+  catch { throw new Error("Invalid settings arguments. Run `terminal-plus settings --help`."); }
   const { positionals, values } = parsed;
   if (values.help) { context.write(settingsHelp); return; }
   const action = positionals.join(" "), names = Object.keys(values);
   const valid = (!action && !names.length) || action === "push direct" && !names.length ||
     action === "push forward" && names.length === 2 && typeof values.url === "string" && typeof values["key-file"] === "string" ||
     action === "firebase" && names.length === 1 && typeof values.credentials === "string" || action === "firebase clear" && !names.length;
-  if (!valid) throw new Error("Invalid settings arguments. Run `even-pilot settings --help`.");
+  if (!valid) throw new Error("Invalid settings arguments. Run `terminal-plus settings --help`.");
   const api = async (path: string, body?: object) => {
     let response: Response;
     try { response = await context.request(path, body, 15_000); }
-    catch { throw new Error(body ? "Settings request was not confirmed. Check settings before retrying; nothing was resent." : "Cannot reach monitoring. Run `even-pilot start`, then try again."); }
+    catch { throw new Error(body ? "Settings request was not confirmed. Check settings before retrying; nothing was resent." : "Cannot reach monitoring. Run `terminal-plus start`, then try again."); }
     return result(response, "Settings request");
   };
   if (!action) {
@@ -162,6 +162,6 @@ export async function runSettingsCommand(args: string[], context: SettingsContex
   context.write(credential ? "Firebase credential reference saved." : "Saved Firebase credential reference removed; the key file was retained.");
   environmentNote(context);
   try { await context.restart(); }
-  catch { throw new Error("Settings were saved, but monitoring restart was not confirmed. Run `even-pilot restart`; native CLI sessions were not stopped."); }
+  catch { throw new Error("Settings were saved, but monitoring restart was not confirmed. Run `terminal-plus restart`; native CLI sessions were not stopped."); }
   context.write("Monitoring restarted. Native CLI sessions remain running.");
 }

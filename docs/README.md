@@ -1,4 +1,4 @@
-# Documentation
+# Terminal+ documentation
 
 New users: [quick start](../README.md) / [中文快速开始](../README.zh-CN.md). Then use the detailed [setup guide](setup.md) / [中文安装连接指南](setup.zh-CN.md). Operators and agents without prior setup history should begin with the [runbook](agent-runbook.md).
 

@@ -8,7 +8,7 @@ import { claudeTerminal } from "./claude-terminal.js";
 const { values } = parseArgs({ options: { tunnel: { type: "string" }, cwd: { type: "string" },
   resume: { type: "string" }, fresh: { type: "boolean" }, name: { type: "string" }, help: { type: "boolean" } } });
 if (values.help) {
-  console.log("Even-Pilot native connector\n--tunnel codex|claude --cwd <project> [--resume <native session ID>]");
+  console.log("Terminal+ native connector\n--tunnel codex|claude --cwd <project> [--resume <native session ID>]");
 } else {
   try {
     if (values.tunnel !== "codex" && values.tunnel !== "claude") throw new Error("Choose --tunnel codex or claude");
@@ -18,7 +18,7 @@ if (values.help) {
     if (values.tunnel === "codex") await codexTerminal({ ...options, id: values.fresh ? undefined : options.id,
       launchId: values.fresh ? options.id : undefined, name: values.name }); else await claudeTerminal(options);
   } catch (error) {
-    console.error("[Even-Pilot] " + (error instanceof Error ? error.message : "Connector could not start"));
+    console.error("[Terminal+] " + (error instanceof Error ? error.message : "Connector could not start"));
     process.exitCode = 1;
   }
 }

@@ -6,7 +6,7 @@ import { validateFirebaseProjectId } from "./fcm.js";
 
 const { values, positionals } = parseArgs({ allowPositionals: true, options: {
   url: { type: "string", default: "http://127.0.0.1:4317" },
-  subscription: { type: "string" }, title: { type: "string", default: "Even-Pilot" },
+  subscription: { type: "string" }, title: { type: "string", default: "Terminal+" },
   text: { type: "string", default: "Push test complete." },
   "max-length": { type: "string", default: "80" }, "title-max-length": { type: "string", default: "32" },
   priority: { type: "string", default: "HIGH" }, ttl: { type: "string", default: "30" },

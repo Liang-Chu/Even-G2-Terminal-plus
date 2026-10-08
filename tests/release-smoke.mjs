@@ -11,10 +11,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 const release = resolve(process.argv[2]);
 const inventory = JSON.parse(readFileSync(join(release, 'inventory.json'), 'utf8'));
 const directory = mkdtempSync(join(release, 'smoke-'));
-const install = join(directory, 'Even-Pilot');
+const install = join(directory, 'Terminal-plus');
 const literal = value => "'" + value.replaceAll("'", "''") + "'";
 const unzip = spawnSync('powershell.exe', ['-NoProfile', '-Command',
-  `Expand-Archive -LiteralPath ${literal(join(release, `Even-Pilot-${inventory.version}-windows.zip`))} -DestinationPath ${literal(directory)}`], { windowsHide: true });
+  `Expand-Archive -LiteralPath ${literal(join(release, `Terminal-plus-${inventory.version}-windows.zip`))} -DestinationPath ${literal(directory)}`], { windowsHide: true });
 assert.equal(unzip.status, 0, 'ZIP extracts');
 for (const file of inventory.files) {
   assert.equal(createHash('sha256').update(readFileSync(join(install, file.path))).digest('hex'), file.sha256, file.path);
@@ -40,7 +40,7 @@ assert.equal(setup.status, 0, 'Bundled Setup.cmd works without a system Node/npm
 assert.equal(existsSync(join(install, 'node_modules/tsx/package.json')), true);
 assert.equal(existsSync(join(install, 'node_modules/typescript/package.json')), false, 'Production-only installation');
 assert.equal(existsSync(join(install, 'node_modules/@evenrealities/even_hub_sdk/package.json')), false, 'Frontend SDK stays in the built Hub assets');
-const interruptHelper = spawnSync(join(install, 'apps/windows/desktop/Even-Pilot.TerminalInterrupt.exe'), ['identity', String(process.pid)],
+const interruptHelper = spawnSync(join(install, 'apps/windows/desktop/Terminal-plus.TerminalInterrupt.exe'), ['identity', String(process.pid)],
   { windowsHide: true, encoding: 'utf8', timeout: 5000 });
 assert.equal(interruptHelper.status, 0, 'Bundled terminal helper runs without a compiler at install time');
 assert.match(interruptHelper.stdout.trim(), /^\d{15,20}$/);
@@ -48,12 +48,17 @@ const configPath = join(install, '.local/bridge-config.json');
 // Exercise the EXE's own first-run path, without opening a UI or real backend.
 unlinkSync(configPath);
 for (let run = 0; run < 2; run++) {
-  const prepared = spawnSync(join(install, 'Even-Pilot.exe'), ['--prepare'], { cwd: directory, env, windowsHide: true, timeout: 20_000 });
+  const prepared = spawnSync(join(install, 'Terminal-plus.exe'), ['--prepare'], { cwd: directory, env, windowsHide: true, timeout: 20_000 });
   assert.equal(prepared.status, 0, 'EXE prepares from a different working directory');
   if (run === 0) writeFileSync(join(directory, 'initial-config.json'), readFileSync(configPath));
   else assert.equal(readFileSync(configPath, 'utf8'), readFileSync(join(directory, 'initial-config.json'), 'utf8'), 'Keys persist');
 }
 const config = JSON.parse(readFileSync(configPath, 'utf8'));
+assert.ok(readFileSync(join(install, 'Terminal-plus.exe')).equals(readFileSync(join(install, 'Even-Pilot.exe'))),
+  'Legacy entry point is byte-identical to the new executable');
+const legacyCheck = spawnSync(join(install, 'Even-Pilot.exe'), ['--check'],
+  { cwd: directory, env, windowsHide: true, timeout: 20_000 });
+assert.equal(legacyCheck.status, 0, 'Legacy portable entry point still recognizes prepared runtime/config');
 assert.notEqual(config.controlToken, config.notificationToken);
 assert.equal(config.firebaseCredentialsPath, undefined);
 assert.equal(existsSync(join(install, '.local/desktop-runtime.json')), false, 'No developer Node path required');

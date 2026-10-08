@@ -11,12 +11,13 @@ import {setTimeout as delay} from 'node:timers/promises';
 // Exercises the real installer health gate and rollback, using isolated data/ports only.
 const release=resolve(process.argv[2]), windows=process.platform==='win32';
 const sandbox=mkdtempSync(join(tmpdir(),'pilot-update-install-')), root=join(sandbox,'App with spaces');
-const stage=join(release,'Even-Pilot');
+const stage=join(release,'Terminal-plus');
 const version=JSON.parse(readFileSync(join(stage,'package.json'))).version;
-const setup=join(release,`Even-Pilot-${version}-Setup-${windows?'x64.exe':'linux-x64.run'}`);
+const setup=join(release,`Terminal-plus-${version}-Setup-${windows?'x64.exe':'linux-x64.run'}`);
 const previousRelease=process.argv[3]?resolve(process.argv[3]):release;
-const previousVersion=JSON.parse(readFileSync(join(previousRelease,'Even-Pilot/package.json'))).version;
-const firstSetup=join(previousRelease,`Even-Pilot-${previousVersion}-Setup-${windows?'x64.exe':'linux-x64.run'}`);
+const previousName=existsSync(join(previousRelease,'Terminal-plus/package.json'))?'Terminal-plus':'Even-Pilot';
+const previousVersion=JSON.parse(readFileSync(join(previousRelease,previousName,'package.json'))).version;
+const firstSetup=join(previousRelease,`${previousName}-${previousVersion}-Setup-${windows?'x64.exe':'linux-x64.run'}`);
 const reservation=createServer();await new Promise(done=>reservation.listen(0,'127.0.0.1',done));
 const port=reservation.address().port;await new Promise(done=>reservation.close(done));
 const data=windows?join(root,'.local'):join(sandbox,'data');
@@ -86,7 +87,7 @@ try {
  if(worker?.exitCode===null){worker.kill();await until(()=>worker.exitCode!==null||worker.signalCode!==null);}
  try{await request('/api/shutdown',{});}catch{}
  if(existsSync(join(root,'install.json'))){
-   const remove=windows?run(join(root,'Uninstall.exe'),['--quiet','--uninstall','--dir',root]):run(join(sandbox,'bin/even-pilot'),['uninstall']);
+   const remove=windows?run(join(root,'Uninstall.exe'),['--quiet','--uninstall','--dir',root]):run(join(sandbox,'bin/terminal-plus'),['uninstall']);
    if(remove.status)console.error('Fixture uninstall incomplete; retained at '+sandbox);
  }
  if(!existsSync(join(root,'install.json'))){await delay(500);rmSync(sandbox,{recursive:true,force:true,maxRetries:10,retryDelay:200});}

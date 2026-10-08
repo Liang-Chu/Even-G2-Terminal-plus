@@ -6,7 +6,7 @@ Start here when you have no history from the original setup. For a new user, fol
 
 1. Identify the computer, operating-system user and actual installation root. Run as the same user as the native CLI. A custom or portable installation may not use the default directory.
 2. Identify the task: monitor a local session, connect a viewer, configure notifications, update the companion, or install the phone package. These are separate operations.
-3. On Linux run `even-pilot status`, `even-pilot sessions` and `even-pilot settings`. These show monitoring/session/sender state without printing keys. Use `even-pilot pair` only when the owner needs connection details.
+3. On Linux run `terminal-plus status`, `terminal-plus sessions` and `terminal-plus settings`. These show monitoring/session/sender state without printing keys. Use `terminal-plus pair` only when the owner needs connection details.
 4. On Windows open the shortcut and inspect Sessions and the tray's running state. The desktop manager controls only this computer. **Connect phone** opens **Connect your phone** with its URL/key; add each computer in phone **Connection** to combine sessions there.
 5. Check the installed version and [release status](release-status.md). Do not infer a deployed version from the source checkout or a file left in Downloads.
 
@@ -17,13 +17,15 @@ The default backend listens on TCP 4317. Only one monitor should own a given dat
 | Item | Windows default | Linux default |
 | --- | --- | --- |
 | Application root | `%LOCALAPPDATA%\Programs\Even-Pilot` | `~/.local/lib/even-pilot` |
-| User entry point | Installed shortcut → active payload's `Even-Pilot.exe`; portable may have a root launcher | `~/.local/bin/even-pilot` |
+| User entry point | Installed shortcut → active payload's `Terminal-plus.exe`; portable may have a root launcher | `~/.local/bin/terminal-plus` |
 | Active payload | `versions/<version>-<build-id>/` | `current` symlink → `versions/<version>-<build-id>/` |
 | Private runtime data | `.local/` at the installation root | `~/.local/share/even-pilot` |
 | User service | Windows tray/login entry | `~/.config/systemd/user/even-pilot.service` |
 | Backend diagnostics | `.local/desktop-startup.log` | `journalctl --user -u even-pilot.service` |
 
 Linux respects `XDG_DATA_HOME` and `XDG_CONFIG_HOME`; `EVEN_PILOT_DATA_DIR` overrides the runtime data directory on both platforms. A portable/source install uses its own data root. Inspect shortcut/service launch arguments and `install.json` before assuming the defaults. Custom Linux services can also use `EVEN_PILOT_SERVICE_NAME`.
+
+Terminal+ deliberately retains these historical installation/data/service names and `EVEN_PILOT_*` variables. Existing Even-Pilot installations require a [manual installer upgrade once](updates.md#migration-from-even-pilot); use the new `terminal-plus` command afterward.
 
 Private data includes:
 
@@ -41,21 +43,21 @@ Native CLI locations are independent: Pi uses `~/.pi/agent` or `PI_CODING_AGENT_
 Linux does not require a browser, system Node or npm:
 
 ```sh
-even-pilot start
-even-pilot status
-even-pilot sessions --watched
-even-pilot watch SESSION
-even-pilot unwatch SESSION
-even-pilot select SESSION
-even-pilot settings
-even-pilot update check
+terminal-plus start
+terminal-plus status
+terminal-plus sessions --watched
+terminal-plus watch SESSION
+terminal-plus unwatch SESSION
+terminal-plus select SESSION
+terminal-plus settings
+terminal-plus update check
 ```
 
-Replace `SESSION` with a unique short key from `sessions`, or a quoted exact title. `select` can open a terminal; `watch` and `unwatch` cannot. No-argument `even-pilot` is `open`: it starts the manager and applies the desktop opening's 24-hour default Watch rule. On a headless host it prints a private authenticated manager link to open in your browser, without manual desktop URL/key setup; keep it confidential like `pair`. `sessions` only lists; `pair` only displays connection information and does not start monitoring. [Linux commands and service setup](linux.md)
+Replace `SESSION` with a unique short key from `sessions`, or a quoted exact title. `select` can open a terminal; `watch` and `unwatch` cannot. No-argument `terminal-plus` is `open`: it starts the manager and applies the desktop opening's 24-hour default Watch rule. On a headless host it prints a private authenticated manager link to open in your browser, without manual desktop URL/key setup; keep it confidential like `pair`. `sessions` only lists; `pair` only displays connection information and does not start monitoring. [Linux commands and service setup](linux.md)
 
 Windows tray Quit closes the tray only. To reload backend configuration manually, use the [authenticated monitoring shutdown procedure](development.md#更新已有安装), then reopen the shortcut. Never replace this with broad process killing. Installed upgrades perform their own backend shutdown and keep native terminal processes alive.
 
-Installed companions automatically check and install stable verified updates by default; an existing disabled preference remains disabled. Use the local desktop/tray's **Automatic updates** toggle or Linux `even-pilot update on|off` to change that preference. `update check` only checks; `update` installs immediately. The phone Hub has no companion update controls, and its `.ehpk` is installed separately. [Update policy and recovery](updates.md)
+Installed companions automatically check and install stable verified updates by default; an existing disabled preference remains disabled. Use the local desktop/tray's **Automatic updates** toggle or Linux `terminal-plus update on|off` to change that preference. `update check` only checks; `update` installs immediately. The phone Hub has no companion update controls, and its `.ehpk` is installed separately. [Update policy and recovery](updates.md)
 
 For notifications, first decide **direct** versus **central**. A phone's saved connection is not the source's notification route. Desktop notification settings affect only that local source; phone settings select from its saved computers. Only the sender/center needs Firebase and a registered Glance PUSH watcher. A center URL/key supplied on desktop is used for relay registration, not for adding a remote session viewer; the backend retains a dedicated notification-only relay credential. Use [setup commands](setup.md#optional-glance-notifications) or [routing details](notification-routing.md); do not install a user's private Firebase JSON on every source.
 
@@ -69,7 +71,7 @@ For notifications, first decide **direct** versus **central**. A phone's saved c
 | Read-only Codex/Claude observation | `packages/connectors/codex-observer.ts`, `claude-observer.ts`; `apps/windows/src/install-claude-monitor.ts` |
 | Remote-input native terminals | `apps/windows/src/connectors/`; Linux terminal adapter `apps/linux/src/platform.ts` |
 | Windows tray and installer | `apps/windows/desktop/Tray.cs`, `Installer.cs`, `build.ps1` |
-| Linux entry point, service, settings | `apps/linux/bin/even-pilot`, `src/desktop.ts`, `session-cli.ts`, `settings-cli.ts`, `install.mjs` |
+| Linux entry point, service, settings | `apps/linux/bin/terminal-plus`, `src/desktop.ts`, `session-cli.ts`, `settings-cli.ts`, `install.mjs` |
 | Linux npm installation helper | `apps/npm/`, `scripts/package-npm.mjs` |
 | Phone and multi-computer viewer | `apps/evenhub/src/main.ts`, `bridge/fleet.ts`, `sessions/` |
 | G2 native UI/transport and voice | `apps/evenhub/src/g2/`, `voice/` |
@@ -114,14 +116,14 @@ Linux packaging needs the matching official Node archive in `outputs/toolchain`;
 
 `npm run pack:evenhub` builds the smaller Hub-only frontend and packs the `.ehpk`. It is a separate artifact from both companions. Source `apps/evenhub/dist` is the desktop/browser build; `dist-hub` excludes desktop-only modules.
 
-The source package retains `private: true`. `npm run release:npm -- /absolute/path/Even-Pilot-1.1.8-Setup-linux-x64.run` creates a separate Linux x64 npm tarball containing the verified installer; see [publishing](publishing.md#npm--linux). Installed users run `npm install -g even-pilot`, then `even-pilot-setup` and open a new shell for the native `even-pilot` command. The helper skips equal/newer installations, so it does not downgrade an automatically updated companion. It also works when npm disables install scripts. Removing it requires `even-pilot uninstall` before `npm uninstall -g even-pilot`; settings are retained.
+The source package retains `private: true`. `npm run release:npm -- /absolute/path/Terminal-plus-1.1.11-Setup-linux-x64.run` creates a separate Linux x64 npm tarball containing the verified installer; see [publishing](publishing.md#npm--linux). Users run `npm install -g terminal-plus`, then `terminal-plus-setup` and open a new shell for the native `terminal-plus` command. The helper skips equal/newer installations, so it does not downgrade an automatically updated companion. It also works when npm disables install scripts. Removing it requires `terminal-plus uninstall` before `npm uninstall -g terminal-plus`; settings are retained.
 
 ## Deploy and hand over
 
 1. Verify the generated installer/package and checksum against the intended version. Keep secrets and personal runtime data out of the release folder.
 2. Update Windows by running its Setup EXE; update Linux as the owning user with `sh ./<new-Setup-linux-x64.run>`, or use the installed explicit update command. Do not overwrite an active immutable payload.
 3. Confirm the installed version, backend running state, saved device identity and Watch. Old native terminals remain independent; reload Pi or reopen connector terminals only after their task finishes.
-4. Install `terminal-plus-1.1.10.ehpk` separately on the phone. Terminal+ 1.1.10 works with Even-Pilot 1.1.8 companions. The new ID `local.terminalplus.app` may require a new Hub listing/install; do not assume old phone settings transfer. Re-enter each computer's existing URL/key and the owner's voice transcription key if needed, then verify sessions. Do not rotate companion keys or clear backend Watch/Glance settings for this Hub migration.
+4. Install `terminal-plus-1.1.11.ehpk` separately on the phone with Terminal+ 1.1.11 companions. Hub keeps `local.terminalplus.app`; moving from `local.evenpilot.app` may require a new listing/install, so do not assume old phone settings transfer. Re-enter each computer's existing URL/key and the owner's voice transcription key if needed, then verify sessions. Do not rotate companion keys or clear backend Watch/Glance settings for this Hub migration.
 5. State what was tested, on which platform/version, and what still needs physical phone/G2 acceptance. Do not send a live notification, make a paid model request or publish externally unless that work is authorized.
 
 [Publication checklist](publishing.md) · [Known platform/connector limits](release-status.md) · [First-time troubleshooting](setup.md#troubleshooting)

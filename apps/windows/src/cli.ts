@@ -31,7 +31,7 @@ const { values } = parseArgs({
   },
 });
 if (values.help) {
-  console.log(`Even-Pilot monitoring backend
+  console.log(`Terminal+ monitoring backend
 
 --cwd <project>       Default project directory
 --host <address>      Default 0.0.0.0 (LAN/Tailscale)

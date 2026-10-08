@@ -156,7 +156,7 @@ export class NotificationJournal {
       throw error;
     }
     if (!event) return;
-    const title = fit("Even-Pilot", titleMaxLength);
+    const title = fit("Terminal+", titleMaxLength);
     const status =
       event.outcome === "completed"
         ? "Job complete"

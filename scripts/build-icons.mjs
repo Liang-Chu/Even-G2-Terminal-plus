@@ -75,5 +75,5 @@ writeFileSync(new URL('assets/icon.svg', root), `<svg xmlns="http://www.w3.org/2
 writeFileSync(new URL('assets/icon-24.png', root), png(24));
 const iconDirectory = new URL('apps/windows/desktop/assets/', root);
 mkdirSync(fileURLToPath(iconDirectory), { recursive: true });
-writeFileSync(new URL('Even-Pilot.ico', iconDirectory), Buffer.concat([directory, ...frames]));
+writeFileSync(new URL('Terminal-plus.ico', iconDirectory), Buffer.concat([directory, ...frames]));
 console.log('Built shared 24 px icon and Windows ICO (16–256 px).');

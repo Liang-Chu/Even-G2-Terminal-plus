@@ -25,8 +25,9 @@ const invoke = (exe, args) => spawnSync(exe, args, { env, encoding: 'utf8', time
 const claudeSettingsPath=join(env.CLAUDE_CONFIG_DIR,'settings.json');
 const userClaudeSettings={env:{EXISTING_OPTION:'retain'},hooks:{Stop:[{hooks:[{type:'command',command:'echo keep-user-hook'}]}]}};
 mkdirSync(env.CLAUDE_CONFIG_DIR,{recursive:true}); writeFileSync(claudeSettingsPath,JSON.stringify(userClaudeSettings));
-const launcher = join(env.EVEN_PILOT_BIN_DIR, 'even-pilot');
-const command = (...args) => { const result = invoke(launcher, args); assert.equal(result.status, 0, result.stderr + result.stdout); return result.stdout; };
+const launcher = join(env.EVEN_PILOT_BIN_DIR, 'terminal-plus'), legacyLauncher = join(env.EVEN_PILOT_BIN_DIR, 'even-pilot');
+const activeLauncher = () => existsSync(launcher) ? launcher : legacyLauncher;
+const command = (...args) => { const result = invoke(activeLauncher(), args); assert.equal(result.status, 0, result.stderr + result.stdout); return result.stdout; };
 let worker, token, native;
 const request = (path, body) => fetch(`http://127.0.0.1:${port}${path}`, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Connection: 'close' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });
 try {
@@ -37,7 +38,7 @@ try {
   assert.match(command('start'), /running/);
   assert.equal((await request('/api/monitoring')).status, 200);
   assert.equal((await fetch(`http://127.0.0.1:${port}/api/state`)).status, 401);
-  const html = await (await request('/')).text(); assert.match(html, /Even-Pilot/);
+  const html = await (await request('/')).text(); assert.match(html, previousSetup === setup ? /Terminal\+/ : /Terminal\+|Even-Pilot/);
   command('autostart', 'on'); command('autostart', 'off');
   if (process.env.EVEN_PILOT_PI) {
     if (previousSetup === setup) command('new', 'pi', '--cwd', fixture, '--name', 'Linux release check');
@@ -64,10 +65,22 @@ try {
   await new Promise((done, fail) => { worker.once('spawn', done); worker.once('error', fail); });
   mkdirSync(join(data, 'native'), { recursive: true });
   writeFileSync(join(data, 'native', worker.pid + '.json'), JSON.stringify({ state: { connected: true } }));
-  const refused = invoke(launcher, ['uninstall']); assert.notEqual(refused.status, 0, 'Do not uninstall a working native terminal');
+  const refused = invoke(activeLauncher(), ['uninstall']); assert.notEqual(refused.status, 0, 'Do not uninstall a working native terminal');
   assert.equal((await request('/api/monitoring')).status, 200);
+  command('autostart', 'on');
   const upgrade = invoke('sh', [setup, '--dir', root, '--update']); assert.equal(upgrade.status, 0, upgrade.stderr + upgrade.stdout);
-  const shell = invoke('bash', ['--noprofile', '--rcfile', join(profileHome, '.bashrc'), '-ic', 'command -v even-pilot']);
+  assert.equal(existsSync(launcher), true, 'Upgrade installs the renamed canonical launcher');
+  assert.match(await (await request('/')).text(), /Terminal\+/);
+  if (systemd) {
+    assert.match(readFileSync(join(env.XDG_CONFIG_HOME, 'systemd/user', env.EVEN_PILOT_SERVICE_NAME), 'utf8'), /Description=Terminal\+ session monitor/);
+  } else {
+    const entries = readdirSync(join(env.XDG_CONFIG_HOME, 'autostart'));
+    assert.deepEqual(entries, ['even-pilot.desktop'], 'Upgrade retains one fallback autostart registration');
+    const entry = readFileSync(join(env.XDG_CONFIG_HOME, 'autostart/even-pilot.desktop'), 'utf8');
+    assert.match(entry, /Name=Terminal\+\n/); assert.match(entry, /bin\/terminal-plus/);
+  }
+  command('autostart', 'off');
+  const shell = invoke('bash', ['--noprofile', '--rcfile', join(profileHome, '.bashrc'), '-ic', 'command -v terminal-plus']);
   assert.equal(shell.status, 0, shell.stderr); assert.equal(shell.stdout.trim(), launcher, 'Fresh interactive shell resolves the global launcher');
   const updated = JSON.parse(readFileSync(join(root, 'install.json')));
   assert.equal(existsSync(join(data,'claude-monitor-registration.json')),true,'Owned Claude hooks are prepared');
@@ -172,6 +185,7 @@ try {
   assert.equal(existsSync(join(root, 'install.json')), false);
   assert.equal(existsSync(payload), false);
   assert.equal(existsSync(launcher), false);
+  assert.equal(existsSync(legacyLauncher), false, 'Uninstall removes the owned legacy alias');
   assert.equal(readFileSync(join(data, 'bridge-config.json'), 'utf8'), original);
   assert.equal(existsSync(join(env.PI_CODING_AGENT_DIR, 'extensions/even-pilot-monitor.ts')), false);
   assert.deepEqual(JSON.parse(readFileSync(claudeSettingsPath)),userClaudeSettings,'Uninstall removes only owned Claude hooks');
@@ -184,7 +198,7 @@ try {
     invoke('tmux', ['kill-session', '-t', session]);
   }
   if (worker?.exitCode === null && worker?.signalCode === null) worker.kill();
-  if (existsSync(launcher)) { invoke(launcher, ['stop']); }
+  if (existsSync(activeLauncher())) { invoke(activeLauncher(), ['stop']); }
   await delay(100);
   if (!existsSync(join(root, 'install.json'))) rmSync(fixture, { recursive: true, force: true });
   else console.error('Retained failed Linux fixture: ' + fixture);

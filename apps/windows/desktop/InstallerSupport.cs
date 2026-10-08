@@ -28,7 +28,7 @@ static class InstallerSupport {
     internal static void ValidateRoot(string root) {
         root = Full(root);
         if (root == Path.GetPathRoot(root).TrimEnd('\\') || root == Full(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
-            || root == Full(Environment.GetFolderPath(Environment.SpecialFolder.Windows))) throw new Exception("Choose a dedicated Even-Pilot installation folder.");
+            || root == Full(Environment.GetFolderPath(Environment.SpecialFolder.Windows))) throw new Exception("Choose a dedicated Terminal+ installation folder.");
         // Never traverse a junction supplied as an existing installer-owned path.
         foreach (string path in new[] { root, Path.Combine(root, "versions"), Path.Combine(root, ".local") })
             if (Directory.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) throw new Exception("Installation folders must not be directory links.");
@@ -37,17 +37,18 @@ static class InstallerSupport {
     }
     internal static string DefaultRoot() {
         string besideSetup = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-        if (File.Exists(Path.Combine(besideSetup, "Even-Pilot.exe")) && File.Exists(Path.Combine(besideSetup, "apps", "windows", "src", "cli.ts")))
+        if (File.Exists(DesktopPaths.ApplicationExecutable(besideSetup)) && File.Exists(Path.Combine(besideSetup, "apps", "windows", "src", "cli.ts")))
             return DesktopPaths.InstallRoot(besideSetup);
         // Updating an open portable copy in place retains the original data directory,
         // including snapshots written by native terminals which are still running.
-        foreach (var process in Process.GetProcessesByName("Even-Pilot")) using (process) {
+        foreach (var process in TrayProcesses()) using (process) {
             try {
                 if (process.SessionId != Process.GetCurrentProcess().SessionId) continue;
                 string payload = Path.GetDirectoryName(process.MainModule.FileName);
                 if (File.Exists(Path.Combine(payload, "apps", "windows", "src", "cli.ts"))) return DesktopPaths.InstallRoot(payload);
             } catch { }
         }
+        // Stable install root and registry IDs keep the existing keys, watches and native sessions.
         string defaultRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Even-Pilot");
         if (File.Exists(Path.Combine(defaultRoot, "install.json"))) return defaultRoot;
         // A custom installation is still the update target when its tray is closed.
@@ -242,48 +243,80 @@ static class InstallerSupport {
             }
         }
     }
+    static IEnumerable<Process> TrayProcesses() {
+        foreach (string name in new[] { Path.GetFileNameWithoutExtension(DesktopPaths.ExecutableName), Path.GetFileNameWithoutExtension(DesktopPaths.LegacyExecutableName) })
+            foreach (var process in Process.GetProcessesByName(name)) yield return process;
+    }
+    internal static bool OwnApplicationPath(string path, string root) {
+        return path != null && Inside(path, root) && (String.Equals(Path.GetFileName(path), DesktopPaths.ExecutableName, StringComparison.OrdinalIgnoreCase)
+            || String.Equals(Path.GetFileName(path), DesktopPaths.LegacyExecutableName, StringComparison.OrdinalIgnoreCase));
+    }
     internal static void StopTrays(string root) {
         // Only the tray in this installation. Never use process trees or kill Node/CLI processes.
-        foreach (var process in Process.GetProcessesByName("Even-Pilot")) using (process) {
+        foreach (var process in TrayProcesses()) using (process) {
             try {
                 if (process.SessionId != Process.GetCurrentProcess().SessionId) continue;
                 string path = process.MainModule.FileName;
-                if (String.Equals(path, Path.Combine(root, "Even-Pilot.exe"), StringComparison.OrdinalIgnoreCase)
-                    || Inside(path, Path.Combine(root, "versions"))) {
+                if (OwnApplicationPath(path, root) && (String.Equals(Path.GetDirectoryName(path), Full(root), StringComparison.OrdinalIgnoreCase)
+                    || Inside(path, Path.Combine(root, "versions")))) {
                     process.Kill();
                     if (!process.WaitForExit(5000)) throw new Exception("The previous tray did not exit. No monitoring backend or terminal was stopped.");
                 }
             } catch (InvalidOperationException) { }
         }
     }
+    // Keep one existing Apps & features registration across branding changes.
     internal static string RegistryKey(string root) { return @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Even-Pilot-" + RootId(root); }
     internal static bool OwnStartup(string command, string root) {
         return command != null && command.StartsWith("\"" + Full(root) + "\\", StringComparison.OrdinalIgnoreCase)
-            && command.EndsWith("Even-Pilot.exe\" --autostart", StringComparison.OrdinalIgnoreCase);
+            && (command.EndsWith("\\" + DesktopPaths.ExecutableName + "\" --autostart", StringComparison.OrdinalIgnoreCase)
+                || command.EndsWith("\\" + DesktopPaths.LegacyExecutableName + "\" --autostart", StringComparison.OrdinalIgnoreCase));
     }
     internal static void Register(string root, string payload, string version, bool shortcuts) {
-        string executable = Path.Combine(payload, "Even-Pilot.exe");
+        string executable = DesktopPaths.ApplicationExecutable(payload);
         using (var key = Registry.CurrentUser.CreateSubKey(RegistryKey(root))) {
-            key.SetValue("DisplayName", "Even-Pilot"); key.SetValue("DisplayVersion", version); key.SetValue("Publisher", "Even-Pilot");
+            key.SetValue("DisplayName", "Terminal+"); key.SetValue("DisplayVersion", version); key.SetValue("Publisher", "Terminal+");
             key.SetValue("InstallLocation", root); key.SetValue("DisplayIcon", executable);
             string uninstall = "\"" + Path.Combine(root, "Uninstall.exe") + "\" --uninstall --dir \"" + root + "\"";
             key.SetValue("UninstallString", uninstall); key.SetValue("QuietUninstallString", uninstall + " --quiet");
             key.SetValue("NoModify", 1, RegistryValueKind.DWord); key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
         }
-        using (var key = Registry.CurrentUser.OpenSubKey(StartupRegistration.RunKey, true)) {
+        UpdateStartup(root, executable);
+        if (shortcuts) {
+            RegisterShortcuts(root, payload, Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
+            RegisterShortcuts(root, payload, Environment.GetFolderPath(Environment.SpecialFolder.Programs));
+        }
+    }
+    internal static void UpdateStartup(string root, string executable, string registryPath = StartupRegistration.RunKey) {
+        using (var key = Registry.CurrentUser.OpenSubKey(registryPath, true)) {
             if (key != null && OwnStartup(key.GetValue(StartupRegistration.ValueName) as string, root))
                 key.SetValue(StartupRegistration.ValueName, "\"" + executable + "\" --autostart");
         }
-        if (shortcuts) {
-            Shortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Even-Pilot.lnk"), executable, payload);
-            Shortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Even-Pilot.lnk"), executable, payload);
-        }
+    }
+    internal static bool OwnShortcut(string path, string root) {
+        if (!File.Exists(path)) return false;
+        var shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+        try {
+            dynamic link = shell.GetType().InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
+            try { return OwnApplicationPath((string)link.TargetPath, root); }
+            finally { Marshal.FinalReleaseComObject(link); }
+        } finally { Marshal.FinalReleaseComObject(shell); }
+    }
+    internal static void RemoveOwnedShortcut(string path, string root) {
+        if (OwnShortcut(path, root)) File.Delete(path);
+    }
+    internal static void RegisterShortcuts(string root, string payload, string parent) {
+        string path = Path.Combine(parent, "Terminal+.lnk");
+        // A same-named shortcut from another installation must remain owned by it.
+        if (File.Exists(path) && !OwnShortcut(path, root)) return;
+        Shortcut(path, DesktopPaths.ApplicationExecutable(payload), payload);
+        RemoveOwnedShortcut(Path.Combine(parent, "Even-Pilot.lnk"), root);
     }
     internal static void Shortcut(string path, string executable, string cwd) {
         var shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
         try {
             dynamic link = shell.GetType().InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
-            try { link.TargetPath = executable; link.WorkingDirectory = cwd; link.IconLocation = executable; link.Description = "Even-Pilot session monitor"; link.Save(); }
+            try { link.TargetPath = executable; link.WorkingDirectory = cwd; link.IconLocation = executable; link.Description = "Terminal+ session monitor"; link.Save(); }
             finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link); }
         } finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
     }
@@ -292,13 +325,8 @@ static class InstallerSupport {
         using (var key = Registry.CurrentUser.OpenSubKey(StartupRegistration.RunKey, true))
             if (key != null && OwnStartup(key.GetValue(StartupRegistration.ValueName) as string, root)) key.DeleteValue(StartupRegistration.ValueName, false);
         foreach (string parent in new[] { Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), Environment.GetFolderPath(Environment.SpecialFolder.Programs) }) {
-            string path = Path.Combine(parent, "Even-Pilot.lnk"); if (!File.Exists(path)) continue;
-            var shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
-            try {
-                dynamic link = shell.GetType().InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
-                try { if (Inside((string)link.TargetPath, root)) File.Delete(path); }
-                finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link); }
-            } finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
+            RemoveOwnedShortcut(Path.Combine(parent, "Terminal+.lnk"), root);
+            RemoveOwnedShortcut(Path.Combine(parent, "Even-Pilot.lnk"), root);
         }
         string pi = Environment.GetEnvironmentVariable("PI_CODING_AGENT_DIR");
         string extension = Path.Combine(String.IsNullOrEmpty(pi) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".pi", "agent") : pi, "extensions", "even-pilot-monitor.ts");

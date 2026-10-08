@@ -20,7 +20,7 @@ vite.middlewares.use(async (req, res, next) => {
   if (url.pathname === "/__close" && req.method === "POST") { res.end("closing"); setTimeout(() => { void vite.close().then(() => process.exit(0)); }, 100); return; }
   if (url.pathname !== "/__g2-review") { next(); return; }
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.end(await vite.transformIndexHtml("/__g2-review", `<!doctype html><meta charset="utf-8"><title>Even-Pilot G2 review fixture</title><h1>Official simulator review</h1><p>Synthetic sessions only.</p><canvas id="pixels" width="576" height="288" style="background:black;width:576px;height:288px"></canvas><pre id="preview"></pre>
+  res.end(await vite.transformIndexHtml("/__g2-review", `<!doctype html><meta charset="utf-8"><title>Terminal+ G2 review fixture</title><h1>Official simulator review</h1><p>Synthetic sessions only.</p><canvas id="pixels" width="576" height="288" style="background:black;width:576px;height:288px"></canvas><pre id="preview"></pre>
 <script type="module">
 import { G2Display } from '/src/g2/display.ts';
 import { VoiceController } from '/src/voice/controller.ts';

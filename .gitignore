@@ -28,6 +28,10 @@ auth.json
 *.pfx
 
 # Generated distributables and Windows helper executables
+/Terminal-plus*.exe
+/Terminal-plus*.zip
+/Terminal-plus*.tar.gz
+/Terminal-plus*.run
 *.ehpk
 /Even-P[Ii]lot*.exe
 /Even-P[Ii]lot*.zip

@@ -1,50 +1,51 @@
-# Even-Pilot
+# Terminal+
 
 Watch Pi, Codex and Claude Code sessions running on Windows/Linux through Even Hub on your phone and Even G2. Continue working in your native terminal; each computer runs a lightweight companion and the phone combines their watched sessions.
 
 See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
-**Companion 1.1.8 · Terminal+ Hub 1.1.10** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.11** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
-[Windows / Hub downloads](https://github.com/Liang-Chu/Even-Pilot/releases) · [Linux on npm](https://www.npmjs.com/package/even-pilot) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
+[Windows / Linux / Hub downloads](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
 
-The phone app is named **Terminal+**; the Windows/Linux companion is **Even-Pilot**. Install companion **1.1.8** and Hub **1.1.10** for this guide.
+The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.11**.
 
 ## Quick start
 
 ### 1. Install the companion
 
-Start with a working Pi, Codex or Claude Code installation. Install Even-Pilot on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing model login stays in use; Even-Pilot does not install the CLIs.
+Start with a working Pi, Codex or Claude Code installation. Install Terminal+ on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing model login stays in use; Terminal+ does not install the CLIs.
 
-- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-Pilot/releases), download the Windows `Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the desktop shortcut or double-click the tray icon. System Node/npm is not required.
-- **Linux / SSH with Node 22+ and npm:** run as your normal user, without `sudo`:
+- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.11-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
+- **Linux / SSH:** download `Terminal-plus-1.1.11-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
 
   ```sh
-  npm install -g even-pilot
-  even-pilot-setup
+  sh ./Terminal-plus-1.1.11-Setup-linux-x64.run
+  ```
+
+  Open a **new shell**, then run `terminal-plus` and `terminal-plus pair`. In the current shell, use `~/.local/bin/terminal-plus`. The installer includes its own Node runtime and backend dependencies.
+
+  **npm alternative:** with Node 22+ and npm, run:
+
+  ```sh
+  npm install -g terminal-plus
+  terminal-plus-setup
   ```
 
   Setup deploys the companion; start it and print the connection details in a **new shell**:
 
   ```sh
-  even-pilot
-  even-pilot pair
+  terminal-plus
+  terminal-plus pair
   ```
 
   This also works over SSH without a browser. Setup works when npm skips install scripts and retains an equal or newer installed version. If npm reports `EACCES`, use a user-owned installation:
 
   ```sh
-  npm install -g --prefix "$HOME/.local" even-pilot
-  ~/.local/bin/even-pilot-setup
+  npm install -g --prefix "$HOME/.local" terminal-plus
+  ~/.local/bin/terminal-plus-setup
   ```
 
-  **Without npm:** download the Linux `Setup-linux-x64.run` from Releases, then run the downloaded file (replace `VERSION` with its version):
-
-  ```sh
-  sh ./Even-Pilot-VERSION-Setup-linux-x64.run
-  ```
-
-  Open a new shell, then run `even-pilot`. In the current shell, use `~/.local/bin/even-pilot`. Both installation methods include the companion's own Node runtime and backend dependencies.
 
 For startup after login/reboot: Windows tray → **Start with Windows**; Linux → [headless service setup](docs/setup.md#linux-headless-or-desktop).
 
@@ -61,11 +62,11 @@ For Codex/Claude remote input, use **+ New terminal** in the manager to create a
 ### 3. Connect the phone
 
 1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
-2. Install **Terminal+ 1.1.10** (`terminal-plus-1.1.10.ehpk`) separately in Even Hub, then connect G2 in Even App. It works with **Even-Pilot 1.1.8** companions; the two version numbers need not match.
-3. Get this computer's URL and key: Windows **Connect phone**; Linux `even-pilot pair`.
+2. Install **Terminal+ 1.1.11** (`terminal-plus-1.1.11.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.11** Windows/Linux companion.
+3. Get this computer's URL and key: Windows **Connect phone**; Linux `terminal-plus pair`.
 4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
-Use the reachable URL printed by **Connect phone** / `pair`, such as `http://COMPUTER_IP:4317`; `COMPUTER_IP` is the computer's Tailscale IP. Enter the key without `Bearer` and keep it private. The phone saves connections automatically; repeat for other computers. Keep the companion running and the computer awake. On Linux, `pair` prints information; `even-pilot` starts monitoring.
+Use the reachable URL printed by **Connect phone** / `pair`, such as `http://COMPUTER_IP:4317`; `COMPUTER_IP` is the computer's Tailscale IP. Enter the key without `Bearer` and keep it private. The phone saves connections automatically; repeat for other computers. Keep the companion running and the computer awake. On Linux, `pair` prints information; `terminal-plus` starts monitoring.
 
 Each desktop manager shows only its own computer. Hub uses manual URL/key entry; the QR is for Glance. If connection fails, first open the Bridge URL in the phone browser. [Troubleshooting](docs/setup.md#troubleshooting)
 
@@ -97,7 +98,7 @@ In an input-capable session, open **New prompt**. Tap to record/stop each senten
 
 ### Pi subagents
 
-Already using the official Pi subagent extension? Keep it. Otherwise, run Linux `even-pilot enable-pi-subagents` or follow the [Windows PowerShell steps](docs/setup.md#optional-official-pi-subagents), then `/reload` while Pi is idle. This optional tool is separate from the basic monitor. [Installation and verification](docs/pi-extensions.md)
+Already using the official Pi subagent extension? Keep it. Otherwise, run Linux `terminal-plus enable-pi-subagents` or follow the [Windows PowerShell steps](docs/setup.md#optional-official-pi-subagents), then `/reload` while Pi is idle. This optional tool is separate from the basic monitor. [Installation and verification](docs/pi-extensions.md)
 
 ### Glance completion notifications
 
@@ -114,11 +115,13 @@ Configure **Glance notifications** on the companion, then register the sender/ce
 
 ## Updates
 
-Companions automatically install verified stable updates by default. Disable **Automatic updates** on that computer, or use Linux `even-pilot update off`; `on` restores it. To update now, use the Windows tray/manager or Linux `even-pilot update`.
+**Upgrading from Even-Pilot:** manually run the new Terminal+ installer once. Older updaters may fail after the repository rename. Existing installation/data/service roots and `EVEN_PILOT_*` settings remain for compatibility; your connection key, Watch and notification settings are retained. [Migration and update guide](docs/updates.md#migration-from-even-pilot)
 
-**Update Terminal+ separately** by installing its `.ehpk` in Even Hub. Terminal+ 1.1.10 works with companion 1.1.8. Its new app ID may require a new Hub install; saved phone connections and voice keys may not transfer. Re-enter each computer's URL/key and your transcription key if needed. Companion updates retain Watch and leave native terminals running. [Update guide](docs/updates.md)
+After that upgrade, companions automatically install verified stable updates by default. Disable **Automatic updates** on that computer, or use Linux `terminal-plus update off`; `on` restores it. To update now, use the Windows tray/manager or Linux `terminal-plus update`.
 
-An npm-installed companion uses the same automatic updater; `npm update` is not needed. To remove it, run `even-pilot uninstall`, then `npm uninstall -g even-pilot`. Saved settings remain. [Linux reference](docs/linux.md)
+**Update the phone/G2 app separately** by installing its `.ehpk` in Even Hub. Moving from the older Hub app ID may require a fresh install; re-enter saved phone connections and voice keys if needed. Companion updates retain Watch and leave native terminals running. [Update guide](docs/updates.md)
+
+An npm-installed companion uses the same automatic updater; `npm update` is not needed. To remove it, run `terminal-plus uninstall`, then `npm uninstall -g terminal-plus`. Saved settings remain. [Linux reference](docs/linux.md)
 
 ## More help
 

@@ -11,7 +11,7 @@ const source = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const input = process.argv[2];
 if (!input || process.argv.length !== 3) throw new Error('Usage: npm run release:npm -- /path/to/verified-linux-x64.run');
 const installer = resolve(input);
-const name = `Even-Pilot-${source.version}-Setup-linux-x64.run`;
+const name = `Terminal-plus-${source.version}-Setup-linux-x64.run`;
 if (basename(installer) !== name || !existsSync(installer) || !lstatSync(installer).isFile() || lstatSync(installer).isSymbolicLink()) {
   throw new Error('Expected the regular Linux x64 installer for the current version');
 }
@@ -24,17 +24,17 @@ const stage = join(output, 'stage');
 mkdirSync(join(stage, 'bin'), { recursive: true });
 mkdirSync(join(stage, 'artifacts'));
 copyFileSync(installer, join(stage, 'artifacts', name));
-copyFileSync(join(root, 'apps/npm/bin/even-pilot-setup.mjs'), join(stage, 'bin/even-pilot-setup.mjs'));
-chmodSync(join(stage, 'bin/even-pilot-setup.mjs'), 0o755);
+copyFileSync(join(root, 'apps/npm/bin/terminal-plus-setup.mjs'), join(stage, 'bin/terminal-plus-setup.mjs'));
+chmodSync(join(stage, 'bin/terminal-plus-setup.mjs'), 0o755);
 copyFileSync(join(root, 'apps/npm/README.md'), join(stage, 'README.md'));
 writeFileSync(join(stage, 'payload.json'), JSON.stringify({ version: source.version, arch: 'x64', installer: 'artifacts/' + name, sha256 }, null, 2) + '\n');
 writeFileSync(join(stage, 'package.json'), JSON.stringify({
-  name: 'even-pilot', version: source.version,
+  name: 'terminal-plus', version: source.version,
   description: 'Linux companion for monitoring Pi, Codex and Claude sessions, with access through Even Hub and G2.',
   type: 'module', license: 'UNLICENSED', engines: { node: '>=22' }, os: ['linux'], cpu: ['x64'],
-  bin: { 'even-pilot-setup': 'bin/even-pilot-setup.mjs' },
-  scripts: { postinstall: 'node bin/even-pilot-setup.mjs --postinstall' },
-  files: ['bin/even-pilot-setup.mjs', 'payload.json', 'artifacts/' + name, 'README.md'],
+  bin: { 'terminal-plus-setup': 'bin/terminal-plus-setup.mjs' },
+  scripts: { postinstall: 'node bin/terminal-plus-setup.mjs --postinstall' },
+  files: ['bin/terminal-plus-setup.mjs', 'payload.json', 'artifacts/' + name, 'README.md'],
   repository: source.repository, homepage: source.homepage,
   bugs: { url: source.homepage + '/issues' },
   keywords: ['even-realities', 'g2', 'pi', 'codex', 'claude', 'session-monitor', 'linux'],
@@ -47,6 +47,6 @@ const result = JSON.parse(packed.stdout);
 const items = Array.isArray(result) ? result : Object.values(result);
 const info = items.length === 1 ? items[0] : undefined;
 if (!info?.files) throw new Error('Unexpected npm pack response: ' + packed.stdout);
-const expected = ['README.md', 'artifacts/' + name, 'bin/even-pilot-setup.mjs', 'package.json', 'payload.json'].sort();
+const expected = ['README.md', 'artifacts/' + name, 'bin/terminal-plus-setup.mjs', 'package.json', 'payload.json'].sort();
 if (JSON.stringify(info.files.map(file => file.path).sort()) !== JSON.stringify(expected)) throw new Error('Unexpected npm package files');
 console.log(JSON.stringify({ package: join(output, info.filename), size: info.size, unpackedSize: info.unpackedSize, integrity: info.integrity, files: expected }, null, 2));

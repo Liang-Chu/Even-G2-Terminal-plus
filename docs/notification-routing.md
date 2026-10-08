@@ -13,17 +13,17 @@ Adding a computer in phone **Connection** saves phone access to its sessions. Th
 On a Linux sender:
 
 ```sh
-even-pilot settings push direct
-even-pilot settings firebase --credentials /private/glance-sender.json
-even-pilot settings
-even-pilot pair
+terminal-plus settings push direct
+terminal-plus settings firebase --credentials /private/glance-sender.json
+terminal-plus settings
+terminal-plus pair
 ```
 
-The service-account JSON must authorize FCM sending for the phone's Glance project. The Linux command derives the target from its `project_id`, saves that project and a private file reference, and restarts only monitoring; native CLIs keep running. For an authorized cross-project service account or ADC, set `EVEN_PILOT_FCM_PROJECT_ID` to the phone's target in the monitoring process/service environment. Android `google-services.json` is not a sending credential, and no private Firebase credentials are included in Even-Pilot packages. The final `pair` displays this sender's URL/key/QR for Glance registration, which is still a separate phone operation.
+The service-account JSON must authorize FCM sending for the phone's Glance project. The Linux command derives the target from its `project_id`, saves that project and a private file reference, and restarts only monitoring; native CLIs keep running. For an authorized cross-project service account or ADC, set `EVEN_PILOT_FCM_PROJECT_ID` to the phone's target in the monitoring process/service environment. Android `google-services.json` is not a sending credential, and no private Firebase credentials are included in Terminal+ packages. The final `pair` displays this sender's URL/key/QR for Glance registration, which is still a separate phone operation.
 
 ## One center
 
-1. Install/update Even-Pilot on the server and other computers. Keep the center reachable from every source, for example through Tailscale.
+1. Install/update Terminal+ on the server and other computers. Keep the center reachable from every source, for example through Tailscale.
 2. Configure FCM credentials only on the center using the commands above or [Windows sender setup](glance-push.md#windows-setup). The center uses **Directly from this computer** and can still monitor its own sessions.
 3. To configure from the phone, save both center and source in phone **Connection**.
 4. Open phone **Glance notifications**. Choose the source in **Computer**, set **Send notifications → Through a central computer**, select **Central computer**, then **Save notification settings**. Repeat for other source computers.
@@ -34,11 +34,11 @@ To configure from a source's desktop instead, open **Glance notifications**, cho
 On each Linux source, after the center is ready:
 
 ```sh
-even-pilot settings push forward --url http://CENTER_IP:4317 --key-file /private/center-key.txt
-even-pilot settings
+terminal-plus settings push forward --url http://CENTER_IP:4317 --key-file /private/center-key.txt
+terminal-plus settings
 ```
 
-Replace `CENTER_IP`. The private file contains only the center's plain connection key; do not place it on the command line or in shared files. Registration obtains a dedicated relay credential. The source does not need Firebase credentials or a Glance registration of its own. To switch back, use `even-pilot settings push direct`; then configure and register this computer as an independent sender.
+Replace `CENTER_IP`. The private file contains only the center's plain connection key; do not place it on the command line or in shared files. Registration obtains a dedicated relay credential. The source does not need Firebase credentials or a Glance registration of its own. To switch back, use `terminal-plus settings push direct`; then configure and register this computer as an independent sender.
 
 The **Glance watcher** URL in the dialog follows the source for direct delivery or the selected center for forwarding. It is information to enter in Glance, not an automatic registration. Opening settings only reads configuration; routing changes require an explicit save.
 

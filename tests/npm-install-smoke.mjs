@@ -15,9 +15,9 @@ if (process.platform !== 'linux' || process.getuid?.() === 0) {
 const args = process.argv.slice(2);
 const previousAt = args.indexOf('--previous');
 if (!args[0] || (args.length !== 1 && (previousAt !== 1 || args.length !== 3))) {
-  throw new Error('Usage: node tests/npm-install-smoke.mjs package.tgz|even-pilot@VERSION [--previous previous-linux.run]');
+  throw new Error('Usage: node tests/npm-install-smoke.mjs package.tgz|terminal-plus@VERSION [--previous previous-linux.run]');
 }
-const registryPackage = /^even-pilot@\d+\.\d+\.\d+$/.test(args[0]);
+const registryPackage = /^terminal-plus@\d+\.\d+\.\d+$/.test(args[0]);
 const archive = registryPackage ? args[0] : realpathSync(resolve(args[0]));
 const previous = previousAt >= 0 ? realpathSync(resolve(args[previousAt + 1])) : undefined;
 assert.ok(registryPackage || archive.endsWith('.tgz'), 'Use a packed .tgz or exact public release version');
@@ -36,7 +36,8 @@ async function fixture(upgrade) {
   const home = join(directory, 'home'), prefix = join(home, '.local');
   const data = join(directory, 'data'), defaultRoot = join(prefix, 'lib/even-pilot');
   const root = upgrade ? join(directory, "App with spaces and ' quote") : defaultRoot;
-  const launcher = join(prefix, 'bin/even-pilot'), helper = join(prefix, 'bin/even-pilot-setup');
+  const launcher = join(prefix, 'bin/terminal-plus'), helper = join(prefix, 'bin/terminal-plus-setup');
+  const legacyLauncher = join(prefix, 'bin/even-pilot');
   mkdirSync(home); mkdirSync(data);
   writeFileSync(join(data, 'update-settings.json'), '{"automaticChecks":false}');
   const npmrc = join(directory, 'npmrc'); writeFileSync(npmrc, '');
@@ -84,7 +85,7 @@ async function fixture(upgrade) {
       successful('sh', [previous, '--dir', root, '--no-start'], 'Install previous native release in a spaced/quoted path');
       oldRecord = installed(); original = readFileSync(configPath, 'utf8');
       token = JSON.parse(original).controlToken;
-      successful(launcher, ['start'], 'Start only the previous fixture backend');
+      successful(existsSync(launcher) ? launcher : legacyLauncher, ['start'], 'Start only the previous fixture backend');
       await until(healthy, 'previous fixture backend becomes healthy');
       const payload = join(root, 'versions', oldRecord.current);
       worker = spawn(join(payload, 'runtime/node'), ['-e', 'setInterval(()=>{},1000)'], { env, cwd: payload, stdio: 'ignore' });
@@ -95,7 +96,7 @@ async function fixture(upgrade) {
     }
     npm('install', '--global', '--ignore-scripts', archive);
     check(existsSync(helper), 'npm installs the setup helper in HOME/.local/bin');
-    check(!existsSync(join(prefix, 'lib/node_modules/even-pilot/runtime')), 'npm package does not own the native payload/runtime');
+    check(!existsSync(join(prefix, 'lib/node_modules/terminal-plus/runtime')), 'npm package does not own the native payload/runtime');
     if (upgrade) {
       check(installed().current === oldRecord.current, 'Scripts-disabled npm installation does not update the existing native app');
       check(readFileSync(configPath, 'utf8') === original, 'Scripts-disabled npm installation preserves existing keys');
@@ -103,13 +104,13 @@ async function fixture(upgrade) {
       check(!existsSync(launcher) && !existsSync(join(root, 'install.json')), 'Scripts-disabled npm installation does not create a native launcher/install');
       check(!existsSync(configPath), 'Scripts-disabled npm installation does not initialize connection keys');
     }
-    const packageManifest = JSON.parse(readFileSync(join(prefix, 'lib/node_modules/even-pilot/package.json'), 'utf8'));
-    check(packageManifest.name === 'even-pilot' && typeof packageManifest.version === 'string', 'Installed package has the expected public name/version');
+    const packageManifest = JSON.parse(readFileSync(join(prefix, 'lib/node_modules/terminal-plus/package.json'), 'utf8'));
+    check(packageManifest.name === 'terminal-plus' && typeof packageManifest.version === 'string', 'Installed package has the expected public name/version');
     successful(helper, [], 'Explicit setup installs or upgrades the bundled verified native app');
     const record = installed();
     check(record.version === packageManifest.version, 'Native version equals the installed npm package version');
-    check(realpathSync(launcher) === join(root, 'versions', record.current, 'bin/even-pilot'), 'Native global launcher belongs to the detected installation root');
-    check(readlinkSync(launcher).endsWith('/current/bin/even-pilot'), 'npm helper leaves the native global launcher as its own symlink');
+    check(realpathSync(launcher) === join(root, 'versions', record.current, 'bin/terminal-plus'), 'Native global launcher belongs to the detected installation root');
+    check(readlinkSync(launcher).endsWith('/current/bin/terminal-plus'), 'npm helper leaves the native global launcher as its own symlink');
     check(existsSync(configPath), 'Native setup initializes connection configuration');
     original ||= readFileSync(configPath, 'utf8'); token = JSON.parse(original).controlToken;
     check(typeof token === 'string' && token.length >= 20, 'Native setup creates a usable connection key');
@@ -126,15 +127,16 @@ async function fixture(upgrade) {
       check(!existsSync(join(defaultRoot, 'install.json')), 'Setup follows the existing custom root rather than installing a second app');
       check(record.versions.includes(oldRecord.current), 'Upgrade retains the old native payload for its consumers');
       check(alive(), 'Native fake worker survives the monitor upgrade');
+      if (existsSync(legacyLauncher)) successful(legacyLauncher, ['--help'], 'Owned legacy alias loads the renamed release');
     }
-    npm('uninstall', '--global', 'even-pilot', '--ignore-scripts');
+    npm('uninstall', '--global', 'terminal-plus', '--ignore-scripts');
     check(!existsSync(helper), 'npm uninstall removes only the npm setup helper');
     check(existsSync(launcher) && existsSync(join(root, 'install.json')), 'Native monitor/launcher remains installed after npm uninstall');
     check(readFileSync(configPath, 'utf8') === original, 'npm uninstall preserves native connection/watch configuration');
     check(await healthy(), 'npm uninstall does not stop the native monitor');
     successful(launcher, ['--help'], 'Native global launcher still works without the npm package');
     const npmVersion = successful('npm', ['--version'], 'Read fixture npm version').trim();
-    const lifecycleFlags = Number(npmVersion.split('.')[0]) >= 12 ? ['--allow-scripts=even-pilot'] : [];
+    const lifecycleFlags = Number(npmVersion.split('.')[0]) >= 12 ? ['--allow-scripts=terminal-plus'] : [];
     const lifecycleOutput = npm('install', '--global', '--ignore-scripts=false', '--foreground-scripts', ...lifecycleFlags, archive);
     check(existsSync(helper), 'Scripts-enabled npm reinstall restores the helper');
     check(/already installed\. Keeping its current release and settings/.test(lifecycleOutput), 'Global postinstall actually runs and skips the equal native version');
@@ -151,8 +153,9 @@ async function fixture(upgrade) {
     }
     successful(launcher, ['uninstall'], 'Uninstall only the fixture native app');
     check(!existsSync(launcher) && !existsSync(join(root, 'install.json')), 'Native uninstall removes its own launcher/install record');
+    check(!existsSync(legacyLauncher), 'Native uninstall also removes the owned legacy alias');
     check(readFileSync(configPath, 'utf8') === original, 'Native uninstall retains saved connection/watch settings');
-    npm('uninstall', '--global', 'even-pilot', '--ignore-scripts');
+    npm('uninstall', '--global', 'terminal-plus', '--ignore-scripts');
     check(!existsSync(helper), 'Remove the fixture npm helper after native uninstall');
     finished = true;
     console.log('PASS: npm ' + npmVersion + ' ' + (upgrade ? 'custom-root native upgrade' : 'fresh install') + ', shared ~/.local global prefix, scripts disabled/enabled, repeated setup, npm removal/native retention, key retention, healthy backend' + (upgrade ? ', old-payload and native-worker survival' : '') + '.');
@@ -160,8 +163,9 @@ async function fixture(upgrade) {
     if (worker?.exitCode === null && worker?.signalCode === null) {
       worker.kill(); await until(() => worker.exitCode !== null || worker.signalCode !== null, 'cleanup fixture worker exits').catch(() => {});
     }
-    if (existsSync(launcher)) {
-      const stopped = run(launcher, ['stop']);
+    const cleanupLauncher = existsSync(launcher) ? launcher : legacyLauncher;
+    if (existsSync(cleanupLauncher)) {
+      const stopped = run(cleanupLauncher, ['stop']);
       if (stopped.status !== 0) console.error('Could not stop fixture monitor; retained at ' + directory);
     }
     await delay(150);

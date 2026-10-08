@@ -24,11 +24,11 @@ const releases = join(root, 'outputs/releases');
 mkdirSync(releases, { recursive: true });
 // A fresh staging directory prevents leftover files from a previous build leaking.
 const destination = mkdtempSync(join(releases, pkg.version + '-'));
-const stage = join(destination, 'Even-Pilot');
+const stage = join(destination, 'Terminal-plus');
 mkdirSync(stage);
 const allowlist = [
   'README.md', 'README.zh-CN.md', 'RELEASE_NOTES.md', 'Setup.cmd', 'apps/windows/src', 'apps/linux/src/platform.ts',
-  'apps/windows/desktop/Even-Pilot.TerminalInterrupt.exe',
+  'apps/windows/desktop/Terminal-plus.TerminalInterrupt.exe',
   'apps/evenhub/dist', 'apps/evenhub/app.json', 'apps/evenhub/THIRD_PARTY_NOTICES.md', 'packages',
   'scripts/enable-pi-subagents.ps1',
   'docs/architecture.md', 'docs/connectors.md', 'docs/linux.md', 'docs/glance-push.md', 'docs/glance-qr-v1.md', 'docs/hub-release-notes.md',
@@ -64,7 +64,10 @@ delete lock.packages[''].devDependencies;
 for (const [path, entry] of Object.entries(lock.packages)) if (entry.dev === true) delete lock.packages[path];
 copy(join(root, 'package.json'), join(stage, 'package.json'), JSON.stringify(runtimePackage, null, 2) + '\n');
 copy(join(root, 'package-lock.json'), join(stage, 'package-lock.json'), JSON.stringify(lock, null, 2) + '\n');
-copy(join(root, 'Even-Pilot.updated.exe'), join(stage, 'Even-Pilot.exe'));
+copy(join(root, 'Terminal-plus.updated.exe'), join(stage, 'Terminal-plus.exe'));
+// Old portable launchers delegate to this filename after an installed payload switch.
+// Keep a byte-identical alias so their existing entry point works without replacing a live EXE.
+copy(join(root, 'Terminal-plus.updated.exe'), join(stage, 'Even-Pilot.exe'));
 await prepareRuntime(root, stage, npm);
 const finalFiles = runtimeInventory(stage, secretValues);
 const { installer, buildId } = buildInstaller(root, stage, destination, pkg.version, finalFiles);
@@ -74,7 +77,7 @@ writeFileSync(join(destination, 'inventory.json'), JSON.stringify({ version: pkg
 run(process.execPath, [npm, "run", "build:hub"]);
 for (const source of walk(join(root, "apps/evenhub/dist-hub"))) copy(source, join(destination, "hub", relative(join(root, "apps/evenhub/dist-hub"), source)));
 const hub = packHub(destination, join(destination, 'hub'));
-const zip = join(destination, `Even-Pilot-${pkg.version}-windows.zip`);
+const zip = join(destination, `Terminal-plus-${pkg.version}-windows.zip`);
 const literal = value => "'" + value.replaceAll("'", "''") + "'";
 run('powershell.exe', ['-NoProfile', '-Command', `Compress-Archive -LiteralPath ${literal(stage)} -DestinationPath ${literal(zip)} -CompressionLevel Optimal`]);
 const artifacts = [installer, zip, hub, join(destination, 'inventory.json')];

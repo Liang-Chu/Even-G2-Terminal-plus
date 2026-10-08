@@ -46,7 +46,7 @@ export class UpdateSettings {
     const host = updateComputer(this.client(), this.servingOrigin);
     this.revision++; this.busy = false; this.reachable = false; this.latest = undefined; this.install.hidden = true;
     this.computer.textContent = host ? `This computer: ${host.name}${host.online ? "" : " (offline)"}`
-      : "Open this computer's Even-Pilot desktop shortcut to connect.";
+      : "Open this computer's Terminal+ desktop shortcut to connect.";
     if (!this.dialog.open) this.dialog.showModal(); void this.load();
   }
   private lock(value: boolean) {

@@ -1,8 +1,33 @@
-# Release status — companion 1.1.8 / Terminal+ Hub 1.1.10
+# Release status — Terminal+ 1.1.11
 
-Hub-only rename reviewed 2026-10-07: the manifest, phone branding and default G2 heading are **Terminal+ 1.1.10**. The previous rename retained `local.evenpilot.app`; the new package ID is `local.terminalplus.app`, and the filename is `terminal-plus-1.1.10.ehpk`. Packaging now rejects the reserved word in either the app name or package ID. Both frontend builds and 74 G2, pairing and settings regression tests passed. The official CLI produced a 118,798-byte package with the same SDK 0.0.16 / Even App 2.2.10 floor. Windows/Linux/npm remain 1.1.8. The new app ID changes the phone app's storage namespace: existing backend keys still work, but phone connections and voice keys may need entering again. Physical installation of the renamed package still needs a phone check.
+The Windows/Linux companion and phone/G2 app share the name **Terminal+ 1.1.11**. Native assets use `Terminal-plus`, Linux commands use `terminal-plus`, and the repository is [Liang-Chu/Even-G2-Terminal-plus](https://github.com/Liang-Chu/Even-G2-Terminal-plus). Hub keeps `local.terminalplus.app`. [terminal-plus@1.1.11](https://www.npmjs.com/package/terminal-plus) is publicly available as `latest`; its repository URL and SHA-512 digest match the final release package. The checks below establish local artifact and public npm installation results; GitHub release publication and physical phone/G2 acceptance remain separate.
 
-This patch fixes Claude queue starvation and delayed child-event accounting, adds G2 agent-task details, removes generated context from G2 questions, preserves newer voice settings and supports user-owned Firebase sender projects. G2 navigation also skips obsolete queued text writes, sends the selected page before saving preferences and wraps only visible preview rows. Final source checks and independent reviews passed.
+Existing Even-Pilot users need one manual installer upgrade because older verified updaters may reject the repository redirect or renamed assets. Existing data, service and configuration identifiers remain for settings retention. See [migration](updates.md#migration-from-even-pilot).
+
+## Current verification — 2026-10-07
+
+| Check | Result |
+| --- | --- |
+| Windows source | 439 tests: 431 passed, 8 skipped |
+| Linux source | 439 tests: 436 passed, 3 skipped |
+| Windows desktop | All three C# desktop test suites passed |
+| Windows portable package | Primary and compatibility launchers were byte-identical; the packaged `--check` entry point passed |
+| Windows migration | Actual offline installer upgraded 1.1.8 to 1.1.11 while retaining legacy registration, connection key and running native workers |
+| Windows update worker | Failed-health update rolled back; successful update restarted the new backend |
+| Linux migration | Actual native installer upgraded 1.1.8 to 1.1.11 in a non-systemd installation |
+| Linux update worker | Failed-health update rolled back; successful update restarted the new backend |
+| Linux npm package | Five-file allowlist passed; local fresh-install and custom-root upgrade checks passed all 85 assertions |
+| Public npm installation | `terminal-plus@1.1.11` is public/`latest`; repository URL and final tarball SHA-512 match. Unauthenticated public-registry Linux fresh installation passed 39 assertions. Fixtures were cleaned; live installations were untouched |
+| Production dependencies | npm audit reports zero known vulnerabilities; checked 2026-10-07 |
+| Hub package | Official CLI 0.1.14 produced a 118,793-byte `.ehpk`, retaining SDK 0.0.16 / Even App 2.2.10 requirements. Physical installation and G2 acceptance remain unverified |
+
+The 1.1.11 checks do not replace physical Windows menus, Linux graphical/systemd startup, real voice/Claude response and cancellation, or phone/G2 acceptance. The older records below describe their original versions and dates.
+
+## Previous release evidence
+
+Hub-only rename reviewed 2026-10-07: the manifest, phone branding and default G2 heading were **Terminal+ 1.1.10**. The earlier rename retained `local.evenpilot.app`; this package used `local.terminalplus.app`, and the filename was `terminal-plus-1.1.10.ehpk`. Packaging rejected the reserved word in either the app name or package ID. Both frontend builds and 74 G2, pairing and settings regression tests passed. The official CLI produced a 118,798-byte package with the same SDK 0.0.16 / Even App 2.2.10 floor. Windows/Linux/npm were still 1.1.8. The app ID changes the phone app's storage namespace: existing backend keys still work, but phone connections and voice keys may need entering again. Physical installation still needs a phone check.
+
+The 1.1.8 baseline fixed Claude queue starvation and delayed child-event accounting, added G2 agent-task details, removed generated context from G2 questions, preserved newer voice settings and supported user-owned Firebase sender projects. G2 navigation also skipped obsolete queued text writes, sent the selected page before saving preferences and wrapped only visible preview rows. Its final source checks and independent reviews passed.
 
 Reviewed 2026-10-03:
 
@@ -18,7 +43,7 @@ Reviewed 2026-10-03:
 | Production dependencies | npm audit reports zero known vulnerabilities; checked 2026-10-03 |
 | Linux npm distribution | Eight bootstrap tests and 82 isolated npm/native installation checks passed on NUC/npm 11.16.0, including scripts disabled/enabled, shared launcher prefix, 1.1.6 upgrade, custom root, settings and native-process retention. Five-file allowlist, embedded installer digest and publish dry-run passed. `even-pilot@1.1.8` is published as `latest`; unauthenticated public download matches the final SHA-512 and public-registry installation passed 38 checks. Fixture directories/processes were removed; live NUC services were unchanged |
 
-Runtime packages include only allowed production files and bundled dependencies. Packaging checks inventories, matching Windows/Linux frontend assets, credential exclusion and SHA-256 digests. Installer smoke checks use isolated installations and synthetic credentials, without model turns or real push delivery. Earlier detailed audit records are available in [the 1.1.7 source history](https://github.com/Liang-Chu/Even-Pilot/blob/a2844a8d04fad6c1e2128a361937cf6917d2bb1a/docs/release-status.md).
+Runtime packaging checks allowed production files and bundled dependencies, inventories, matching Windows/Linux frontend assets, credential exclusion and SHA-256 digests. Installer smoke checks use isolated installations and synthetic credentials, without model turns or real push delivery. Earlier detailed audit records are available in [the 1.1.7 source history](https://github.com/Liang-Chu/Even-G2-Terminal-plus/blob/a2844a8d04fad6c1e2128a361937cf6917d2bb1a/docs/release-status.md).
 
 ## Behavior and limits
 
@@ -30,6 +55,6 @@ Runtime packages include only allowed production files and bundled dependencies.
 - **Platforms:** release installers target Windows 10/11 x64 and Linux x64/glibc. Windows binaries are unsigned. ARM64, Alpine/musl and Linux graphical desktops have not been physically validated.
 - **Notifications:** configure a direct sender or one forwarding center and register Glance separately. No Firebase, connection or speech credentials are shipped. The session actually displayed on G2 suppresses its own completion notification while the viewing lease is valid.
 
-Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install Terminal+'s phone `.ehpk` separately; Terminal+ 1.1.10 works with Even-Pilot 1.1.8 companions. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
+Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install `terminal-plus-1.1.11.ehpk` separately with Terminal+ 1.1.11 companions. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
 
 See [setup](../README.md), [release notes](../RELEASE_NOTES.md), [connector limits](connectors.md) and [Glance setup](glance-push.md).

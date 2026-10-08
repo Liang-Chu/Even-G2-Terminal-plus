@@ -135,7 +135,7 @@ test("Windows hook identifies a hidden synthetic npm-Claude ancestor with the ex
   await mkdir(runtime, { recursive: true }); await mkdir(helper, { recursive: true });
   await copyFile(process.execPath, join(runtime, "node.exe"));
   const compiler = join(process.env.WINDIR!, "Microsoft.NET/Framework64/v4.0.30319/csc.exe");
-  await run(compiler, ["/nologo", "/target:exe", "/optimize+", "/out:" + join(helper, "Even-Pilot.TerminalInterrupt.exe"),
+  await run(compiler, ["/nologo", "/target:exe", "/optimize+", "/out:" + join(helper, "Terminal-plus.TerminalInterrupt.exe"),
     "/reference:System.Web.Extensions.dll", resolve("apps/windows/desktop/TerminalInterrupt.cs")], { windowsHide: true });
   // The desktop bridge has already started this bundled runtime before hooks are installed.
   await run(join(runtime, "node.exe"), ["--version"], { windowsHide: true });
@@ -155,12 +155,12 @@ test("Windows hook identifies a hidden synthetic npm-Claude ancestor with the ex
   assert.equal(result.code, 0); assert.equal(result.stderr, ""); assert.equal(result.stdout.trim(), "{}");
   const files = await import("node:fs/promises").then(fs => fs.readdir(join(f.data, "claude-events")));
   const event = await parse(join(f.data, "claude-events", files[0])); assert.equal(event.owner.pid, parent.pid);
-  const directAt = Date.now(), direct = await run(join(helper, "Even-Pilot.TerminalInterrupt.exe"), ["claude-owner", String(parent.pid)], { windowsHide: true });
+  const directAt = Date.now(), direct = await run(join(helper, "Terminal-plus.TerminalInterrupt.exe"), ["claude-owner", String(parent.pid)], { windowsHide: true });
   assert.equal(JSON.parse(direct.stdout).pid, parent.pid, "Native ancestry helper must recognize npm Claude without PowerShell fallback");
   assert.equal(JSON.parse(direct.stdout).argv.at(-1), "Unicode 中文 fixture");
   t.diagnostic(`Native owner lookup completed in ${Date.now() - directAt} ms`);
   assert.deepEqual(Object.keys(event.owner).sort(), ["pid", "started"], "Private helper argv is never persisted");
-  if (existsSync(resolve("apps/windows/desktop/Even-Pilot.TerminalInterrupt.exe")))
+  if (existsSync(resolve("apps/windows/desktop/Terminal-plus.TerminalInterrupt.exe")))
     assert.equal(event.owner.started, await claudeProcessIdentity(parent.pid!));
   t.diagnostic(`Synthetic Windows ordinary hook completed in ${result.elapsed} ms`);
 });

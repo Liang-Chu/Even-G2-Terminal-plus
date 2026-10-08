@@ -8,7 +8,7 @@ if (process.platform !== 'linux' || !['x64', 'arm64'].includes(process.arch)) th
 const root = fileURLToPath(new URL('../', import.meta.url));
 const pkg = JSON.parse(readFileSync(join(root, 'package.json')));
 const destination = mkdtempSync(join(root, 'outputs/linux-' + pkg.version + '-'));
-const stage = join(destination, 'Even-Pilot'); mkdirSync(stage);
+const stage = join(destination, 'Terminal-plus'); mkdirSync(stage);
 const run = (cmd, args, cwd = stage) => { const result = spawnSync(cmd, args, { cwd, stdio: 'inherit' }); if (result.error || result.status) throw new Error('Linux packaging step failed'); };
 const sources = ['README.md', 'README.zh-CN.md', 'RELEASE_NOTES.md', 'docs', 'apps/windows/src', 'apps/linux', 'packages', 'apps/evenhub/dist', 'apps/evenhub/THIRD_PARTY_NOTICES.md', 'assets/icon.svg', 'scripts/enable-pi-subagents.mjs'];
 for (const entry of sources) {
@@ -35,8 +35,11 @@ const original = join(verified, `node-v${version}-linux-${process.arch}`, 'bin/n
 if (!readFileSync(original).equals(readFileSync(process.execPath))) throw new Error('Build Node differs from the official binary');
 mkdirSync(join(stage, 'runtime')); copyFileSync(original, join(stage, 'runtime/node'));
 copyFileSync(join(verified, `node-v${version}-linux-${process.arch}`, 'LICENSE'), join(stage, 'runtime/LICENSE.txt'));
-mkdirSync(join(stage, 'bin')); copyFileSync(join(root, 'apps/linux/bin/even-pilot'), join(stage, 'bin/even-pilot'));
-chmodSync(join(stage, 'runtime/node'), 0o755); chmodSync(join(stage, 'bin/even-pilot'), 0o755);
+mkdirSync(join(stage, 'bin'));
+for (const name of ['terminal-plus', 'even-pilot']) {
+  copyFileSync(join(root, 'apps/linux/bin', name), join(stage, 'bin', name)); chmodSync(join(stage, 'bin', name), 0o755);
+}
+chmodSync(join(stage, 'runtime/node'), 0o755);
 const walk = path => { if (lstatSync(path).isSymbolicLink()) throw new Error('Symlink in payload: ' + path); return lstatSync(path).isDirectory() ? readdirSync(path).sort().flatMap(name => walk(join(path, name))) : [path]; };
 // npm creates .bin symlinks; these aren't needed by the runtime's absolute entry points.
 // Omit them at package creation instead of dereferencing or shipping external links.
@@ -52,12 +55,12 @@ const files = allFiles(stage).map(path => {
 const buildId = createHash('sha256').update(JSON.stringify(files)).digest('hex').slice(0, 12);
 writeFileSync(join(stage, 'release.json'), JSON.stringify({ version: pkg.version, platform: 'linux', arch: process.arch, buildId, files }));
 const fileList = join(destination, 'payload-files.txt'); writeFileSync(fileList, files.map(file => file.path).concat('release.json').join('\n') + '\n');
-const archiveOut = join(destination, `Even-Pilot-${pkg.version}-linux-${process.arch}.tar.gz`);
+const archiveOut = join(destination, `Terminal-plus-${pkg.version}-linux-${process.arch}.tar.gz`);
 run('tar', ['-czf', archiveOut, '--no-recursion', '-T', fileList]);
 const bytes = readFileSync(archiveOut), hash = createHash('sha256').update(bytes).digest('hex');
 const shell = `#!/bin/sh\nset -eu\numask 077\n[ "$(uname -s)" = Linux ] || { echo 'This installer requires Linux'; exit 1; }\n[ "$(uname -m)" = '${process.arch === 'x64' ? 'x86_64' : 'aarch64'}' ] || { echo 'Wrong CPU architecture'; exit 1; }\ntmp=$(mktemp -d "\${TMPDIR:-/tmp}/even-pilot-setup.XXXXXXXX")\ncleanup() { case "$tmp" in "\${TMPDIR:-/tmp}"/even-pilot-setup.*) rm -rf -- "$tmp" ;; esac; }\ntrap cleanup EXIT HUP INT TERM\ntail -n +PAYLOAD_LINE "$0" > "$tmp/payload.tar.gz"\nprintf '%s  %s\\n' '${hash}' "$tmp/payload.tar.gz" | sha256sum -c - >/dev/null\nmkdir "$tmp/app"\ntar -xzf "$tmp/payload.tar.gz" -C "$tmp/app"\n"$tmp/app/runtime/node" "$tmp/app/apps/linux/install.mjs" "$@"\nexit 0\n`;
 const prefix = shell.replace('PAYLOAD_LINE', String(shell.split('\n').length));
-const setup = join(destination, `Even-Pilot-${pkg.version}-Setup-linux-${process.arch}.run`);
+const setup = join(destination, `Terminal-plus-${pkg.version}-Setup-linux-${process.arch}.run`);
 writeFileSync(setup, Buffer.concat([Buffer.from(prefix), bytes])); chmodSync(setup, 0o755);
 writeFileSync(join(destination, 'SHA256SUMS.txt'), [archiveOut, setup].map(path => createHash('sha256').update(readFileSync(path)).digest('hex') + '  ' + relative(destination, path)).join('\n') + '\n');
 console.log('Linux release: ' + destination);

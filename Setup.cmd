@@ -4,7 +4,7 @@ cd /d "%~dp0"
 if exist "runtime\node.exe" (
   "runtime\node.exe" --import tsx apps/windows/src/setup.ts
   if errorlevel 1 exit /b 1
-  echo Ready. Double-click Even-Pilot.exe. No dependency download is needed.
+  echo Ready. Double-click Terminal-plus.exe. No dependency download is needed.
   exit /b 0
 )
 node -e "if(Number(process.versions.node.split('.')[0])<22)process.exit(1)"
@@ -25,5 +25,5 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Ready. Double-click Even-Pilot.exe to open the desktop manager.
+echo Ready. Double-click Terminal-plus.exe to open the desktop manager.
 pause

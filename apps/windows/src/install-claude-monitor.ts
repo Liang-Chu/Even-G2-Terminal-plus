@@ -38,7 +38,7 @@ function settings(path: string) {
   const source = readFileSync(path, "utf8");
   let parsed: unknown;
   try { parsed = JSON.parse(source); }
-  catch { throw new Error("Claude settings cannot be parsed; repair settings.json before preparing or removing Even-Pilot."); }
+  catch { throw new Error("Claude settings cannot be parsed; repair settings.json before preparing or removing Terminal+."); }
   if (!object(parsed) || (parsed.hooks !== undefined && !object(parsed.hooks)))
     throw new Error("Claude settings have an unsupported hooks structure; no settings changed.");
   for (const event of claudeMonitorEvents) {
@@ -90,7 +90,7 @@ function withoutOwned(config: Record<string, any>, commands: string[]) {
 }
 function ownedHookIntact(path: string, hashes: string[]) {
   if (regular(path, 128_000) && !hashes.includes(digest(readFileSync(path, "utf8"))))
-    throw new Error("Even-Pilot's Claude monitor hook was modified; preserve or restore it before updating or uninstalling.");
+    throw new Error("Terminal+'s Claude monitor hook was modified; preserve or restore it before updating or uninstalling.");
 }
 
 /** The stable data copy survives an installer payload switch or rollback. */
@@ -107,7 +107,7 @@ export function installClaudeMonitor(options: ClaudeMonitorOptions = {}) {
   if (previous && previous.installationRoot !== root)
     throw new Error("Claude monitor belongs to another installation; no settings changed.");
   if (previous && previous.settingsPath !== path)
-    throw new Error("Claude configuration location changed; remove the existing Even-Pilot registration before preparing another profile.");
+    throw new Error("Claude configuration location changed; remove the existing Terminal+ registration before preparing another profile.");
   const saved = settings(path), config = withoutOwned(saved.value, previous?.commands || []);
   if (regular(hookPath, 128_000)) {
     if (!previous) throw new Error("An unrelated Claude monitor hook file already exists; no settings changed.");

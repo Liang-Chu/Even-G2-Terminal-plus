@@ -2,7 +2,7 @@
 
 For a first-time user, start with [notification setup](setup.md#optional-glance-notifications) / [中文配置](setup.zh-CN.md#可选-glance-通知), which includes exact Linux settings commands, Windows configuration and phone registration. Use [notification routing](notification-routing.md) to choose independent senders or one center. This page is the detailed backend/diagnostic reference.
 
-Even-Pilot sends a notification when **each monitored session** finishes its main run and reported subagents. Session A notifies when A settles, even while B continues running. A reported interruption or failure produces that outcome; disconnection or closing a native terminal is not completion. Intermediate replies, tool completion, reconnect, initial idle and session browsing do not trigger a push. Remaining idle does not send repeated notifications. Unwatch never closes or interrupts the native terminal; temporary network loss retains monitoring membership.
+Terminal+ sends a notification when **each monitored session** finishes its main run and reported subagents. Session A notifies when A settles, even while B continues running. A reported interruption or failure produces that outcome; disconnection or closing a native terminal is not completion. Intermediate replies, tool completion, reconnect, initial idle and session browsing do not trigger a push. Remaining idle does not send repeated notifications. Unwatch never closes or interrupts the native terminal; temporary network loss retains monitoring membership.
 
 The desktop observes native Pi, Codex and Claude sessions. Existing Pi terminals attach with `/reload` while idle; plain Codex CLI and local Codex desktop App sessions use the automatic read-only rollout observer. Ordinary Claude uses official monitor hooks installed during preparation, beginning with its next prompt; known custom Stop hooks or uncertain background work prevent an unconfirmed completion push. See [connector limits](connectors.md). Automatic PUSH and POLL notifications are suppressed for a session while its conversation or voice page is mounted on G2. Other watched sessions notify normally. Phone/desktop preview alone does not suppress delivery. Opening Sessions, switching away, or exiting releases the view; a lost heartbeat expires after 15 seconds. This ephemeral lease never changes Watch membership. Suppressed completion records remain in history and are never replayed as notifications. Explicit test pushes remain available while viewing.
 
@@ -12,13 +12,13 @@ Use **your own Firebase project**, configured/imported on the phone through the 
 
 A new installation generates its own bridge credentials but has **no Firebase sending credentials**. Core monitoring works without them; push sending does not. Configure credentials only on each direct sender or the central sender, and never distribute private service-account JSON in release assets. Each user supplies credentials authorized for their phone's target Firebase project.
 
-For an installed Windows companion, add the Firebase fields shown below to its existing `.local/bridge-config.json` at the installation root, preserving the keys. Use an absolute credential-file path. Restart the monitoring backend using the [manual update shutdown steps](development.md#更新已有安装), then open Even-Pilot again; quitting only the tray does not reload the backend. No system Node or npm is required. In the current payload folder, the optional credential check uses the bundled runtime:
+For an installed Windows companion, add the Firebase fields shown below to its existing `.local/bridge-config.json` at the installation root, preserving the keys. Use an absolute credential-file path. Restart the monitoring backend using the [manual update shutdown steps](development.md#更新已有安装), then open Terminal+ again; quitting only the tray does not reload the backend. No system Node or npm is required. In the current payload folder, the optional credential check uses the bundled runtime:
 
 ```powershell
 .\runtime\node.exe --import tsx .\apps\windows\src\push-cli.ts check-auth
 ```
 
-Linux users can configure the sender with `even-pilot settings firebase --credentials /private/service-account.json`. It saves the JSON's `project_id` as the target and the private file path as the credential reference, then restarts only monitoring. That project must match the phone's Glance configuration. See [Linux settings](linux.md#推送与-firebase-设置).
+Linux users can configure the sender with `terminal-plus settings firebase --credentials /private/service-account.json`. It saves the JSON's `project_id` as the target and the private file path as the credential reference, then restarts only monitoring. That project must match the phone's Glance configuration. See [Linux settings](linux.md#推送与-firebase-设置).
 
 The following npm commands are **source-checkout diagnostics**, requiring the development Node/npm environment:
 
@@ -104,7 +104,7 @@ Requests without `operation` keep the existing polling contract: 200 with conten
 Offline payload validation, with no Firebase connection or credentials needed:
 
 ```powershell
-npm run push -- dry-run --title 'Even-Pilot' --text 'Push test complete.'
+npm run push -- dry-run --title 'Terminal+' --text 'Push test complete.'
 npm run push -- dry-run --title 'OK' --text '😀!' --max-length 3
 ```
 
@@ -112,8 +112,8 @@ Inspect the running server, select one of its subscription IDs, then send one ex
 
 ```powershell
 npm run push -- status
-npm run push -- test --subscription <id> --title 'Even-Pilot' --text 'FCM connection test.' --dry-run
-npm run push -- test --subscription <id> --title 'Even-Pilot' --text 'FCM connection test.'
+npm run push -- test --subscription <id> --title 'Terminal+' --text 'FCM connection test.' --dry-run
+npm run push -- test --subscription <id> --title 'Terminal+' --text 'FCM connection test.'
 npm run push -- status
 ```
 
@@ -121,7 +121,7 @@ These live commands use the control token from `EVEN_PILOT_TOKEN` or the local c
 
 Control-only API: **GET `/api/glance/push`** returns configuration, subscription metadata and recent job statuses, without FIDs, message bodies or credentials. **POST `/api/glance/push/test`** accepts `subscription_id`, `title`, `text`, optional `priority`, `ttl_seconds`, and `dry_run`. A dry run returns 200 `validated_locally`; a real test returns 202 `queued` with a `jobId`. The Glance notification credential receives 403 on these diagnostic/test endpoints.
 
-After a successful explicit test, run a harmless prompt through Even-Pilot and observe RUNNING → IDLE. Expect one new job for each registered watcher. With two sessions running, verify that the first session notifies without waiting for the second. Repeat while the G2 app is closed to verify Even's forwarding behavior. FCM acceptance and a phone/G2 notification are separate observations.
+After a successful explicit test, run a harmless prompt through Terminal+ and observe RUNNING → IDLE. Expect one new job for each registered watcher. With two sessions running, verify that the first session notifies without waiting for the second. Repeat while the G2 app is closed to verify Even's forwarding behavior. FCM acceptance and a phone/G2 notification are separate observations.
 
 ## Delivery behavior and failures
 

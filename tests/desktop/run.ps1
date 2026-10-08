@@ -7,7 +7,7 @@ $pilotCompiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc
 $pilotTestExe = Join-Path $pilotTestDirectory 'desktop-tests.exe'
 & $pilotCompiler /nologo /target:exe "/out:$pilotTestExe" /reference:System.Drawing.dll (Join-Path $PSScriptRoot 'StartupRegistrationTests.cs') (Join-Path $pilotRoot 'apps/windows/desktop/StartupRegistration.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed to compile.' }
-& $pilotTestExe (Join-Path $pilotRoot 'Even-Pilot.updated.exe')
+& $pilotTestExe (Join-Path $pilotRoot 'Terminal-plus.updated.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed.' }
 $pilotInstallerTests = Join-Path $pilotTestDirectory 'installer-tests.exe'
 $pilotTrayFixture = Join-Path $pilotTestDirectory 'tray-restart-fixture.exe'
@@ -15,7 +15,7 @@ $pilotTrayFixture = Join-Path $pilotTestDirectory 'tray-restart-fixture.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Tray restart fixture failed to compile.' }
 & $pilotCompiler /nologo /target:exe "/out:$pilotInstallerTests" /reference:System.Core.dll /reference:Microsoft.CSharp.dll /reference:System.Net.Http.dll /reference:System.Web.Extensions.dll (Join-Path $PSScriptRoot 'InstallerSupportTests.cs') (Join-Path $pilotRoot 'apps/windows/desktop/InstallerSupport.cs') (Join-Path $pilotRoot 'apps/windows/desktop/DesktopPaths.cs') (Join-Path $pilotRoot 'apps/windows/desktop/StartupRegistration.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Installer support tests failed to compile.' }
-& $pilotInstallerTests (Join-Path $pilotRoot 'Even-Pilot.updated.exe') $pilotTrayFixture
+& $pilotInstallerTests (Join-Path $pilotRoot 'Terminal-plus.updated.exe') $pilotTrayFixture
 if ($LASTEXITCODE -ne 0) { throw 'Installer support tests failed.' }
 $pilotTrayUpdateTests = Join-Path $pilotTestDirectory 'tray-update-tests.exe'
 & $pilotCompiler /nologo /target:exe /main:TrayUpdateTests "/out:$pilotTrayUpdateTests" /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Net.Http.dll /reference:System.Web.Extensions.dll (Join-Path $PSScriptRoot 'TrayUpdateTests.cs') (Join-Path $pilotRoot 'apps/windows/desktop/Tray.cs') (Join-Path $pilotRoot 'apps/windows/desktop/DesktopPaths.cs') (Join-Path $pilotRoot 'apps/windows/desktop/StartupRegistration.cs')

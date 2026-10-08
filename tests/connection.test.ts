@@ -37,7 +37,7 @@ test("connection verification checks a real backend before saving and reports fe
   mock.mock.mockImplementation(async () => Response.json({ error: "Check key" }, { status: 401 }));
   await assert.rejects(client.verify(), /Connection key rejected.*update this computer’s key/);
   mock.mock.mockImplementation(async () => Response.json({ unrelated: true }));
-  await assert.rejects(client.verify(), /did not return an Even-Pilot/);
+  await assert.rejects(client.verify(), /did not return a Terminal\+/);
   mock.mock.mockImplementation(async () => { throw new TypeError("Failed to fetch"); });
   await assert.rejects(client.verify(), error => { assert.match(String(error), /network whitelist/); assert.ok(!String(error).includes(key)); return true; });
 });

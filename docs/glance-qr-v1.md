@@ -1,8 +1,8 @@
-# Even-Pilot / Glance 共用连接二维码（v1）
+# Terminal+ / Glance 共用连接二维码（v1）
 
-二维码内容是一条 URL，不是 JSON。桌面 **Connect phone** 的 **Connect your phone** 弹窗和 Linux 的 `even-pilot pair` 使用同一格式、同一个后端 connection key。Glance 可直接扫码；Even Hub 目前仍手工填写 URL/key。
+二维码内容是一条 URL，不是 JSON。桌面 **Connect phone** 的 **Connect your phone** 弹窗和 Linux 的 `terminal-plus pair` 使用同一格式、同一个后端 connection key。Glance 可直接扫码；Even Hub 目前仍手工填写 URL/key。
 
-Linux / SSH：运行 `~/.local/bin/even-pilot pair`，终端会打印 Bridge URL、connection key、完整 Glance URL 和二维码，优先使用 Tailscale 地址。用 Glance 的扫码入口扫描，再保存注册。二维码和 key 属于当前执行命令的电脑；集中转发时应在中心服务器运行这条命令。
+Linux / SSH：运行 `~/.local/bin/terminal-plus pair`，终端会打印 Bridge URL、connection key、完整 Glance URL 和二维码，优先使用 Tailscale 地址。用 Glance 的扫码入口扫描，再保存注册。二维码和 key 属于当前执行命令的电脑；集中转发时应在中心服务器运行这条命令。
 
 ```text
 http://192.168.1.25:4317/#pilot-pair=1&pilot-token=<URL编码后的后端连接key>
@@ -14,7 +14,7 @@ http://192.168.1.25:4317/#pilot-pair=1&pilot-token=<URL编码后的后端连接k
 
 | 字段 | 取值 |
 | --- | --- |
-| Name / watcher | `Even-Pilot`（用户可修改；同设备多 watcher 应使用不同名称） |
+| Name / watcher | `Terminal+`（用户可修改；同设备多 watcher 应使用不同名称） |
 | Delivery | `PUSH` |
 | Registration URL | URL 的 origin + `/api/glance`，例如 `http://192.168.1.25:4317/api/glance` |
 | Credential | fragment 参数 `pilot-token` 解码一次后的原始值；不要加 `Bearer ` 前缀 |

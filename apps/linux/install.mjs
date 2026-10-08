@@ -8,9 +8,16 @@ import { spawnSync } from 'node:child_process';
 const source = fileURLToPath(new URL('../../', import.meta.url));
 const args = process.argv.slice(2), removing = args.includes('--uninstall'), updating = args.includes('--update');
 if (updating && args.includes('--no-start')) throw new Error('--update requires starting the monitor for its health check; omit --no-start');
-const bin = join(process.env.EVEN_PILOT_BIN_DIR || join(homedir(), '.local/bin'), 'even-pilot');
+const binDirectory = process.env.EVEN_PILOT_BIN_DIR || join(homedir(), '.local/bin');
+const bin = join(binDirectory, 'terminal-plus'), legacyBin = join(binDirectory, 'even-pilot');
+const launcherNames = ['terminal-plus', 'even-pilot'];
+function fileInfo(path) { try { return lstatSync(path); } catch (error) { if (error.code === 'ENOENT') return undefined; throw error; } }
+function launcherRoot(path) {
+  const link = resolve(dirname(path), readlinkSync(path));
+  return launcherNames.some(name => link.endsWith(sep + join('current', 'bin', name))) ? resolve(link, '../../..') : undefined;
+}
 let detected;
-try { const link = readlinkSync(bin); if (link.endsWith('/current/bin/even-pilot')) detected = resolve(link, '../../..'); } catch {}
+for (const path of [bin, legacyBin]) { try { detected = launcherRoot(path); if (detected) break; } catch {} }
 const option = args.indexOf('--dir');
 if (option >= 0 && !args[option + 1]) throw new Error('--dir needs a directory');
 const root = resolve(option >= 0 ? args[option + 1] : process.env.EVEN_PILOT_INSTALL_DIR || detected || join(homedir(), '.local/lib/even-pilot'));
@@ -26,7 +33,7 @@ function regularTree(path, parent) {
 function guardRoot() {
   if (process.platform !== 'linux' || process.getuid() === 0) throw new Error('Run this installer as your normal Linux user, without sudo');
   if (/[\r\n\0]/.test(root)) throw new Error('Installation path must not contain line breaks');
-  if ([sep, homedir(), '/usr', '/opt', '/var', '/tmp'].includes(root)) throw new Error('Choose a dedicated Even-Pilot directory');
+  if ([sep, homedir(), '/usr', '/opt', '/var', '/tmp'].includes(root)) throw new Error('Choose a dedicated Terminal+ directory');
   let path = root;
   while (path !== dirname(path)) {
     if (existsSync(path) && lstatSync(path).isSymbolicLink()) throw new Error('Installation parent must not be a symlink');
@@ -62,8 +69,9 @@ function writeAtomic(path, value, mode = 0o600) { const temp = path + '.new-' + 
 
 // Shell registration belongs to this installation only. Preserve all user text
 // outside our exact marker, and never replace a symlink or a shared startup file.
-const pathMarker = '# Even-Pilot PATH: ' + JSON.stringify(root);
-const pathEnd = '# End Even-Pilot PATH';
+const pathMarker = '# Terminal+ PATH: ' + JSON.stringify(root);
+const pathEnd = '# End Terminal+ PATH';
+const pathMarkers = [[pathMarker, pathEnd], ['# Even-Pilot PATH: ' + JSON.stringify(root), '# End Even-Pilot PATH']];
 const shellQuote = text => "'" + text.replaceAll("'", "'\\''") + "'";
 function shellPathFiles() {
   const shell = basename(process.env.SHELL || userInfo().shell || '');
@@ -92,12 +100,15 @@ function registerShellPath(removing = false) {
         if (!info.isFile() || info.isSymbolicLink() || info.uid !== process.getuid()) throw new Error('not a regular owned file');
         original = readFileSync(file.path, 'utf8'); mode = info.mode & 0o777;
       } else if (removing) continue;
-      const begin = original.indexOf(pathMarker + '\n');
       let clean = original;
-      if (begin >= 0) {
-        const end = original.indexOf(pathEnd + '\n', begin);
-        if (end < 0) throw new Error('incomplete managed block');
-        clean = original.slice(0, begin) + original.slice(end + pathEnd.length + 1);
+      let managed = false;
+      for (const [beginMarker, endMarker] of pathMarkers) {
+        for (let begin = clean.indexOf(beginMarker + '\n'); begin >= 0; begin = clean.indexOf(beginMarker + '\n')) {
+          const end = clean.indexOf(endMarker + '\n', begin);
+          if (end < 0) throw new Error('incomplete managed block');
+          clean = clean.slice(0, begin) + clean.slice(end + endMarker.length + 1);
+          managed = true;
+        }
       }
       if (removing) {
         if (clean !== original) writeAtomic(file.path, clean, mode);
@@ -107,7 +118,7 @@ function registerShellPath(removing = false) {
       const block = file.fish ? `if not contains -- ${value} $PATH\n    set -gx PATH ${value} $PATH\nend\n`
         : `case ":$PATH:" in\n  *:${value}:*) ;;\n  *) export PATH=${value}:"$PATH" ;;\nesac\n`;
       // Avoid appending our block to a fish file owned by another application.
-      if (file.fish && original && begin < 0) throw new Error('unrelated fish startup entry');
+      if (file.fish && original && !managed) throw new Error('unrelated fish startup entry');
       mkdirSync(dirname(file.path), { recursive: true });
       const registration = pathMarker + '\n' + block + pathEnd + '\n';
       writeAtomic(file.path, file.prepend ? registration + clean : clean + (clean && !clean.endsWith('\n') ? '\n' : '') + registration, mode);
@@ -116,8 +127,8 @@ function registerShellPath(removing = false) {
       console.warn('Shell PATH was not changed in ' + file.path + '. Add ' + directory + ' to your PATH manually.');
     }
   }
-  if (!removing) console.log(saved ? 'The even-pilot command is available in new terminal windows. Current shell: add ' + directory + ' to PATH, or use the full launcher path below.'
-    : 'Add ' + directory + ' to your shell PATH to use the even-pilot command.');
+  if (!removing) console.log(saved ? 'The terminal-plus command is available in new terminal windows. Current shell: add ' + directory + ' to PATH, or use the full launcher path below.'
+    : 'Add ' + directory + ' to your shell PATH to use the terminal-plus command.');
 }
 
 guardRoot();
@@ -131,7 +142,7 @@ try {
   if (previous.current) safeVersion(previous.current);
   const old = previous.current ? join(root, 'versions', previous.current) : undefined;
   if (removing) {
-    if (!old) throw new Error('No installed Even-Pilot found');
+    if (!old) throw new Error('No installed Terminal+ found');
     invoke(old, ['uninstall-check']);
     // Reject all living consumers of an installed version, including idle PTY
     // wrappers whose MCP channel has not connected yet. Only inspect our uid.
@@ -146,9 +157,9 @@ try {
     const pi = join(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi/agent'), 'extensions/even-pilot-monitor.ts');
     if (existsSync(pi)) {
       const text = readFileSync(pi, 'utf8');
-      if (text.startsWith('// Even-PIlot native terminal monitor\n') && text.includes(root + '/versions/')) unlinkSync(pi);
+      if (['// Terminal+ native terminal monitor\n', '// Even-PIlot native terminal monitor\n'].some(marker => text.startsWith(marker)) && text.includes(root + '/versions/')) unlinkSync(pi);
     }
-    try { if (readlinkSync(bin) === join(root, 'current/bin/even-pilot')) unlinkSync(bin); } catch {}
+    for (const path of [bin, legacyBin]) { try { if (launcherRoot(path) === root && lstatSync(path).uid === process.getuid()) unlinkSync(path); } catch {} }
     registerShellPath(true);
     try { if (readFileSync(desktopPath, 'utf8').includes('X-Even-PIlot-Root=' + root + '\n')) unlinkSync(desktopPath); } catch {}
     if (existsSync(join(root, 'current'))) {
@@ -159,13 +170,16 @@ try {
       const path = join(root, 'versions', version); regularTree(path, root); rmSync(path, { recursive: true, force: true });
     }
     unlinkSync(recordPath);
-    console.log('Even-Pilot uninstalled. Connection keys and watch settings retained.');
+    console.log('Terminal+ uninstalled. Connection keys and watch settings retained.');
   } else {
     const manifest = JSON.parse(readFileSync(join(source, 'release.json'), 'utf8'));
     if (manifest.platform !== 'linux' || manifest.arch !== process.arch) throw new Error('Use the package for this Linux CPU architecture');
     const version = safeVersion(manifest.version + '-' + manifest.buildId), target = join(root, 'versions', version);
     // Preflight shortcuts before stopping a working monitoring service.
-    if (existsSync(bin) && (!lstatSync(bin).isSymbolicLink() || readlinkSync(bin) !== join(root, 'current/bin/even-pilot'))) throw new Error('Another executable occupies ' + bin);
+    for (const path of [bin, legacyBin]) {
+      const stat = fileInfo(path);
+      if (stat && (!stat.isSymbolicLink() || stat.uid !== process.getuid() || launcherRoot(path) !== root)) throw new Error('Another executable occupies ' + path);
+    }
     if (existsSync(desktopPath) && !readFileSync(desktopPath, 'utf8').includes('X-Even-PIlot-Root=' + root + '\n')) throw new Error('An unrelated desktop shortcut already exists');
     verify(source, manifest);
     if (existsSync(target)) verify(target, manifest);
@@ -175,10 +189,15 @@ try {
       mkdirSync(dirname(target), { recursive: true, mode: 0o700 }); renameSync(temporary, target); temporary = undefined;
     }
     writeAtomic(join(target, 'installed.json'), '{"format":1}\n');
-    chmodSync(join(target, 'runtime/node'), 0o755); chmodSync(join(target, 'bin/even-pilot'), 0o755);
+    chmodSync(join(target, 'runtime/node'), 0o755);
+    for (const name of launcherNames) chmodSync(join(target, 'bin', name), 0o755);
     // The monitor handles its own authenticated shutdown; native sessions and
     // the versions they loaded remain present across the upgrade.
     const oldRecord = existsSync(recordPath) ? readFileSync(recordPath) : undefined;
+    const hadPrimaryLauncher = Boolean(fileInfo(bin));
+    const oldDesktop = existsSync(desktopPath) ? readFileSync(desktopPath) : undefined;
+    const autoPath = join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'autostart/even-pilot.desktop');
+    const oldAutostart = existsSync(autoPath) ? readFileSync(autoPath) : undefined;
     let switched = false;
     invoke(old || target, ['stop']);
     try {
@@ -186,9 +205,9 @@ try {
       const pending = join(root, '.current-' + randomUUID()); symlinkSync('versions/' + version, pending); renameSync(pending, join(root, 'current'));
       switched = true;
       writeAtomic(recordPath, JSON.stringify({ version: manifest.version, current: version, versions: [...new Set([...previous.versions, version])] }) + '\n');
-      mkdirSync(dirname(bin), { recursive: true }); if (!existsSync(bin)) symlinkSync(join(root, 'current/bin/even-pilot'), bin);
+      mkdirSync(dirname(bin), { recursive: true }); if (!fileInfo(bin)) symlinkSync(join(root, 'current/bin/terminal-plus'), bin);
       mkdirSync(dirname(desktopPath), { recursive: true });
-      writeAtomic(desktopPath, `[Desktop Entry]\nType=Application\nName=Even-Pilot\nComment=Monitor Pi, Codex and Claude sessions\nExec=${quoteDesktop(join(root, 'current/bin/even-pilot'))} open\nIcon=${join(root, 'current/assets/icon.svg')}\nTerminal=false\nCategories=Development;\nX-Even-PIlot-Root=${root}\n`, 0o644);
+      writeAtomic(desktopPath, `[Desktop Entry]\nType=Application\nName=Terminal+\nComment=Monitor Pi, Codex and Claude sessions\nExec=${quoteDesktop(join(root, 'current/bin/terminal-plus'))} open\nIcon=${join(root, 'current/assets/icon.svg')}\nTerminal=false\nCategories=Development;\nX-Even-PIlot-Root=${root}\n`, 0o644);
       if (!args.includes('--no-start')) invoke(target, [updating ? 'start' : 'open']);
       if (updating) {
         const data = process.env.EVEN_PILOT_DATA_DIR || join(process.env.XDG_DATA_HOME || join(homedir(), '.local/share'), 'even-pilot');
@@ -198,7 +217,7 @@ try {
         if (!response.ok || (await response.json()).currentVersion !== manifest.version) throw new Error('Updated backend health check failed');
       }
       registerShellPath();
-      console.log('Installed Even-Pilot ' + manifest.version + '\nLauncher: ' + bin + '\nEnable login startup: ' + bin + ' autostart on\nShow phone connection values: ' + bin + ' pair');
+      console.log('Installed Terminal+ ' + manifest.version + '\nLauncher: ' + bin + '\nEnable login startup: ' + bin + ' autostart on\nShow phone connection values: ' + bin + ' pair');
     } catch (error) {
       let cleanupError;
       if (old) {
@@ -206,6 +225,10 @@ try {
           invoke(target, ['stop']);
           const pending = join(root, '.rollback-' + randomUUID()); symlinkSync('versions/' + previous.current, pending); renameSync(pending, join(root, 'current'));
           writeAtomic(recordPath, oldRecord);
+          if (!hadPrimaryLauncher && fileInfo(bin) && launcherRoot(bin) === root) unlinkSync(bin);
+          if (oldDesktop) writeAtomic(desktopPath, oldDesktop, 0o644);
+          else if (existsSync(desktopPath)) unlinkSync(desktopPath);
+          if (oldAutostart?.toString('utf8').includes('X-Even-PIlot=true')) writeAtomic(autoPath, oldAutostart);
         }
         if (!existsSync(join(old, 'apps/windows/src/install-claude-monitor.ts'))) {
           try { removeClaudeMonitoring(target); } catch (failure) { cleanupError = failure; }

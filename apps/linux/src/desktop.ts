@@ -36,9 +36,12 @@ const systemdQuote = (text: string, expand = false) => '"' + text.replaceAll("\\
 const desktopQuote = (text: string) => '"' + text.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("`", "\\`").replaceAll("$", "\\$").replaceAll("%", "%%") + '"';
 const loader = new URL("../../../node_modules/tsx/dist/loader.mjs", import.meta.url).href;
 const backend = fileURLToPath(new URL("../../windows/src/cli.ts", import.meta.url));
-const launcher = join(payload, "bin/even-pilot");
+const launcher = join(payload, "bin/terminal-plus");
+// Retain ownership markers so a previous monitor can restore its unit during
+// rollback. The visible service description uses the current product name.
 const marker = "# Even-PIlot managed user service";
 const dataMarker = "# Even-PIlot data: " + JSON.stringify(data);
+const managedUnit = (text: string) => text.startsWith(marker + "\n" + dataMarker + "\n");
 async function request(path: string, post?: object, timeoutMs = 2500) {
   return fetch(origin + path, { method: post ? "POST" : "GET", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", Connection: "close" },
     body: post ? JSON.stringify(post) : undefined, signal: AbortSignal.timeout(timeoutMs) });
@@ -47,9 +50,9 @@ async function running() {
   return monitorRunning(() => request("/api/monitoring"), port);
 }
 async function hasSystemd() { if (process.env.EVEN_PILOT_NO_SYSTEMD === "1") return false; try { await run("systemctl", ["--user", "show-environment"], { timeout: 3000 }); return true; } catch { return false; } }
-async function ownUnit() { try { return (await readFile(unitPath, "utf8")).startsWith(marker + "\n" + dataMarker + "\n"); } catch { return false; } }
+async function ownUnit() { try { return managedUnit(await readFile(unitPath, "utf8")); } catch { return false; } }
 async function service() {
-  try { if (!(await readFile(unitPath, "utf8")).startsWith(marker + "\n" + dataMarker + "\n")) throw new Error("A service for another installation already exists"); }
+  try { if (!managedUnit(await readFile(unitPath, "utf8"))) throw new Error("A service for another installation already exists"); }
   catch (error: any) { if (error.code !== "ENOENT") throw error; }
   await mkdir(dirname(unitPath), { recursive: true });
   const env: NodeJS.ProcessEnv = { ...process.env, EVEN_PILOT_DATA_DIR: data };
@@ -57,12 +60,16 @@ async function service() {
     "PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "EVEN_PILOT_PI", "EVEN_PILOT_CODEX", "EVEN_PILOT_CLAUDE",
     "GOOGLE_APPLICATION_CREDENTIALS", "EVEN_PILOT_FCM_PROJECT_ID", "EVEN_PILOT_PUSH_TTL_SECONDS", "EVEN_PILOT_TOKEN", "EVEN_PILOT_NOTIFICATION_TOKEN"];
   const environment = names.filter(name => env[name] !== undefined).map(name => "Environment=" + systemdQuote(name + "=" + env[name])).join("\n");
-  await writeFile(unitPath, `${marker}\n${dataMarker}\n[Unit]\nDescription=Even-Pilot session monitor\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%h\n${environment}\nExecStart=/usr/bin/env -- ${[process.execPath, "--import", loader, backend, "--port", String(port)].map(value => systemdQuote(value, true)).join(" ")}\nRestart=on-failure\nRestartSec=3\nTimeoutStopSec=20\nKillMode=process\nUMask=0077\n\n[Install]\nWantedBy=default.target\n`, { mode: 0o600 });
+  await writeFile(unitPath, `${marker}\n${dataMarker}\n[Unit]\nDescription=Terminal+ session monitor\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%h\n${environment}\nExecStart=/usr/bin/env -- ${[process.execPath, "--import", loader, backend, "--port", String(port)].map(value => systemdQuote(value, true)).join(" ")}\nRestart=on-failure\nRestartSec=3\nTimeoutStopSec=20\nKillMode=process\nUMask=0077\n\n[Install]\nWantedBy=default.target\n`, { mode: 0o600 });
   await chmod(unitPath, 0o600);
   await run("systemctl", ["--user", "link", unitPath]);
   await run("systemctl", ["--user", "daemon-reload"]);
 }
 async function start() {
+  // Refresh the existing fallback registration in place after an upgrade so
+  // the next login loads this payload instead of a retained older version.
+  try { if ((await readFile(autoPath, "utf8")).includes("X-Even-PIlot=true")) await writeAutostart(); }
+  catch (error: any) { if (error.code !== "ENOENT") throw error; }
   if (await running()) return;
   installMonitorExtension();
   if (await hasSystemd()) { await service(); await run("systemctl", ["--user", "start", unitName]); }
@@ -95,8 +102,11 @@ async function autostart(enabled: boolean) {
     await mkdir(dirname(autoPath), { recursive: true });
     let existing: string | undefined; try { existing = await readFile(autoPath, "utf8"); } catch {}
     if (existing && !existing.includes("X-Even-PIlot=true")) throw new Error("Unrelated autostart entry exists");
-    await writeFile(autoPath, `[Desktop Entry]\nType=Application\nName=Even-Pilot\nExec=${desktopQuote(launcher)} start\nTerminal=false\nX-Even-PIlot=true\n`, { mode: 0o600 });
+    await writeAutostart();
   } else { try { if ((await readFile(autoPath, "utf8")).includes("X-Even-PIlot=true")) await unlink(autoPath); } catch {} }
+}
+async function writeAutostart() {
+  await writeFile(autoPath, `[Desktop Entry]\nType=Application\nName=Terminal+\nExec=${desktopQuote(launcher)} start\nTerminal=false\nX-Even-PIlot=true\n`, { mode: 0o600 });
 }
 async function nativeAlive() {
   for (const name of await readdir(join(data, "native")).catch(() => [])) {
@@ -116,21 +126,21 @@ try {
         ensureLocalConfig(); await start();
       } });
   }
-  else if (command === "start") { await start(); console.log("Even-Pilot background is running."); }
+  else if (command === "start") { await start(); console.log("Terminal+ background is running."); }
   else if (command === "stop") { await stop(); console.log("Monitoring stopped. Native terminals remain running."); }
   else if (command === "restart") { await stop(); await start(); console.log("Monitoring restarted. Native terminals remain running."); }
   else if (command === "status") {
     if (!await running()) console.log("Background stopped. Watch settings retained.");
     else { const state = await (await request("/api/monitoring")).json() as any; console.log(`Background running · ${state.running} running / ${state.watched} watched`); }
   } else if (command === "update") {
-    if (args.length > 1 || args[0] && !["check", "on", "off", "status"].includes(args[0])) throw new Error("Usage: even-pilot update [check|on|off|status]");
+    if (args.length > 1 || args[0] && !["check", "on", "off", "status"].includes(args[0])) throw new Error("Usage: terminal-plus update [check|on|off|status]");
     await start();
     const action = args[0];
     const response = action === "on" || action === "off" ? await request("/api/updates/settings", { automaticChecks: action === "on" })
       : action === "status" ? await request("/api/updates") : await request("/api/updates/check", {}, 20_000);
     const status = await response.json() as any;
     if (!response.ok) throw new Error(status.error || "Update request failed");
-    console.log(`Even-Pilot ${status.currentVersion} · automatic updates ${status.automaticChecks ? "on" : "off"}`);
+    console.log(`Terminal+ ${status.currentVersion} · automatic updates ${status.automaticChecks ? "on" : "off"}`);
     if (status.error) {
       if (action !== "status") throw new Error(status.error);
       console.log("Update error: " + status.error);
@@ -142,12 +152,12 @@ try {
         const install = await request("/api/updates/install", { version: status.available.version });
         const result = await install.json() as any;
         if (!install.ok) throw new Error(result.error || "Update could not start");
-        console.log("Downloading and updating in the background. Native terminals keep running. Use even-pilot update status to check the result.");
+        console.log("Downloading and updating in the background. Native terminals keep running. Use terminal-plus update status to check the result.");
       }
     } else if (action === "check" || !action) console.log("No newer release available.");
     if (status.lastResult) console.log(`Last update: ${status.lastResult.status} (${status.lastResult.version})`);
   } else if (command === "autostart") {
-    if (!["on", "off"].includes(args[0])) throw new Error("Usage: even-pilot autostart on|off");
+    if (!["on", "off"].includes(args[0])) throw new Error("Usage: terminal-plus autostart on|off");
     await autostart(args[0] === "on"); console.log("Autostart " + args[0]);
   } else if (command === "prepare") { prepareMonitorExtensions(); }
   else if (command === "uninstall-check") { if (await nativeAlive()) throw new Error("Close connected CLI terminals before uninstalling. No terminal was stopped."); }
@@ -163,7 +173,7 @@ try {
       console.log("Glance URL: " + new URL("/api/glance", phoneOrigin).href);
       console.log("\nScan in Glance, then Save and register (PUSH).\n");
       printPairingQr(phoneOrigin, token);
-    } else console.log("Phone QR unavailable: connect LAN or Tailscale, then run even-pilot pair again.");
+    } else console.log("Phone QR unavailable: connect LAN or Tailscale, then run terminal-plus pair again.");
   } else if (command === "open") {
     await start();
     const response = await request("/api/desktop/open", { openId: randomUUID() }); if (!response.ok) throw new Error("Could not apply watch defaults");
@@ -179,6 +189,6 @@ try {
     const child = spawn(process.execPath, [join(payload, "apps/linux/install.mjs"), "--uninstall", ...args], { stdio: "inherit", shell: false });
     process.exitCode = await new Promise<number>((done, fail) => { child.once("error", fail); child.once("exit", code => done(code || 0)); });
   } else if (["help", "--help", "-h"].includes(command)) {
-    console.log("even-pilot — Linux session watcher\n\nBackground: start | stop | restart | status | autostart on|off\nUpdates: update (install latest) | update check|on|off|status\nConnection: pair (prints URL/key/QR) | open (optional browser)\nSettings: settings (push routing / Firebase; settings --help)\nOptional Pi setup: enable-pi-subagents\nRemove application: uninstall\n\n" + sessionHelp + "\n\n" + settingsHelp);
-  } else throw new Error("Unknown command. Run `even-pilot --help`.");
-} catch (error) { console.error("[Even-Pilot] " + (error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+    console.log("Terminal+ — Linux session watcher\n\nCommand: terminal-plus\nBackground: start | stop | restart | status | autostart on|off\nUpdates: update (install latest) | update check|on|off|status\nConnection: pair (prints URL/key/QR) | open (optional browser)\nSettings: settings (push routing / Firebase; settings --help)\nOptional Pi setup: enable-pi-subagents\nRemove application: uninstall\n\n" + sessionHelp + "\n\n" + settingsHelp);
+  } else throw new Error("Unknown command. Run `terminal-plus --help`.");
+} catch (error) { console.error("[Terminal+] " + (error instanceof Error ? error.message : String(error))); process.exitCode = 1; }

@@ -18,9 +18,9 @@ import { windowsUpdateFetch } from "../apps/windows/src/update-fetch.js";
 
 const bytes = Buffer.from("verified installer fixture, never executed");
 const metadata = () => ({ tag_name: "v2.0.0", draft: false, prerelease: false, assets: [{
-  name: "Even-Pilot-2.0.0-Setup-linux-x64.run", state: "uploaded", size: bytes.length,
+  name: "Terminal-plus-2.0.0-Setup-linux-x64.run", state: "uploaded", size: bytes.length,
   digest: "sha256:" + createHash("sha256").update(bytes).digest("hex"),
-  browser_download_url: `https://github.com/${updateRepository}/releases/download/v2.0.0/Even-Pilot-2.0.0-Setup-linux-x64.run`,
+  browser_download_url: `https://github.com/${updateRepository}/releases/download/v2.0.0/Terminal-plus-2.0.0-Setup-linux-x64.run`,
 }] });
 function fixture(t: any, override: Partial<ConstructorParameters<typeof UpdateService>[0]> = {}) {
   const directory = mkdtempSync(join(tmpdir(), "pilot-update-"));
@@ -33,7 +33,7 @@ function fixture(t: any, override: Partial<ConstructorParameters<typeof UpdateSe
 async function until(check: () => boolean) { for (let n = 0; n < 100; n++) { if (check()) return; await delay(10); } throw new Error("Update fixture timeout"); }
 async function flushAsync(check: () => boolean) { for (let n = 0; n < 10_000; n++) { if (check()) return; await new Promise<void>(done => setImmediate(done)); } throw new Error("Scheduled update fixture timeout"); }
 function releaseMetadata(version = "2.0.0", platform = "linux") {
-  const value = metadata(), name = platform === "win32" ? `Even-Pilot-${version}-Setup-x64.exe` : `Even-Pilot-${version}-Setup-linux-x64.run`;
+  const value = metadata(), name = platform === "win32" ? `Terminal-plus-${version}-Setup-x64.exe` : `Terminal-plus-${version}-Setup-linux-x64.run`;
   value.tag_name = "v" + version; value.assets[0].name = name;
   value.assets[0].browser_download_url = `https://github.com/${updateRepository}/releases/download/v${version}/${name}`;
   return value;

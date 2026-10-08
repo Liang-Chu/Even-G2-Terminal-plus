@@ -98,7 +98,7 @@ test("Glance polls quietly, only consumes settled jobs, persists cursors and sco
   const response = await poll();
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    title: "Even-Pilot",
+    title: "Terminal+",
     text: "Job complete · Even_PIlot",
   });
   assert.equal((await poll()).status, 204);

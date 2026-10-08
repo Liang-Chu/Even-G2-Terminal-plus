@@ -11,10 +11,10 @@ const literal = text => "'" + text.replaceAll("'", "''") + "'";
 export function compile(root, output, resources = []) {
   const desktop = join(root, 'apps/windows/desktop');
   const compiler = join(process.env.WINDIR, 'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
-  const icon = join(desktop, 'assets/Even-Pilot.ico');
+  const icon = join(desktop, 'assets/Terminal-plus.ico');
   run(compiler, ['/nologo','/target:winexe','/platform:x64','/optimize+', '/out:' + output, '/win32icon:' + icon,
     '/win32manifest:' + join(desktop,'installer.manifest'),
-    '/resource:' + icon + ',Even-Pilot.ico', ...resources.map(([path, name]) => '/resource:' + path + ',' + name),
+    '/resource:' + icon + ',Terminal-plus.ico', ...resources.map(([path, name]) => '/resource:' + path + ',' + name),
     ...['System.Windows.Forms','System.Drawing','System.Net.Http','System.Web.Extensions','System.IO.Compression','System.Core','Microsoft.CSharp'].map(name => '/reference:' + name + '.dll'),
     ...['Installer.cs','InstallerSupport.cs','DesktopPaths.cs','StartupRegistration.cs'].map(name => join(desktop, name))], root);
 }
@@ -62,7 +62,7 @@ export function buildInstaller(root, stage, destination, version, files) {
   const buildId = createHash('sha256').update(readFileSync(payload)).digest('hex').slice(0,12);
   const metadata = join(build, 'release.json');
   writeFileSync(metadata, JSON.stringify({ version, buildId, files }));
-  const installer = join(destination, `Even-Pilot-${version}-Setup-x64.exe`);
+  const installer = join(destination, `Terminal-plus-${version}-Setup-x64.exe`);
   compile(root, installer, [[payload,'payload.zip'],[metadata,'release.json']]);
   if (statSync(installer).size < statSync(payload).size) throw new Error('Installer payload missing.');
   return { installer, buildId };

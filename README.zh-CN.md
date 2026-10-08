@@ -1,50 +1,51 @@
-# Even-Pilot
+# Terminal+
 
 通过手机 Even Hub 和 Even G2 查看 Windows/Linux 上运行的 Pi、Codex、Claude Code 会话。继续使用原生终端工作；每台电脑运行轻量监控端，手机汇总它们已 Watch 的会话。
 
 查看来源设备、模型、上报的运行 agent 数和最近消息。可选功能包括逐句语音输入、agent 任务详情，以及通过 Glance 发送完成通知。
 
-**电脑端 1.1.8 · Terminal+ Hub 1.1.10** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.11** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
-[Windows／Hub 下载](https://github.com/Liang-Chu/Even-Pilot/releases) · [Linux npm 包](https://www.npmjs.com/package/even-pilot) · [English](README.md) · [完整配置](docs/setup.zh-CN.md)
+[Windows／Linux／Hub 下载](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [English](README.md) · [完整配置](docs/setup.zh-CN.md)
 
-手机应用名为 **Terminal+**，Windows/Linux 电脑端为 **Even-Pilot**。按本文安装电脑端 **1.1.8** 和 Hub **1.1.10** 即可。
+Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令和文件名在不适合使用 `+` 时使用 `terminal-plus`／`Terminal-plus`。本文对应 **1.1.11**。
 
 ## 先跑通
 
 ### 1. 安装电脑端
 
-先确保 Pi、Codex 或 Claude Code 已安装并能正常使用。每台需要监控的电脑安装一次 Even-Pilot，必须与 CLI 使用**同一个系统用户**。继续使用已有模型登录；Even-Pilot 不安装 CLI 本体。
+先确保 Pi、Codex 或 Claude Code 已安装并能正常使用。每台需要监控的电脑安装一次 Terminal+，必须与 CLI 使用**同一个系统用户**。继续使用已有模型登录；Terminal+ 不安装 CLI 本体。
 
-- **Windows：**从 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 Windows `Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用桌面快捷方式或双击托盘图标。不需要系统 Node/npm。
-- **Linux／SSH，已有 Node 22+ 和 npm：**在普通用户下执行，不用 `sudo`：
+- **Windows：**在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.11-Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用 **Terminal+** 快捷方式或双击托盘图标。不需要系统 Node/npm。
+- **Linux／SSH：**下载 `Terminal-plus-1.1.11-Setup-linux-x64.run`，在普通用户下执行，不用 `sudo`：
 
   ```sh
-  npm install -g even-pilot
-  even-pilot-setup
+  sh ./Terminal-plus-1.1.11-Setup-linux-x64.run
+  ```
+
+  **新开 shell** 后执行 `terminal-plus` 和 `terminal-plus pair`。当前终端先用 `~/.local/bin/terminal-plus`。安装器包含自己的 Node 运行时和后端依赖。
+
+  **npm 替代方式：**已有 Node 22+ 和 npm 时执行：
+
+  ```sh
+  npm install -g terminal-plus
+  terminal-plus-setup
   ```
 
   Setup 部署电脑端；随后**新开 shell**，启动监控并打印连接信息：
 
   ```sh
-  even-pilot
-  even-pilot pair
+  terminal-plus
+  terminal-plus pair
   ```
 
   SSH 无头机器也能使用。npm 跳过安装脚本时 setup 仍可完成安装；已安装相同或更新版本时会保留。若 npm 提示 `EACCES`，改用当前用户的目录：
 
   ```sh
-  npm install -g --prefix "$HOME/.local" even-pilot
-  ~/.local/bin/even-pilot-setup
+  npm install -g --prefix "$HOME/.local" terminal-plus
+  ~/.local/bin/terminal-plus-setup
   ```
 
-  **不使用 npm：**从 Releases 下载 Linux `Setup-linux-x64.run`，运行下载的文件（把 `VERSION` 换成文件中的版本号）：
-
-  ```sh
-  sh ./Even-Pilot-VERSION-Setup-linux-x64.run
-  ```
-
-  新开 shell 后执行 `even-pilot`。当前终端先用 `~/.local/bin/even-pilot`。两种安装方式都包含电脑端自己的 Node 运行时和后端依赖。
 
 自启动：Windows 托盘勾选 **Start with Windows**；Linux 按[无头服务配置](docs/setup.zh-CN.md#linux无头或桌面)。
 
@@ -61,11 +62,11 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 ### 3. 连接手机
 
 1. 通过互联网访问电脑时，手机和电脑都安装 [Tailscale](https://tailscale.com/download)，加入同一个 tailnet 并保持连接。能互通的局域网也可以。
-2. 在 Even Hub 单独安装 **Terminal+ 1.1.10**（`terminal-plus-1.1.10.ehpk`），再在 Even App 连好 G2。它配合 **Even-Pilot 1.1.8** 电脑端使用，两者版本号不必相同。
-3. 获取该电脑的 URL/key：Windows 点击 **Connect phone**；Linux 运行 `even-pilot pair`。
+2. 在 Even Hub 单独安装 **Terminal+ 1.1.11**（`terminal-plus-1.1.11.ehpk`），再在 Even App 连好 G2。使用 **Terminal+ 1.1.11** Windows/Linux 电脑端。
+3. 获取该电脑的 URL/key：Windows 点击 **Connect phone**；Linux 运行 `terminal-plus pair`。
 4. 手机应用打开 **Connection → Connect another computer**，填入 **Bridge URL** 和 **Connection key**，点击 **Connect computer**。
 
-使用 **Connect phone**／`pair` 打印的可达 URL，如 `http://电脑的TailscaleIP:4317`。Key 填原值，不加 `Bearer`，请保密。手机自动保存连接；其他电脑按相同步骤添加。保持电脑端运行，电脑不要休眠。Linux 的 `pair` 只打印信息；`even-pilot` 才启动监控。
+使用 **Connect phone**／`pair` 打印的可达 URL，如 `http://电脑的TailscaleIP:4317`。Key 填原值，不加 `Bearer`，请保密。手机自动保存连接；其他电脑按相同步骤添加。保持电脑端运行，电脑不要休眠。Linux 的 `pair` 只打印信息；`terminal-plus` 才启动监控。
 
 每台桌面管理页只管理本机。Hub 手工填写 URL/key，二维码供 Glance 使用。连接失败时先用手机浏览器打开 Bridge URL。[连接排查](docs/setup.zh-CN.md#常见问题)
 
@@ -97,7 +98,7 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 
 ### Pi 多 agent
 
-已有官方 Pi subagent 扩展直接复用。否则 Linux 运行 `even-pilot enable-pi-subagents`，Windows 按[脚本步骤](docs/pi-extensions.md#第一步添加到-pi-的配置目录)，然后在 Pi 空闲时 `/reload`。此可选工具与基础监控扩展不同。[安装验证](docs/pi-extensions.md)
+已有官方 Pi subagent 扩展直接复用。否则 Linux 运行 `terminal-plus enable-pi-subagents`，Windows 按[脚本步骤](docs/pi-extensions.md#第一步添加到-pi-的配置目录)，然后在 Pi 空闲时 `/reload`。此可选工具与基础监控扩展不同。[安装验证](docs/pi-extensions.md)
 
 ### Glance 完成通知
 
@@ -114,11 +115,13 @@ Android 安装 [Glance](https://github.com/Liang-Chu/Glance)，接收每个会�
 
 ## 更新
 
-电脑端默认自动安装验证通过的稳定更新。可在该电脑取消 **Automatic updates**，或运行 Linux `even-pilot update off`；`on` 恢复。立即更新用 Windows 托盘／管理页，或 Linux `even-pilot update`。
+**从 Even-Pilot 升级：**先手工运行一次新版 Terminal+ 安装器。仓库更名后，旧更新器可能无法完成更新。为保留 connection key、Watch 和通知设置，安装／数据／服务目录及 `EVEN_PILOT_*` 配置继续兼容原名称。[迁移和更新指南](docs/updates.md#migration-from-even-pilot)
 
-**Terminal+ 单独更新**：在 Even Hub 安装它的 `.ehpk`。Terminal+ 1.1.10 配合电脑端 1.1.8 使用。新 app ID 可能需要重新安装，手机保存的连接和语音 key 不一定迁移；必要时重新填写各电脑 URL/key 和转写 key。电脑端更新保留 Watch，原生终端继续运行。[更新指南](docs/updates.md)
+完成这次升级后，电脑端默认自动安装验证通过的稳定更新。可在该电脑取消 **Automatic updates**，或运行 Linux `terminal-plus update off`；`on` 恢复。立即更新用 Windows 托盘／管理页，或 Linux `terminal-plus update`。
 
-npm 安装的电脑端使用同一个自动更新器，无需运行 `npm update`。卸载时先 `even-pilot uninstall`，再 `npm uninstall -g even-pilot`；保存的设置保留。[Linux 命令参考](docs/linux.md)
+**手机／G2 应用单独更新**：在 Even Hub 安装它的 `.ehpk`。从旧 Hub app ID 迁移时可能需要重新安装；必要时重新填写手机保存的电脑连接和语音 key。电脑端更新保留 Watch，原生终端继续运行。[更新指南](docs/updates.md)
+
+npm 安装的电脑端使用同一个自动更新器，无需运行 `npm update`。卸载时先 `terminal-plus uninstall`，再 `npm uninstall -g terminal-plus`；保存的设置保留。[Linux 命令参考](docs/linux.md)
 
 ## 更多说明
 

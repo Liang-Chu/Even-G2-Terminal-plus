@@ -7,15 +7,16 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Win32;
 
 class InstallerSupportTests {
     static void Assert(bool ok, string message) { if (!ok) throw new Exception(message); }
     static void RestartCoordination(string root, string fixture) {
         string payload = Path.Combine(root, "versions", "1.0.0-123456abcdef");
-        string ownTray = Path.Combine(payload, "Even-Pilot.exe"), otherRoot = Path.Combine(root, "other-installation");
+        string ownTray = Path.Combine(payload, "Terminal-plus.exe"), legacyTray = Path.Combine(payload, "Even-Pilot.exe"), otherRoot = Path.Combine(root, "other-installation");
         Directory.CreateDirectory(otherRoot);
-        string otherTray = Path.Combine(otherRoot, "Even-Pilot.exe"), native = Path.Combine(root, "native-fixture.exe");
-        File.Copy(fixture, ownTray, true); File.Copy(fixture, otherTray); File.Copy(fixture, native);
+        string otherTray = Path.Combine(otherRoot, "Terminal-plus.exe"), native = Path.Combine(root, "native-fixture.exe");
+        File.Copy(fixture, ownTray, true); File.Copy(fixture, legacyTray, true); File.Copy(fixture, otherTray); File.Copy(fixture, native);
         string node = Path.Combine(payload, "runtime", "node.exe"), cli = Path.Combine(payload, "apps", "windows", "src", "cli.ts");
         File.Copy(fixture, node, true); Directory.CreateDirectory(Path.GetDirectoryName(cli)); File.WriteAllText(cli, "isolated monitor fixture");
         Assert(InstallerSupport.OwnedMonitorExecutable(root, node), "A recorded installed payload's exact runtime is recognized");
@@ -26,6 +27,7 @@ class InstallerSupportTests {
         File.Copy(fixture, Path.Combine(unrecorded, "runtime", "node.exe")); File.WriteAllText(Path.Combine(unrecorded, "installed.json"), "{}"); File.WriteAllText(Path.Combine(unrecorded, "apps", "windows", "src", "cli.ts"), "fixture");
         Assert(!InstallerSupport.OwnedMonitorExecutable(root, Path.Combine(unrecorded, "runtime", "node.exe")), "Unrecorded payloads are not trusted recovery targets");
         using (var owned = Process.Start(new ProcessStartInfo(ownTray) { UseShellExecute = false, CreateNoWindow = true }))
+        using (var legacy = Process.Start(new ProcessStartInfo(legacyTray) { UseShellExecute = false, CreateNoWindow = true }))
         using (var unrelated = Process.Start(new ProcessStartInfo(otherTray) { UseShellExecute = false, CreateNoWindow = true }))
         using (var terminal = Process.Start(new ProcessStartInfo(native) { UseShellExecute = false, CreateNoWindow = true })) {
             string originalPort = Environment.GetEnvironmentVariable("EVEN_PILOT_PORT");
@@ -52,12 +54,53 @@ class InstallerSupportTests {
                 Assert(elapsed.ElapsedMilliseconds >= 2900 && elapsed.ElapsedMilliseconds < 10000, "Acknowledged hung monitor gets a bounded graceful-exit wait before recovery");
                 Assert(monitor.HasExited, "An old monitor with a closed listener and retained process is recovered");
                 Assert(File.ReadAllText(trace) == "probe\nshutdown\nlistener-closed\n", "Old tray exits first; authenticated safe monitoring probe and acknowledged shutdown precede recovery");
-                Assert(owned.HasExited && !unrelated.HasExited && !terminal.HasExited, "Only this installation's old tray and acknowledged monitor were stopped");
+                Assert(owned.HasExited && legacy.HasExited && !unrelated.HasExited && !terminal.HasExited, "Both branding generations of this installation's tray stop; unrelated tray and native terminal survive");
             } finally {
                 Environment.SetEnvironmentVariable("EVEN_PILOT_PORT", originalPort); Environment.SetEnvironmentVariable("EVEN_PILOT_TOKEN", originalToken);
-                foreach (var process in new[] { owned, unrelated, terminal, monitor }) if (!process.HasExited) { process.Kill(); process.WaitForExit(5000); }
+                foreach (var process in new[] { owned, legacy, unrelated, terminal, monitor }) if (!process.HasExited) { process.Kill(); process.WaitForExit(5000); }
             }
         }
+    }
+    static void BrandingMigration(string root, string payload) {
+        string executable = Path.Combine(payload, "Terminal-plus.exe"), legacy = Path.Combine(payload, "Even-Pilot.exe");
+        string keyPath = @"Software\Even-Pilot\Tests\" + Guid.NewGuid().ToString("N");
+        try {
+            using (var key = Registry.CurrentUser.CreateSubKey(keyPath)) {
+                InstallerSupport.UpdateStartup(root, executable, keyPath);
+                Assert(key.ValueCount == 0, "An upgrade keeps disabled startup disabled");
+                key.SetValue(StartupRegistration.ValueName, "\"" + legacy + "\" --autostart");
+                key.SetValue("Other app", "Leave unchanged");
+            }
+            InstallerSupport.UpdateStartup(root, executable, keyPath);
+            using (var key = Registry.CurrentUser.OpenSubKey(keyPath, true)) {
+                Assert((string)key.GetValue(StartupRegistration.ValueName) == "\"" + executable + "\" --autostart" && key.ValueCount == 2, "Legacy startup is redirected in place without an additional login entry");
+                Assert((string)key.GetValue("Other app") == "Leave unchanged", "Other startup values survive the upgrade");
+                key.SetValue(StartupRegistration.ValueName, "\"" + root + "-another\\Even-Pilot.exe\" --autostart");
+            }
+            InstallerSupport.UpdateStartup(root, executable, keyPath);
+            using (var key = Registry.CurrentUser.OpenSubKey(keyPath))
+                Assert(((string)key.GetValue(StartupRegistration.ValueName)).Contains(root + "-another"), "An upgrade cannot redirect another installation's startup");
+        } finally { Registry.CurrentUser.DeleteSubKeyTree(keyPath, false); }
+
+        Assert(InstallerSupport.RegistryKey(root).EndsWith("Even-Pilot-" + InstallerSupport.RootId(root)), "Renamed app retains its existing uninstall registration identity");
+        string parent = Path.Combine(root, "shortcuts"); Directory.CreateDirectory(parent);
+        string oldLink = Path.Combine(parent, "Even-Pilot.lnk"), newLink = Path.Combine(parent, "Terminal+.lnk");
+        InstallerSupport.Shortcut(oldLink, legacy, payload);
+        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        Assert(!File.Exists(oldLink) && InstallerSupport.OwnShortcut(newLink, root), "Owned legacy shortcut becomes one Terminal+ shortcut");
+        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        Assert(Directory.GetFiles(parent, "*.lnk").Length == 1, "Repeating an upgrade does not duplicate shortcuts");
+        string unrelated = Path.Combine(root, "other-app.exe"); File.WriteAllText(unrelated, "fixture");
+        InstallerSupport.Shortcut(oldLink, unrelated, root);
+        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        Assert(File.Exists(oldLink) && !InstallerSupport.OwnShortcut(oldLink, root), "A legacy-named shortcut for another app is retained");
+        InstallerSupport.RemoveOwnedShortcut(oldLink, root);
+        Assert(File.Exists(oldLink), "Uninstall cannot remove another app's legacy-named shortcut");
+        InstallerSupport.RemoveOwnedShortcut(newLink, root);
+        Assert(!File.Exists(newLink), "Uninstall recognizes the renamed app's shortcut");
+        InstallerSupport.Shortcut(newLink, unrelated, root);
+        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        Assert(!InstallerSupport.OwnShortcut(newLink, root), "Upgrade does not overwrite a Terminal+ shortcut owned by another app");
     }
     static void RecoveryRefusals(string root, string fixture) {
         string payload = Path.Combine(root, "versions", "1.0.0-123456abcdef"), node = Path.Combine(payload, "runtime", "node.exe");
@@ -94,9 +137,12 @@ class InstallerSupportTests {
             Assert(DesktopPaths.InstallRoot(payload) == root,"Installed versions must share the base directory");
             Assert(DesktopPaths.DataDirectory(payload) == Path.Combine(root,".local"),"Shared key/watch directory");
             Assert(DesktopPaths.InstalledExecutable(root) == null,"Uninstalled checkout stays local");
-            string selected = Path.Combine(payload,"Even-Pilot.exe"); File.WriteAllText(selected,"fixture");
+            string legacySelected = Path.Combine(payload,"Even-Pilot.exe"); File.WriteAllText(legacySelected,"fixture");
             File.WriteAllText(Path.Combine(root,"install.json"),"{\"current\":\"1.0.0-123456abcdef\"}");
+            Assert(DesktopPaths.InstalledExecutable(root) == legacySelected,"Renamed root launcher can delegate to an old installed payload");
+            string selected = Path.Combine(payload,"Terminal-plus.exe"); File.WriteAllText(selected,"fixture");
             Assert(DesktopPaths.InstalledExecutable(root) == selected,"Root launcher follows selected installed version");
+            Assert(DesktopPaths.ApplicationExecutable(payload) == selected,"Prefer the renamed executable when both versions are available");
             Assert(DesktopPaths.InstalledExecutable(payload) == null,"Installed payload does not delegate recursively");
             File.WriteAllText(Path.Combine(root,"install.json"),"{\"current\":\"../outside\"}");
             bool badSelection=false; try { DesktopPaths.InstalledExecutable(root); } catch { badSelection=true; }
@@ -104,7 +150,7 @@ class InstallerSupportTests {
             Directory.CreateDirectory(Path.Combine(payload,"runtime"));
             File.WriteAllText(Path.Combine(payload,"runtime","node.exe"),"fixture");
             Assert(DesktopPaths.Node(payload) == Path.Combine(payload,"runtime","node.exe"),"Prefer bundled runtime to PATH");
-            string shortcut = Path.Combine(root,"Even-Pilot fixture.lnk"), target = Path.Combine(root,"Space in target.exe");
+            string shortcut = Path.Combine(root,"Terminal+ fixture.lnk"), target = Path.Combine(root,"Space in target.exe");
             File.WriteAllText(target,"fixture"); InstallerSupport.Shortcut(shortcut,target,root);
             object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
             try {
@@ -113,10 +159,13 @@ class InstallerSupportTests {
                 finally { Marshal.FinalReleaseComObject(link); }
             } finally { Marshal.FinalReleaseComObject(shell); }
             Assert(InstallerSupport.OwnStartup("\""+target.Replace("Space in target.exe","Even-Pilot.exe")+"\" --autostart",root),"Recognize this installation startup");
+            Assert(InstallerSupport.OwnStartup("\""+target.Replace("Space in target.exe","Terminal-plus.exe")+"\" --autostart",root),"Recognize renamed installation startup");
+            Assert(!InstallerSupport.OwnStartup("\""+target.Replace("Space in target.exe","unrelated-Terminal-plus.exe")+"\" --autostart",root),"Executable suffix alone cannot claim startup ownership");
             Assert(!InstallerSupport.OwnStartup("\""+root+"-another\\Even-Pilot.exe\" --autostart",root),"Do not change another installation startup");
+            BrandingMigration(root, payload);
             bool refused=false; try { InstallerSupport.ValidateRoot(Path.GetPathRoot(root)); } catch { refused=true; }
             Assert(refused,"Reject a drive root as install directory");
-            string launcher = Path.Combine(root,"Even-Pilot.exe");
+            string launcher = Path.Combine(root,"Terminal-plus.exe");
             File.Copy(args[0],launcher); File.Copy(args[0],selected,true);
             Func<int> delegatedCheck = () => {
                 using (var process = Process.Start(new ProcessStartInfo(launcher,"--check") { UseShellExecute=false, CreateNoWindow=true })) {

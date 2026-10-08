@@ -7,8 +7,17 @@ using System.Threading;
 using System.Web.Script.Serialization;
 
 static class DesktopPaths {
+    internal const string ExecutableName = "Terminal-plus.exe";
+    internal const string LegacyExecutableName = "Even-Pilot.exe";
+    internal static string ApplicationExecutable(string payload) {
+        string current = Path.Combine(payload, ExecutableName);
+        if (File.Exists(current)) return current;
+        string legacy = Path.Combine(payload, LegacyExecutableName);
+        return File.Exists(legacy) ? legacy : current;
+    }
     internal static string InstallationMutexName(string installRoot) {
         string root = Path.GetFullPath(installRoot).TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant();
+        // Stable coordination ID: existing installers and trays must share the lock.
         using (var sha = SHA256.Create()) return "Local\\Even-PIlot-Install-" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(root))).Replace("-", "").Substring(0, 16);
     }
     internal static bool InstallationInProgress(string payload) {
@@ -27,7 +36,7 @@ static class DesktopPaths {
         var value = new JavaScriptSerializer().Deserialize<System.Collections.Generic.Dictionary<string, object>>(File.ReadAllText(record));
         string current = value.ContainsKey("current") ? Convert.ToString(value["current"]) : "";
         if (!Regex.IsMatch(current, @"^\d+\.\d+\.\d+-[a-f0-9]{12}$")) throw new Exception("Invalid installed version");
-        string executable = Path.Combine(payload, "versions", current, "Even-Pilot.exe");
+        string executable = ApplicationExecutable(Path.Combine(payload, "versions", current));
         if (!File.Exists(executable)) throw new Exception("Installed version is missing; run the installer again");
         return executable;
     }
@@ -51,6 +60,6 @@ static class DesktopPaths {
                 if (Path.IsPathRooted(candidate) && File.Exists(candidate)) return candidate;
             } catch { }
         }
-        throw new Exception("Reinstall Even-Pilot to restore its runtime. Source checkouts require Node.js 22 or newer.");
+        throw new Exception("Reinstall Terminal+ to restore its runtime. Source checkouts require Node.js 22 or newer.");
     }
 }

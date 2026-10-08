@@ -312,7 +312,7 @@ export class NativeHost {
   }
   getRuntime(key: string) {
     const runtime = this.sessions.get(key) || this.observed.get(key);
-    if (!runtime) throw new SessionError("Terminal not connected. Pi: run /reload. Codex/Claude: reopen with the Even-Pilot connector when ready.", 404);
+    if (!runtime) throw new SessionError("Terminal not connected. Pi: run /reload. Codex/Claude: reopen with the Terminal+ connector when ready.", 404);
     return runtime;
   }
   prompt(text: string) { if (!this.selected) throw new SessionError("Choose a session first"); return this.getRuntime(this.selected).prompt(text); }
@@ -367,7 +367,7 @@ export class NativeHost {
         if (runtime && (this.options.alive || processAlive)(runtime.snapshot.terminalPid || runtime.snapshot.pid) && runtime.snapshot.state.connected)
           throw new SessionError("This terminal is still open. Reconnect its monitor before opening another window.", 409);
         if (!newlyCreated && !original.fresh && await this.options.unregistered?.([...this.sessions.values()].flatMap(item => [item.snapshot.pid, item.snapshot.terminalPid || item.snapshot.pid]), original.tunnel || "pi"))
-          throw new SessionError("An existing terminal has not connected. Pi: run /reload. Codex/Claude: reopen through Even-Pilot when idle.", 409);
+          throw new SessionError("An existing terminal has not connected. Pi: run /reload. Codex/Claude: reopen through Terminal+ when idle.", 409);
         await this.options.launch(original.path, original.cwd, original.tunnel || "pi", newlyCreated || original.fresh);
         this.launching.set(key, Date.now() + 15_000);
       }

@@ -16,7 +16,7 @@ export async function windowsUpdateFetch(input: string | URL, init: RequestInit 
   if (!["GET", "HEAD"].includes(method) || init.redirect === "follow") throw new TypeError("Unsupported update request");
   const headers = new Headers(init.headers);
   headers.set("Accept-Encoding", "identity");
-  if (!headers.has("User-Agent")) headers.set("User-Agent", "Even-Pilot");
+  if (!headers.has("User-Agent")) headers.set("User-Agent", "Terminal-plus");
   const attempt = (family: 4 | 6) => new Promise<Response>((resolve, reject) => {
     if (init.signal?.aborted) { reject(init.signal.reason || new DOMException("Aborted", "AbortError")); return; }
     const connection = request(url, { family, method, headers: Object.fromEntries(headers),

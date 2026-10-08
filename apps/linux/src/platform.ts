@@ -25,7 +25,7 @@ export function terminalArguments(terminal: string, command: string[], cwd: stri
   }
 }
 export async function openLinuxTerminal(command: string[], cwd: string, tunnel: Tunnel, session: string) {
-  const title = "Even-Pilot · " + tunnel;
+  const title = "Terminal+ · " + tunnel;
   const graphical = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
   if (graphical) {
     const preferred = process.env.EVEN_PILOT_TERMINAL;
@@ -37,7 +37,7 @@ export async function openLinuxTerminal(command: string[], cwd: string, tunnel: 
       await new Promise<void>((done, fail) => { child.once("spawn", done); child.once("error", fail); });
       child.unref(); return;
     }
-    throw new Error("No supported terminal emulator found. Set EVEN_PILOT_TERMINAL to its executable, then restart Even-Pilot.");
+    throw new Error("No supported terminal emulator found. Set EVEN_PILOT_TERMINAL to its executable, then restart Terminal+.");
   }
   const tmux = await executable("tmux");
   if (!tmux) throw new Error("Headless Linux needs tmux to open a terminal. Install tmux, or run the CLI in your SSH terminal.");

@@ -78,7 +78,7 @@ try {
         [Net.ServicePointManager]::SecurityProtocol = $previousProtocols -bor [Net.SecurityProtocolType]::Tls12
         $http = [Net.Http.HttpClient]::new()
         $http.Timeout = [TimeSpan]::FromSeconds(30)
-        $http.DefaultRequestHeaders.UserAgent.ParseAdd('Even-Pilot-subagent-installer/2')
+        $http.DefaultRequestHeaders.UserAgent.ParseAdd('Terminal-plus-subagent-installer/2')
         $http.DefaultRequestHeaders.Accept.ParseAdd('application/vnd.github+json')
         $tag = "v$piVersion"
         Write-Host "Resolving official Pi $tag..."

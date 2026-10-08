@@ -26,7 +26,7 @@ let stopRequest: { instance: string; runId: number; at: number } | undefined;
 const monitor = new ConnectorMonitor(join(data, "native"), { key: connectorKey("claude", id), id, cwd, tunnel: "claude" }, {
   prompt: async text => {
     const command = slashCommand(text); if (command) unsupportedCommand(command.name);
-    if (!ready) throw new Error("Enable the Even-Pilot channel in this Claude terminal first");
+    if (!ready) throw new Error("Enable the Terminal+ channel in this Claude terminal first");
     const intendedInstance = monitor.snapshot.instance, intendedId = id;
     drainEvents();
     if (monitor.snapshot.instance !== intendedInstance || id !== intendedId)
@@ -126,9 +126,9 @@ lines.on("line", line => {
   if (!message || typeof message !== "object" || Array.isArray(message)) return;
   const respond = (result: unknown) => send({ jsonrpc: "2.0", id: message.id, result });
   if (message.method === "initialize") respond({ protocolVersion: message.params?.protocolVersion || "2024-11-05",
-    serverInfo: { name: "even-pilot", version: "1.1.8" },
+    serverInfo: { name: "even-pilot", version: "1.1.11" },
     capabilities: { experimental: { "claude/channel": {}, "claude/channel/permission": {} }, tools: {} },
-    instructions: "Even-Pilot forwards the user's G2 prompts to this same session. Respond normally in the terminal. Preserve requested <g2-summary> summary markers. The reply tool may additionally send a concise glasses reply; it does not replace the full terminal response.",
+    instructions: "Terminal+ forwards the user's G2 prompts to this same session. Respond normally in the terminal. Preserve requested <g2-summary> summary markers. The reply tool may additionally send a concise glasses reply; it does not replace the full terminal response.",
   });
   else if (message.method === "notifications/initialized") { ready = true; drainEvents(); refreshOwner(); monitor.start(); }
   else if (message.method === "notifications/claude/channel/permission_request" && ready) {
@@ -150,7 +150,7 @@ lines.on("line", line => {
   }
   else if (message.method === "ping") respond({});
   else if (message.method === "tools/list") respond({ tools: [{
-    name: "reply", description: "Send a concise reply to the user's Even-Pilot glasses for the current session.",
+    name: "reply", description: "Send a concise reply to the user's Terminal+ glasses for the current session.",
     inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
   }] });
   else if (message.method === "tools/call" && message.params?.name === "reply") {
@@ -158,7 +158,7 @@ lines.on("line", line => {
     if (typeof text !== "string" || !text.trim() || text.length > 32_000) respond({ isError: true, content: [{ type: "text", text: "Invalid reply" }] });
     else {
       monitor.store.dispatch({ type: "assistant.completed", text: text.includes(G2_SUMMARY_OPEN) ? text : `${G2_SUMMARY_OPEN}\n${text}\n${G2_SUMMARY_CLOSE}` });
-      monitor.activity(); respond({ content: [{ type: "text", text: "Displayed in Even-Pilot." }] });
+      monitor.activity(); respond({ content: [{ type: "text", text: "Displayed in Terminal+." }] });
     }
   } else if (message.id !== undefined) send({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not supported" } });
 });

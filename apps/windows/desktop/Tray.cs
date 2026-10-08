@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: System.Reflection.AssemblyTitle("Even-Pilot")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.8.0")]
-[assembly: System.Reflection.AssemblyVersion("1.1.8.0")]
+[assembly: System.Reflection.AssemblyTitle("Terminal+")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.11.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.11.0")]
 
 // Native tray UI. The bridge and its Pi sessions have an independent lifetime.
 class PilotTray : ApplicationContext {
@@ -61,7 +61,7 @@ class PilotTray : ApplicationContext {
         status.Enabled = false; menu.Items.Add(status);
         activity.Enabled = false; menu.Items.Add(activity);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Open Even-Pilot", null, async (s, e) => await OpenManager());
+        menu.Items.Add("Open Terminal+", null, async (s, e) => await OpenManager());
         startBackground.Click += async (s, e) => await Start(true);
         menu.Items.Add(startBackground);
         autoStart.CheckOnClick = false;
@@ -71,12 +71,12 @@ class PilotTray : ApplicationContext {
         autoUpdates.Click += async (s, e) => await ToggleAutomaticUpdates();
         menu.Items.Add(autoUpdates);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Quit Even-Pilot", null, (s, e) => Quit());
+        menu.Items.Add("Quit Terminal+", null, (s, e) => Quit());
         menu.Opening += (s, e) => ReadStartup();
-        using (var stream = typeof(PilotTray).Assembly.GetManifestResourceStream("Even-Pilot.ico")) {
+        using (var stream = typeof(PilotTray).Assembly.GetManifestResourceStream("Terminal-plus.ico")) {
             appIcon = new Icon(stream, SystemInformation.SmallIconSize);
         }
-        icon.Icon = appIcon; icon.Text = "Even-Pilot";
+        icon.Icon = appIcon; icon.Text = "Terminal+";
         icon.ContextMenuStrip = menu; icon.Visible = true;
         icon.DoubleClick += async (s, e) => await OpenManager();
         timer.Interval = 1000;
@@ -127,16 +127,16 @@ class PilotTray : ApplicationContext {
         updatesAt = DateTime.UtcNow.AddSeconds(working ? 2 : 60);
         updateAction.Text = TrayUpdateActions.Label(updatePhase, updateProgress, availableVersion, installSupported);
         updateAction.Enabled = autoUpdates.Enabled = !working;
-        if (working) icon.Text = "Even-Pilot · " + updateAction.Text;
+        if (working) icon.Text = "Terminal+ · " + updateAction.Text;
         if (BackendStartBlocked()) startBackground.Enabled = false;
         string error = data["error"] == null ? null : Convert.ToString(data["error"]);
         if (!working && (manual || TrayUpdateActions.Working(previousPhase)) && !String.IsNullOrEmpty(error))
-            icon.ShowBalloonTip(7000, TrayUpdateActions.Working(previousPhase) ? "Even-Pilot update failed" : "Even-Pilot updates", error, ToolTipIcon.Warning);
+            icon.ShowBalloonTip(7000, TrayUpdateActions.Working(previousPhase) ? "Terminal+ update failed" : "Terminal+ updates", error, ToolTipIcon.Warning);
         else if (!working && availableVersion != null && (manual || automatic && notifiedVersion != availableVersion)) {
             notifiedVersion = availableVersion;
-            icon.ShowBalloonTip(7000, "Even-Pilot update available", "Version " + availableVersion + ". Right-click the tray icon and choose Update to install.", ToolTipIcon.Info);
+            icon.ShowBalloonTip(7000, "Terminal+ update available", "Version " + availableVersion + ". Right-click the tray icon and choose Update to install.", ToolTipIcon.Info);
         } else if (manual && availableVersion == null && !working)
-            icon.ShowBalloonTip(5000, "Even-Pilot updates", String.IsNullOrEmpty(error) ? "No newer release available." : error, ToolTipIcon.Info);
+            icon.ShowBalloonTip(5000, "Terminal+ updates", String.IsNullOrEmpty(error) ? "No newer release available." : error, ToolTipIcon.Info);
     }
     async Task ReadUpdates(bool manual) {
         if (updating) return; updating = true; updatesAt = DateTime.UtcNow.AddSeconds(60);
@@ -161,7 +161,7 @@ class PilotTray : ApplicationContext {
             updatesAt = DateTime.UtcNow.AddSeconds(2);
             updateAction.Text = TrayUpdateActions.Label(updatePhase, updateProgress, availableVersion, installSupported);
             updateAction.Enabled = autoUpdates.Enabled = !TrayUpdateActions.Working(updatePhase);
-            icon.ShowBalloonTip(7000, "Even-Pilot updates", TrayUpdateActions.Error(error), ToolTipIcon.Warning);
+            icon.ShowBalloonTip(7000, "Terminal+ updates", TrayUpdateActions.Error(error), ToolTipIcon.Warning);
         } finally { updating = false; }
     }
     async Task ToggleAutomaticUpdates() {
@@ -170,7 +170,7 @@ class PilotTray : ApplicationContext {
         try { ApplyUpdates(await UpdateRequest("/api/updates/settings", new { automaticChecks = !autoUpdates.Checked }), false); }
         catch (Exception error) {
             updateAction.Enabled = autoUpdates.Enabled = true;
-            icon.ShowBalloonTip(7000, "Even-Pilot update settings", TrayUpdateActions.Error(error), ToolTipIcon.Warning);
+            icon.ShowBalloonTip(7000, "Terminal+ update settings", TrayUpdateActions.Error(error), ToolTipIcon.Warning);
         } finally { updating = false; }
     }
     async Task<bool> Refresh() {
@@ -184,7 +184,7 @@ class PilotTray : ApplicationContext {
                 if (exiting) return false;
                 string label = Convert.ToString(data["running"]) + " running / " + Convert.ToString(data["watched"]) + " watched";
                 status.Text = "Background: Running"; activity.Text = label;
-                string tooltip = "Even-Pilot · " + (TrayUpdateActions.Working(updatePhase) ? TrayUpdateActions.Label(updatePhase, updateProgress, null, false) : label);
+                string tooltip = "Terminal+ · " + (TrayUpdateActions.Working(updatePhase) ? TrayUpdateActions.Label(updatePhase, updateProgress, null, false) : label);
                 icon.Text = tooltip.Substring(0, Math.Min(63, tooltip.Length));
                 startBackground.Enabled = false;
                 return true;
@@ -194,7 +194,7 @@ class PilotTray : ApplicationContext {
                 bool installing = BackendStartBlocked();
                 status.Text = installing ? "Background: Updating…" : starting ? "Background: Starting…" : "Background: Reconnecting";
                 activity.Text = installing ? "Monitor will reconnect; terminals keep running" : "Watch settings retained";
-                icon.Text = installing ? "Even-Pilot · installing update" : "Even-Pilot · reconnecting";
+                icon.Text = installing ? "Terminal+ · installing update" : "Terminal+ · reconnecting";
                 startBackground.Enabled = !starting && !installing;
             }
             return false;
@@ -208,7 +208,7 @@ class PilotTray : ApplicationContext {
     }
     async Task<bool> StartCore(bool notifyErrors) {
         if (BackendStartBlocked()) {
-            if (notifyErrors) icon.ShowBalloonTip(5000, "Even-Pilot update", "Installation is in progress. The monitor will reconnect; native terminals keep running.", ToolTipIcon.Info);
+            if (notifyErrors) icon.ShowBalloonTip(5000, "Terminal+ update", "Installation is in progress. The monitor will reconnect; native terminals keep running.", ToolTipIcon.Info);
             return false;
         }
         starting = true;
@@ -242,9 +242,9 @@ class PilotTray : ApplicationContext {
             if (!exiting) {
                 status.Text = "Background: Unavailable";
                 activity.Text = "Watch settings retained";
-                icon.Text = "Even-Pilot · background unavailable";
+                icon.Text = "Terminal+ · background unavailable";
                 startBackground.Enabled = true;
-                if (notifyErrors) MessageBox.Show(error.Message, "Even-Pilot could not start", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (notifyErrors) MessageBox.Show(error.Message, "Terminal+ could not start", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             return false;
         } finally { retryAt = DateTime.UtcNow.AddSeconds(30); starting = false; }
@@ -256,10 +256,10 @@ class PilotTray : ApplicationContext {
             if (!await Start(true) || exiting) return;
             using (var content = new StringContent(json.Serialize(new { openId = Guid.NewGuid().ToString() }), Encoding.UTF8, "application/json"))
             using (var response = await http.PostAsync("/api/desktop/open", content)) {
-                if (!response.IsSuccessStatusCode) throw new Exception("Could not apply the last 24 hours watch defaults. Restart the Even-Pilot backend, then open the manager again. Existing terminals remain running.");
+                if (!response.IsSuccessStatusCode) throw new Exception("Could not apply the last 24 hours watch defaults. Restart the Terminal+ backend, then open the manager again. Existing terminals remain running.");
             }
             Process.Start(new ProcessStartInfo(http.BaseAddress + "?desktop=1#pilot-token=" + Uri.EscapeDataString(token)) { UseShellExecute = true });
-        } catch (Exception error) { if (!exiting) MessageBox.Show(error.Message, "Even-Pilot", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        } catch (Exception error) { if (!exiting) MessageBox.Show(error.Message, "Terminal+", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         finally { opening = false; }
     }
     void Quit() {
@@ -270,7 +270,7 @@ class PilotTray : ApplicationContext {
     static string PrepareDesktop(string root) {
         LogStartup("prepare.files");
         if (!File.Exists(Path.Combine(root, "node_modules", "tsx", "package.json")) || !File.Exists(Path.Combine(root, "apps", "evenhub", "dist", "index.html")))
-            throw new Exception("Reinstall Even-Pilot to restore its application files. Source checkouts should run Setup.cmd first.");
+            throw new Exception("Reinstall Terminal+ to restore its application files. Source checkouts should run Setup.cmd first.");
         string nodePath = DesktopPaths.Node(root);
         LogStartup("prepare.config");
         Environment.SetEnvironmentVariable("EVEN_PILOT_DATA_DIR", DesktopPaths.DataDirectory(root));
@@ -315,7 +315,7 @@ class PilotTray : ApplicationContext {
         } catch (Exception error) {
             LogStartup("delegate.failed", error); Environment.ExitCode = 1;
             if (!quietLaunch && Array.IndexOf(args, "--prepare") < 0 && Array.IndexOf(args, "--check") < 0)
-                MessageBox.Show(error.Message, "Even-Pilot", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(error.Message, "Terminal+", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
         if (args.Length > 0 && args[0] == "--prepare") {
@@ -330,7 +330,7 @@ class PilotTray : ApplicationContext {
             return;
         }
         if (!installerLaunch && DesktopPaths.InstallationInProgress(AppDomain.CurrentDomain.BaseDirectory)) {
-            if (!quietLaunch) MessageBox.Show("Installation is in progress. Open Even-Pilot again when it finishes; native terminals keep running.", "Even-Pilot update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!quietLaunch) MessageBox.Show("Installation is in progress. Open Terminal+ again when it finishes; native terminals keep running.", "Terminal+ update", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
         bool first;
@@ -344,7 +344,7 @@ class PilotTray : ApplicationContext {
                 catch (Exception error) {
                     LogStartup("tray.failed", error);
                     if (quietLaunch && attempt < 2) { Thread.Sleep(3000); continue; }
-                    if (!quietLaunch) MessageBox.Show(error.Message, "Even-Pilot", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    if (!quietLaunch) MessageBox.Show(error.Message, "Terminal+", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     break;
                 }
             }

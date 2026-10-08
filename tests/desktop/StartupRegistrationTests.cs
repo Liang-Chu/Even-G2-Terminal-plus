@@ -11,15 +11,16 @@ class StartupRegistrationTests {
         // never the user's actual Windows Run key or startup preference.
         string keyPath = @"Software\Even-Pilot\Tests\" + Guid.NewGuid().ToString("N");
         try {
-            var startup = new StartupRegistration(@"C:\My Apps\Even-Pilot.exe", keyPath);
+            var startup = new StartupRegistration(@"C:\My Apps\Terminal-plus.exe", keyPath);
             Assert(!startup.IsEnabled(), "Initially disabled");
             startup.SetEnabled(true); startup.SetEnabled(true);
             Assert(startup.IsEnabled(), "Enable must persist and be repeatable");
             using (var key = Registry.CurrentUser.OpenSubKey(keyPath, true)) {
-                Assert((string)key.GetValue(StartupRegistration.ValueName) == "\"C:\\My Apps\\Even-Pilot.exe\" --autostart", "Spaces must be quoted and login must be quiet");
+                Assert((string)key.GetValue(StartupRegistration.ValueName) == "\"C:\\My Apps\\Terminal-plus.exe\" --autostart", "Spaces must be quoted and login must be quiet");
+                Assert(StartupRegistration.ValueName == "Even-Pilot" && key.ValueCount == 1, "Renaming preserves the single existing login value");
                 key.SetValue("Other app", "Leave unchanged");
             }
-            Assert(!new StartupRegistration(@"C:\Other\Even-Pilot.exe", keyPath).IsEnabled(), "A stale executable path must not appear enabled");
+            Assert(!new StartupRegistration(@"C:\Other\Terminal-plus.exe", keyPath).IsEnabled(), "A stale executable path must not appear enabled");
             startup.SetEnabled(false); startup.SetEnabled(false);
             Assert(!startup.IsEnabled(), "Disable must persist and be repeatable");
             using (var key = Registry.CurrentUser.OpenSubKey(keyPath)) Assert((string)key.GetValue("Other app") == "Leave unchanged", "Unrelated values must survive");
@@ -27,7 +28,7 @@ class StartupRegistrationTests {
 
         var assembly = Assembly.LoadFrom(Path.GetFullPath(args[0]));
         foreach (int size in new [] { 16, 20, 24, 32, 40, 48, 64 }) {
-            using (var stream = assembly.GetManifestResourceStream("Even-Pilot.ico"))
+            using (var stream = assembly.GetManifestResourceStream("Terminal-plus.ico"))
             using (var icon = new Icon(stream, size, size))
             using (var bitmap = icon.ToBitmap()) {
                 Assert(icon.Width == size && icon.Height == size, "Missing tray icon size " + size);

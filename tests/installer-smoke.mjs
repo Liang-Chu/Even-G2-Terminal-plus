@@ -9,7 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const release = resolve(process.argv[2]);
 const manifest = JSON.parse(readFileSync(join(release, 'inventory.json')));
-const setup = join(release, `Even-Pilot-${manifest.version}-Setup-x64.exe`);
+const setup = join(release, `Terminal-plus-${manifest.version}-Setup-x64.exe`);
 const previousSetup = process.argv[3] ? resolve(process.argv[3]) : setup;
 const sandbox = mkdtempSync(join(tmpdir(), 'pilot-install-'));
 const root = join(sandbox, 'Application with spaces');

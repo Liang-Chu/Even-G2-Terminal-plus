@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLocalJson, type NativeSnapshot } from "../../../../packages/pi-runtime/native-protocol.js";
 
-const helper = fileURLToPath(new URL("../../desktop/Even-Pilot.TerminalInterrupt.exe", import.meta.url));
+const helper = fileURLToPath(new URL("../../desktop/Terminal-plus.TerminalInterrupt.exe", import.meta.url));
 export const claudeInterruptAvailable = () => process.platform === "linux" || (process.platform === "win32" && existsSync(helper));
 export const validClaudeOwner = (owner: any) => process.platform === "linux"
   ? /^\d+$/.test(owner.started || "") && typeof owner.socket === "string" && /^[a-f0-9]{64}$/.test(owner.token || "")
@@ -26,7 +26,7 @@ export async function claudeProcessIdentity(pid: number): Promise<string | undef
 export async function interruptClaude(runDirectory: string, snapshotPath: string, snapshot: NativeSnapshot) {
   const owner = readLocalJson(join(runDirectory, "owner.json"));
   if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0 || !validClaudeOwner(owner)
-    || snapshot.terminalPid !== owner.pid) throw new Error("Reopen this Claude session through Even-Pilot to enable Stop.");
+    || snapshot.terminalPid !== owner.pid) throw new Error("Reopen this Claude session through Terminal+ to enable Stop.");
   if (!snapshot.state.connected || !["running", "waiting"].includes(snapshot.state.main.status)) throw new Error("Claude is not running");
   if (process.platform === "linux") {
     if (await claudeProcessIdentity(owner.pid) !== owner.started) throw new Error("Claude's terminal changed");

@@ -12,9 +12,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("Even-Pilot Setup")]
-[assembly: AssemblyFileVersion("1.1.8.0")]
-[assembly: AssemblyVersion("1.1.8.0")]
+[assembly: AssemblyTitle("Terminal+ Setup")]
+[assembly: AssemblyFileVersion("1.1.11.0")]
+[assembly: AssemblyVersion("1.1.11.0")]
 
 class ReleaseFile { public string path { get; set; } public string sha256 { get; set; } public long bytes { get; set; } }
 class ReleasePayload { public string version { get; set; } public string buildId { get; set; } public ReleaseFile[] files { get; set; } }
@@ -29,17 +29,17 @@ class PilotInstaller : Form {
     bool busy;
     PilotInstaller(string root, bool removing, bool skipLaunch, bool skipShortcuts) {
         uninstall = removing; noLaunch = skipLaunch; noShortcuts = skipShortcuts;
-        Text = removing ? "Uninstall Even-Pilot" : "Install Even-Pilot";
+        Text = removing ? "Uninstall Terminal+" : "Install Terminal+";
         ClientSize = new Size(520, 255); FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen; BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
-        using (var image = Assembly.GetExecutingAssembly().GetManifestResourceStream("Even-Pilot.ico")) Icon = new Icon(image);
-        Controls.Add(new Label { Text = "Even-Pilot 1.1.8", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
+        using (var image = Assembly.GetExecutingAssembly().GetManifestResourceStream("Terminal-plus.ico")) Icon = new Icon(image);
+        Controls.Add(new Label { Text = "Terminal+ 1.1.11", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
         Controls.Add(new Label { Text = removing ? "Remove the app. Connection settings will be retained.\nClose connected native terminals before uninstalling."
             : "Desktop monitor for Pi, Codex and Claude.\nRuntime included. No Node.js installation or setup commands.", AutoSize = true, Location = new Point(24, 65) });
         location.Text = root; location.Location = new Point(24, 124); location.Size = new Size(388, 28); location.ReadOnly = true; Controls.Add(location);
         var browse = new Button { Text = "Browse…", Location = new Point(420, 121), Size = new Size(76, 30), Enabled = !removing };
-        browse.Click += (s, e) => { using (var dialog = new FolderBrowserDialog { SelectedPath = location.Text, Description = "Choose an Even-Pilot folder" }) if (dialog.ShowDialog(this) == DialogResult.OK) location.Text = dialog.SelectedPath; };
+        browse.Click += (s, e) => { using (var dialog = new FolderBrowserDialog { SelectedPath = location.Text, Description = "Choose a Terminal+ folder" }) if (dialog.ShowDialog(this) == DialogResult.OK) location.Text = dialog.SelectedPath; };
         Controls.Add(browse);
         status.Location = new Point(24, 160); status.Size = new Size(472, 30); Controls.Add(status);
         progress.Location = new Point(24, 204); progress.Size = new Size(335, 24); progress.Visible = false; progress.Style = ProgressBarStyle.Marquee; Controls.Add(progress);
@@ -108,7 +108,7 @@ class PilotInstaller : Form {
             if (!Environment.Is64BitOperatingSystem) throw new Exception("This package requires 64-bit Windows.");
             ReleasePayload release;
             using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("release.json")) {
-                if (stream == null) throw new Exception("Run the Even-Pilot setup download to install the application.");
+                if (stream == null) throw new Exception("Run the Terminal+ setup download to install the application.");
                 using (var reader = new StreamReader(stream)) release = InstallerSupport.Json.Deserialize<ReleasePayload>(reader.ReadToEnd());
             }
             string version = SafeVersion(release.version + "-" + release.buildId);
@@ -116,7 +116,7 @@ class PilotInstaller : Form {
             string target = Path.Combine(root, "versions", version);
             string temporary = Path.Combine(root, ".install-" + Guid.NewGuid().ToString("N"));
             bool stopped = false, committed = false;
-            string previousExe = previous.current == null ? Path.Combine(root, "Even-Pilot.exe") : Path.Combine(root, "versions", previous.current, "Even-Pilot.exe");
+            string previousExe = DesktopPaths.ApplicationExecutable(previous.current == null ? root : Path.Combine(root, "versions", previous.current));
             string oldRecord = File.Exists(Path.Combine(root, "install.json")) ? File.ReadAllText(Path.Combine(root, "install.json")) : null;
             try {
                 status("Extracting the application and bundled runtime…");
@@ -138,7 +138,7 @@ class PilotInstaller : Form {
                 File.WriteAllText(Path.Combine(target, "installed.json"), "{\"format\":1}\n");
                 status("Updating the monitor; native terminals stay running…");
                 InstallerSupport.StopMonitor(root); stopped = true;
-                using (var prepare = Process.Start(new ProcessStartInfo(Path.Combine(target, "Even-Pilot.exe"), "--prepare") {
+                using (var prepare = Process.Start(new ProcessStartInfo(Path.Combine(target, "Terminal-plus.exe"), "--prepare") {
                     WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true
                 })) {
                     if (!prepare.WaitForExit(20000) || prepare.ExitCode != 0) throw new Exception("Local setup failed. Existing connection settings were retained.");
@@ -152,12 +152,12 @@ class PilotInstaller : Form {
                 else File.Move(pendingRecord, recordPath);
                 InstallerSupport.Register(root, target, release.version, !noShortcuts);
                 if (backgroundUpdate) {
-                    Process.Start(new ProcessStartInfo(Path.Combine(target, "Even-Pilot.exe"), "--autostart --installer-start") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
+                    Process.Start(new ProcessStartInfo(Path.Combine(target, "Terminal-plus.exe"), "--autostart --installer-start") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
                     InstallerSupport.WaitForVersion(root, release.version);
                 }
                 committed = true;
                 status("Installed.");
-                if (!noLaunch && !backgroundUpdate) Process.Start(new ProcessStartInfo(Path.Combine(target, "Even-Pilot.exe"), "--installer-start") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
+                if (!noLaunch && !backgroundUpdate) Process.Start(new ProcessStartInfo(Path.Combine(target, "Terminal-plus.exe"), "--installer-start") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
             } catch {
                 if (stopped && !committed && File.Exists(previousExe)) {
                     InstallerSupport.StopMonitor(root);
@@ -180,7 +180,7 @@ class PilotInstaller : Form {
         }
     }
     static void Uninstall(string root, Action<string> status) {
-        if (!File.Exists(Path.Combine(root, "install.json"))) throw new Exception("No installed Even-Pilot was found in this folder.");
+        if (!File.Exists(Path.Combine(root, "install.json"))) throw new Exception("No installed Terminal+ was found in this folder.");
         var record = Record(root);
         if (InstallerSupport.HasNativeTerminals(root)) throw new Exception("Close connected native terminal windows before uninstalling. No session or process has been stopped.");
         status("Stopping the monitor…"); InstallerSupport.StopMonitor(root);
@@ -208,7 +208,7 @@ class PilotInstaller : Form {
             root = root ?? (removing ? Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) : InstallerSupport.DefaultRoot());
             // Run uninstall from a temporary copy so Windows can remove the registered EXE.
             if (removing && InstallerSupport.Inside(Assembly.GetExecutingAssembly().Location, root)) {
-                string copy = Path.Combine(Path.GetTempPath(), "Even-Pilot-uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
+                string copy = Path.Combine(Path.GetTempPath(), "Terminal-plus-uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
                 File.Copy(Assembly.GetExecutingAssembly().Location, copy);
                 Process.Start(new ProcessStartInfo(copy, "--uninstall --dir " + Quote(root) + (quiet ? " --quiet" : "")) { UseShellExecute = false, CreateNoWindow = true });
                 return;
@@ -217,7 +217,7 @@ class PilotInstaller : Form {
             else { Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); Application.Run(new PilotInstaller(root, removing, args.Contains("--no-launch"), args.Contains("--no-shortcuts"))); }
         } catch (Exception error) {
             Environment.ExitCode = 1;
-            if (!quiet) MessageBox.Show(error.Message, "Even-Pilot setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (!quiet) MessageBox.Show(error.Message, "Terminal+ setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
             else Console.Error.WriteLine(error.Message);
         }
     }

@@ -1,6 +1,8 @@
 # 首次安装、连接和日常操作
 
-从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Even-Pilot 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
+从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Terminal+ 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
+
+本文对应 **Terminal+ 1.1.11**。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
 
 ## 先分清四个部分
 
@@ -11,18 +13,18 @@
 | 原生 Pi／Codex／Claude | 原来的电脑、原来的系统用户 | 执行任务，保存完整输出及模型登录 |
 | Glance，可选 | 手机 | 接收已配置发送端的完成通知 |
 
-Even-Pilot 是监控和简单会话管理端。桌面管理页只控制提供这个页面的电脑，手机 Hub 汇总已保存电脑的会话。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
+Terminal+ 是监控和简单会话管理端。桌面管理页只控制提供这个页面的电脑，手机 Hub 汇总已保存电脑的会话。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
 
 ## 安装电脑端
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-Pilot/releases) 下载 Windows `Setup-x64.exe`。已发布版本见 [README 当前可用说明](../README.zh-CN.md)。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.11-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
-4. 托盘右键显示运行状态，并提供 **Open Even-Pilot**、**Start with Windows**、更新和 **Quit Even-Pilot**。Quit 只退出托盘，保留独立后台和原生终端。
+4. 托盘右键显示运行状态，并提供 **Open Terminal+**、**Start with Windows**、更新和 **Quit Terminal+**。Quit 只退出托盘，保留独立后台和原生终端。
 
-默认安装目录是 `%LOCALAPPDATA%\Programs\Even-Pilot`；检测到便携安装时，安装器可能在原目录升级。ZIP 是可选便携版，需完整解压到专用文件夹再运行 `Even-Pilot.exe`，不能只复制一个 EXE。Windows 二进制尚未签名。
+默认安装目录是 `%LOCALAPPDATA%\Programs\Even-Pilot`；检测到便携安装时，安装器可能在原目录升级。ZIP 是可选便携版，需完整解压到专用文件夹再运行 `Terminal-plus.exe`，不能只复制一个 EXE。Windows 二进制尚未签名。
 
 ### Linux（无头或桌面）
 
@@ -31,39 +33,39 @@ Even-Pilot 是监控和简单会话管理端。桌面管理页只控制提供这
 **已有 Node 22+ 和 npm：**
 
 ```sh
-npm install -g even-pilot
-even-pilot-setup
+npm install -g terminal-plus
+terminal-plus-setup
 ```
 
-若 npm 提示 `EACCES`，执行 `npm install -g --prefix "$HOME/.local" even-pilot`，再执行 `~/.local/bin/even-pilot-setup`。Setup 在 npm 禁用安装脚本时也能使用；旧版本会升级，相同或更新版本会保留。
+若 npm 提示 `EACCES`，执行 `npm install -g --prefix "$HOME/.local" terminal-plus`，再执行 `~/.local/bin/terminal-plus-setup`。Setup 在 npm 禁用安装脚本时也能使用；旧版本会升级，相同或更新版本会保留。
 
-**没有 npm：**从 Releases 下载 Linux `Setup-linux-x64.run`，运行下载的文件，把 `VERSION` 换成它的版本号：
+**安装器／没有 npm：**从 Releases 下载 Linux `.run`，运行下载的文件，把 `VERSION` 换成它的版本号：
 
 ```sh
-sh ./Even-Pilot-VERSION-Setup-linux-x64.run
+sh ./Terminal-plus-VERSION-Setup-linux-x64.run
 ```
 
-两种方式都安装到 `~/.local/lib/even-pilot`，命令位于 `~/.local/bin/even-pilot`，并为支持的 shell 添加可移除的 PATH 配置。原生电脑端独立于 npm setup 包。首次 npm setup 只部署文件；`.run` 默认启动后台。**新开 shell**，启动监控并打印连接信息：
+两种方式都安装到 `~/.local/lib/even-pilot`，命令位于 `~/.local/bin/terminal-plus`，并为支持的 shell 添加可移除的 PATH 配置。原生电脑端独立于 npm setup 包。首次 npm setup 只部署文件；`.run` 默认启动后台。**新开 shell**，启动监控并打印连接信息：
 
 ```sh
-even-pilot
-even-pilot pair
+terminal-plus
+terminal-plus pair
 ```
 
-原来的 shell 可用 `~/.local/bin/even-pilot`，或执行 setup 打印的 PATH 命令。无桌面时也能完整管理：
+原来的 shell 可用 `~/.local/bin/terminal-plus`，或执行 setup 打印的 PATH 命令。无桌面时也能完整管理：
 
 ```sh
-even-pilot start
-even-pilot sessions
-even-pilot pair
+terminal-plus start
+terminal-plus sessions
+terminal-plus pair
 ```
 
-`pair` 只打印 URL/key/Glance 二维码，不负责启动服务器。直接运行 `even-pilot` 等于 `open`：启动后台、应用桌面最近 24 小时的 Watch 默认规则，然后打开浏览器。无头机器的 `even-pilot open` 会打印已授权的私有管理链接，在浏览器打开即可，无需手填桌面 URL/key；像 `pair` 输出一样保密。只想查看、不重置默认 Watch 时使用 `sessions`。
+`pair` 只打印 URL/key/Glance 二维码，不负责启动服务器。直接运行 `terminal-plus` 等于 `open`：启动后台、应用桌面最近 24 小时的 Watch 默认规则，然后打开浏览器。无头机器的 `terminal-plus open` 会打印已授权的私有管理链接，在浏览器打开即可，无需手填桌面 URL/key；像 `pair` 输出一样保密。只想查看、不重置默认 Watch 时使用 `sessions`。
 
 systemd 机器要在 SSH 登出后、重启后继续运行：
 
 ```sh
-even-pilot autostart on
+terminal-plus autostart on
 sudo loginctl enable-linger "$(id -un)"
 ```
 
@@ -84,8 +86,8 @@ Lingering 是系统用户服务策略，安装器不会擅自开启。没有用�
 需要远程输入时，在管理页 **+ New terminal** 选择 **Tunnel** 和已有项目目录，创建连接器会话。Linux 也可以：
 
 ```sh
-even-pilot new codex --cwd /your/project --name "My task"
-even-pilot new claude --cwd /your/project
+terminal-plus new codex --cwd /your/project --name "My task"
+terminal-plus new claude --cwd /your/project
 ```
 
 替换示例项目路径。Claude 需在原终端确认 **local development channel**，并仍使用原来的工具审批。普通 Claude 只读监控不依赖 Channel；存在可能继续执行的自定义 Stop Hooks 时，完成状态会保持未确认。[完整能力表](connectors.md)
@@ -95,7 +97,7 @@ even-pilot new claude --cwd /your/project
 监控扩展与 subagent 扩展是两回事。已经加载官方 subagent 示例就直接复用；未安装时：
 
 - Windows 安装器版：按[脚本步骤](pi-extensions.md#第一步添加到-pi-的配置目录)读取 `install.json` 找到当前 payload，脚本在该版本目录内。便携／源码版在解压／checkout 目录使用 `scripts/enable-pi-subagents.ps1`。
-- Linux：执行 `even-pilot enable-pi-subagents`。
+- Linux：执行 `terminal-plus enable-pi-subagents`。
 
 然后 Pi 空闲时 `/reload`。脚本获取匹配版本的官方示例，角色继承当前模型和登录；安装后由模型决定何时委派，不会强制每个任务开多个 agent。[验证 prompt 和详细步骤](pi-extensions.md)。未知第三方格式可能只显示 `1+`。
 
@@ -104,7 +106,7 @@ even-pilot new claude --cwd /your/project
 1. 手机和每台电脑安装 [Tailscale](https://tailscale.com/download)，加入同一 tailnet，或配置彼此访问权限。
 2. 获取每台电脑自己的 IPv4，Linux 可执行 `tailscale ip -4`，Windows 在 Tailscale 界面查看。
 3. 手机浏览器打开 `http://电脑IP:4317`，应能看到页面，再继续 Hub 配置。
-4. 电脑保持开机、不休眠，主机防火墙允许预期私有网络的 TCP 4317。Even-Pilot 不自动改防火墙。
+4. 电脑保持开机、不休眠，主机防火墙允许预期私有网络的 TCP 4317。Terminal+ 不自动改防火墙。
 
 地址属于每台电脑，不写死进包。`0.0.0.0` 是监听地址，手机上的 `127.0.0.1` 是手机自己。无需子网路由、出口节点或公网端口转发；互通的 LAN 也能用，支持 Tailscale 内的 HTTP。
 
@@ -112,8 +114,8 @@ even-pilot new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. 在 Even Hub 单独安装 **Terminal+ 1.1.10**（`terminal-plus-1.1.10.ehpk`）。它配合 **Even-Pilot 1.1.8** 电脑端使用，两者版本号不必相同。使用 Even App 2.2.10+ 连好 G2。
-2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
+1. 在 Even Hub 单独安装 **Terminal+ 1.1.11**（`terminal-plus-1.1.11.ehpk`）。使用 **Terminal+ 1.1.11** 电脑端和 Even App 2.2.10+，再连好 G2。
+2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `terminal-plus pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
    | 字段 | 内容 |
@@ -149,11 +151,11 @@ even-pilot new claude --cwd /your/project
 SSH 命令里的 `SESSION` 换成 `sessions` 列出的唯一短 KEY，或用引号包住完整标题：
 
 ```sh
-even-pilot sessions
-even-pilot sessions --watched
-even-pilot watch SESSION
-even-pilot unwatch SESSION
-even-pilot select SESSION
+terminal-plus sessions
+terminal-plus sessions --watched
+terminal-plus watch SESSION
+terminal-plus unwatch SESSION
+terminal-plus select SESSION
 ```
 
 `select` 打开／复用并 Watch，`new` 新建终端。Linux watcher CLI 不提供发送 prompt 或中断命令。原生交互用：
@@ -203,10 +205,10 @@ tmux attach -t 实际会话名
 Linux 发送端／中心：
 
 ```sh
-even-pilot settings push direct
-even-pilot settings firebase --credentials /private/glance-sender.json
-even-pilot settings
-even-pilot pair
+terminal-plus settings push direct
+terminal-plus settings firebase --credentials /private/glance-sender.json
+terminal-plus settings
+terminal-plus pair
 ```
 
 替换为自己的已授权 JSON 路径。命令从 JSON 的 `project_id` 取得发送目标，保存项目和私有文件路径引用，只重启监控、不终止 CLI。目标必须与手机 Glance 的项目一致。`settings firebase clear` 只删保存配置、不删文件；显式 `GOOGLE_APPLICATION_CREDENTIALS`／`EVEN_PILOT_FCM_PROJECT_ID` 环境变量优先，状态会提示。使用跨项目服务账号或 ADC 时，在监控后台／服务的环境中将 `EVEN_PILOT_FCM_PROJECT_ID` 指向手机的目标项目，并授权发送账号访问该项目。
@@ -224,7 +226,7 @@ Windows 给现有 `<安装目录>\.local\bridge-config.json` 添加下面两个�
 
 ### 2. 给 Glance 注册发送端
 
-1. 发送端／中心显示二维码：Windows **Connect phone**，或 Linux `even-pilot pair`。
+1. 发送端／中心显示二维码：Windows **Connect phone**，或 Linux `terminal-plus pair`。
 2. Glance 扫码，或手填完整 `http://发送端IP:4317/api/glance`，Credential 填同一发送端 connection key。
 3. 选择 **PUSH**，**Save and register**。独立发送每台注册一次，中心模式只注册中心。
 
@@ -244,23 +246,23 @@ Windows 给现有 `<安装目录>\.local\bridge-config.json` 添加下面两个�
 Linux 来源电脑也可以在 SSH 执行：
 
 ```sh
-even-pilot settings push forward --url http://CENTER_IP:4317 --key-file /private/center-key.txt
-even-pilot settings
+terminal-plus settings push forward --url http://CENTER_IP:4317 --key-file /private/center-key.txt
+terminal-plus settings
 ```
 
 替换中心 IP，私有文件 `center-key.txt` 只放中心原始 connection key，由用户自己创建。Key 不放命令参数；注册后来源保存专用 relay 凭据，不需要 Firebase，也不会把中心控制 key 存进路由配置。
 
-切回独立模式用 `even-pilot settings push direct`，或 GUI **Directly from this computer → Save notification settings**；这台现在需要自己的 Firebase 和 Glance watcher。仅打开弹窗是读取，明确保存后才修改路由。转发由电脑间完成，不依赖 Hub 常开；不支持转发链或转发给自己。[队列和重试规则](notification-routing.md)
+切回独立模式用 `terminal-plus settings push direct`，或 GUI **Directly from this computer → Save notification settings**；这台现在需要自己的 Firebase 和 Glance watcher。仅打开弹窗是读取，明确保存后才修改路由。转发由电脑间完成，不依赖 Hub 常开；不支持转发链或转发给自己。[队列和重试规则](notification-routing.md)
 
 ## 更新和移除
 
-已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `even-pilot update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `even-pilot update`，再用 `even-pilot update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
+已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `terminal-plus update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `terminal-plus update`，再用 `terminal-plus update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-**电脑更新不更新 Terminal+。**Even Hub 需单独安装它的 `.ehpk`；Terminal+ 1.1.10 配合电脑端 1.1.8 使用。新 app ID 可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写各电脑已有的 URL/key 和转写 key。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+**电脑更新不更新手机／G2 应用。**Even Hub 需单独安装它的 `.ehpk`，配合 Terminal+ 1.1.11 电脑端。从 `local.evenpilot.app` 迁移到 `local.terminalplus.app` 时，可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写各电脑已有的 URL/key 和转写 key。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
-Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `even-pilot stop`。
+Windows 在 **设置 → 应用 → Terminal+** 卸载，Linux `terminal-plus uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `terminal-plus stop`。
 
-npm 安装的版本完成上述卸载后，再执行 `npm uninstall -g even-pilot` 移除 setup 包；保存的设置保留。
+npm 安装的版本完成上述卸载后，再执行 `npm uninstall -g terminal-plus` 移除 setup 包；保存的设置保留。
 
 ## 常见问题
 
@@ -273,7 +275,7 @@ npm 安装的版本完成上述卸载后，再执行 `npm uninstall -g even-pilo
 | 手机在线但 G2 reconnecting | Even App 的 G2／蓝牙连接及 G2 页状态，显示连接与后端连接不同 |
 | 新 CLI 不在列表 | 同用户／配置目录、首次保存 prompt、Pi `/reload`、Claude `/hooks`、桌面 **All sessions** 再 Watch |
 | Codex／Claude 提示回原终端 | 当前是只读观察；需要远程输入才创建连接器 |
-| Linux 找不到命令 | 重开支持的 shell，或用 `~/.local/bin/even-pilot`，检查 PATH 提示 |
+| Linux 找不到命令 | 重开支持的 shell，或用 `~/.local/bin/terminal-plus`，检查 PATH 提示 |
 | Linux 打不开终端 | CLI 已安装登录、无头已装 tmux，从能找到 CLI 的 shell 重启后台 |
 | Glance 没推送 | Watch、正确发送端/中心、Firebase 权限、PUSH 保存注册、会话没有正显示在 G2 |
 | 电脑更新后 G2 没变 | 单独安装 Terminal+ 的 `.ehpk` |

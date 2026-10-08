@@ -31,7 +31,7 @@ function fitLabel(value: string, limit: number) {
 function completionContent(event: Completion, subscription: PushSubscription): PushContent {
   const status = event.outcome === "completed" ? "Job complete" : event.outcome === "failed" ? "Job failed" : "Job interrupted";
   const short = event.outcome === "completed" ? "Done" : event.outcome === "failed" ? "Failed" : "Stopped";
-  const title = subscription.titleMaxLength >= 10 ? "Even-Pilot" : subscription.titleMaxLength >= 2 ? "Pi" : "π";
+  const title = subscription.titleMaxLength >= 9 ? "Terminal+" : subscription.titleMaxLength >= 2 ? "TP" : "+";
   if (subscription.maxLength < status.length) return { title, text: short.slice(0, subscription.maxLength) };
   const budget = Math.min(512, subscription.maxLength - status.length - 3);
   if (budget < 1) return { title, text: status };

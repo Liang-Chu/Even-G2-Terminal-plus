@@ -1,6 +1,6 @@
 {
-  "name": "even-pilot",
-  "version": "1.1.8",
+  "name": "terminal-plus",
+  "version": "1.1.11",
   "private": true,
   "type": "module",
   "description": "Monitor Pi, Codex and Claude sessions on Windows and Linux, with access through Even Hub and G2.",
@@ -21,7 +21,7 @@
     "pack:evenhub": "npm run build:hub && node scripts/package-hub.mjs",
     "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/windows/desktop/build.ps1",
     "desktop:test": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/desktop/run.ps1",
-    "desktop": "powershell -NoProfile -Command \"Start-Process -FilePath ./Even-Pilot.exe -WindowStyle Hidden\"",
+    "desktop": "powershell -NoProfile -Command \"Start-Process -FilePath ./Terminal-plus.exe -WindowStyle Hidden\"",
     "release:build": "node scripts/package-release.mjs",
     "release:linux": "node scripts/package-linux.mjs",
     "release:npm": "node scripts/package-npm.mjs",
@@ -46,7 +46,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Liang-Chu/Even-Pilot.git"
+    "url": "https://github.com/Liang-Chu/Even-G2-Terminal-plus.git"
   },
-  "homepage": "https://github.com/Liang-Chu/Even-Pilot"
+  "homepage": "https://github.com/Liang-Chu/Even-G2-Terminal-plus"
 }

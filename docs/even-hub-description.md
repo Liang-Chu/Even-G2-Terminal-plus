@@ -1,4 +1,4 @@
-# Even Hub description — Terminal+ 1.1.10
+# Even Hub description — Terminal+ 1.1.11
 
 Terminal+ lets you view coding sessions running on Windows/Linux through Even Hub and Even G2 while you keep working in your normal terminal.
 
@@ -16,7 +16,7 @@ Phone/voice replies require an input-capable session. Ordinary Codex/Claude sess
 Moving from an earlier Hub app may require connecting your computers and setting up Voice again.
 
 Required Windows/Linux companion and setup:
-[Even-Pilot](https://github.com/Liang-Chu/Even-Pilot)
+[Terminal+](https://github.com/Liang-Chu/Even-G2-Terminal-plus)
 
 Optional notification app and setup:
 [Glance](https://github.com/Liang-Chu/Glance)

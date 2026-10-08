@@ -10,7 +10,7 @@ const output = execFileSync(pi.command, [...pi.args, '--version'], { encoding: '
 const version = /^(?:pi(?: version)?\s+)?(\d+\.\d+\.\d+)$/m.exec(output)?.[1];
 if (!version || version.split('.').map(Number).reduce((value, n) => value * 1000 + n, 0) < 87001) throw new Error('Official Pi 0.87.1 or later is required');
 const directory = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi/agent');
-const fetchText = async url => { const response = await fetch(url, { headers: { 'User-Agent': 'Even-Pilot-subagent-installer/1' }, signal: AbortSignal.timeout(30000) }); if (!response.ok) throw new Error('Could not download official Pi source: HTTP ' + response.status); return response.text(); };
+const fetchText = async url => { const response = await fetch(url, { headers: { 'User-Agent': 'Terminal-plus-subagent-installer/1' }, signal: AbortSignal.timeout(30000) }); if (!response.ok) throw new Error('Could not download official Pi source: HTTP ' + response.status); return response.text(); };
 const commit = JSON.parse(await fetchText('https://api.github.com/repos/earendil-works/pi/commits/v' + version)).sha;
 if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('Invalid official release commit');
 const base = 'https://raw.githubusercontent.com/earendil-works/pi/' + commit + '/packages/coding-agent/';

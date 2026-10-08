@@ -28,13 +28,13 @@ import { version as companionVersion } from "../../../package.json";
 const desktopMode = import.meta.env.MODE !== "hub" && (new URLSearchParams(location.search).get("desktop") === "1" ||
   (["127.0.0.1", "localhost"].includes(location.hostname) && location.port === "4317"));
 document.body.classList.toggle("desktop-mode", desktopMode);
-const appName = desktopMode ? "Even-Pilot" : hubName;
+const appName = hubName;
 const appVersion = desktopMode ? companionVersion : hubVersion;
 document.title = `${appName} · Agents, in sight`;
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <div class="live-status" aria-label="Live agent status"><div class="live-status-inner"><span id="running-count" title="Running monitored agents">? AGENTS</span><span id="runtime-status">OFFLINE</span><time id="status-time" aria-label="Time in current status">--:--</time></div></div>
-  <header class="masthead"><a class="brand" href="./"><span class="brand-icon" aria-hidden="true"></span><span>${desktopMode ? "Even-<b>Pilot</b>" : `<b>${hubName}</b>`}<small>AGENTS, IN SIGHT.</small></span></a><div class="header-right"><span id="link-state" class="connection">Not connected</span><button id="open-settings" class="subtle">Connection <span>↗</span></button></div></header>
+  <header class="masthead"><a class="brand" href="./"><span class="brand-icon" aria-hidden="true"></span><span><b>${appName}</b><small>AGENTS, IN SIGHT.</small></span></a><div class="header-right"><span id="link-state" class="connection">Not connected</span><button id="open-settings" class="subtle">Connection <span>↗</span></button></div></header>
   <main><div class="page-heading"><div><div class="eyebrow">[ LOCAL AGENT CONSOLE ]</div><h1>KEEP AGENTS IN SIGHT.</h1><p>Your sessions. Desktop / phone / G2.</p></div><div class="session-indicator"><span class="dot"></span><span id="session-label">No session connected</span></div></div>
   <div id="notice" role="status" hidden></div>
   <div class="workspace"><section class="terminal-panel"><div class="panel-heading"><div><span class="section-number">01</span><h2>Terminal</h2></div></div>
@@ -46,7 +46,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <section class="details-card"><div class="panel-heading"><div><span class="section-number">03</span><h2>Runtime</h2></div></div><dl><div><dt>Activity</dt><dd id="tools">No active tools</dd></div><div><dt>Model</dt><dd id="model">—</dd></div><div><dt>Project</dt><dd id="cwd">—</dd></div><div><dt>Session</dt><dd id="session-id">—</dd></div></dl><div class="session-actions"><button id="manage-sessions" class="outline" disabled>Switch session ↗</button><button id="new-session" class="outline" disabled>＋ New</button></div><p id="monitor-summary" class="caption">Choose a session to open it. History is available separately.</p></section>
   </aside></div>
   <footer class="page-footer"><span>${appName.toUpperCase()} <span class="version">/ ${appVersion}</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
-  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Choose a computer to view its sessions.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connect phone panel, or run even-pilot pair on Linux.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
+  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Choose a computer to view its sessions.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connect phone panel, or run terminal-plus pair on Linux.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -291,7 +291,7 @@ function render() {
   if (!state.transcript.length && !state.assistantOpen) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.innerHTML = `<div class="orbit" aria-hidden="true"></div><div class="eyebrow">[ AWAITING INPUT ]</div><h2>${ready ? "SYSTEM READY." : online ? "CHOOSE A SESSION." : "CONNECT TO DESKTOP."}</h2><p>${ready ? "Send a prompt to this session. Its response and tool activity will appear here as they happen." : online ? "Open a saved session or start a new one." : "Connect to Even-Pilot on your computer.<br>Follow its progress here, or take it with you on G2."}</p>`;
+    empty.innerHTML = `<div class="orbit" aria-hidden="true"></div><div class="eyebrow">[ AWAITING INPUT ]</div><h2>${ready ? "SYSTEM READY." : online ? "CHOOSE A SESSION." : "CONNECT TO DESKTOP."}</h2><p>${ready ? "Send a prompt to this session. Its response and tool activity will appear here as they happen." : online ? "Open a saved session or start a new one." : "Connect to Terminal+ on your computer.<br>Follow its progress here, or take it with you on G2."}</p>`;
     if (!ready) {
       const button = document.createElement("button");
       button.className = "outline";
@@ -358,7 +358,7 @@ function openSettings() {
   button.disabled = true;
   void (async () => {
     if (!client?.hosts().some(host => host.url === location.origin && host.online))
-      throw new Error("This computer is reconnecting. Open its Even-Pilot desktop companion to restore the connection.");
+      throw new Error("This computer is reconnecting. Open its Terminal+ desktop companion to restore the connection.");
     const { showPairing } = await import("./bridge/desktop-pairing.js");
     await showPairing({ request: (path, data) => client!.requestFrom(location.origin, path, data) });
   })().catch(error => notice(error instanceof Error ? error.message : "Phone connection details unavailable"))
@@ -405,7 +405,7 @@ async function restoreConnections() {
   await restoreViewerConnections(fleet(), connectionSettings.all(), connectionSettings.current()?.url, desktopMode ? location.origin : undefined);
 }
 async function connect(next: Connection) {
-  if (desktopMode && next.url !== location.origin) throw new Error("Open this computer's Even-Pilot desktop shortcut to connect automatically.");
+  if (desktopMode && next.url !== location.origin) throw new Error("Open this computer's Terminal+ desktop shortcut to connect automatically.");
   const attempt = ++connectionAttempt;
   const target = fleet();
   if (!target.connections().some(item => item.url === next.url) && target.connections().length >= 16) throw new Error("Remove a computer before adding another (maximum 16).");

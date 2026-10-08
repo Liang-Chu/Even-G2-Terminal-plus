@@ -56,7 +56,7 @@ export class BridgeClient {
   async verify(): Promise<RuntimeState> {
     const state = await this.request("/api/state", undefined, 12_000);
     if (!state || typeof state.connected !== "boolean" || !state.session || !state.main || !Array.isArray(state.transcript))
-      throw new Error("This address did not return an Even-Pilot backend");
+      throw new Error("This address did not return a Terminal+ backend");
     return state;
   }
   setViewedSession(key?: string) {

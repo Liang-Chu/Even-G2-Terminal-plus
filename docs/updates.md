@@ -1,6 +1,14 @@
 # Application updates
 
-Published installers come from [Liang-Chu/Even-Pilot Releases](https://github.com/Liang-Chu/Even-Pilot/releases). Installed companions automatically check for public stable releases and install verified updates by default. Existing disabled preferences remain disabled. A due startup check begins after at least ten seconds; checks then run once a day. A failed check does not report “up to date” or interrupt monitoring.
+Published installers come from [Liang-Chu/Even-G2-Terminal-plus Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases). After installing Terminal+ 1.1.11, companions check that repository for public stable releases and install verified updates by default. Existing disabled preferences remain disabled. A due startup check begins after at least ten seconds; checks then run once a day. A failed check does not report “up to date” or interrupt monitoring.
+
+## Migration from Even-Pilot
+
+Run `Terminal-plus-1.1.11-Setup-x64.exe` on Windows or `sh ./Terminal-plus-1.1.11-Setup-linux-x64.run` on Linux once. Older companions still target the renamed repository and older asset names; GitHub redirects may not satisfy their verified updater, so use the installer for this migration.
+
+The display name is **Terminal+**; commands and filenames use `terminal-plus` / `Terminal-plus`. Existing roots remain `%LOCALAPPDATA%\Programs\Even-Pilot`, `~/.local/lib/even-pilot` and `~/.local/share/even-pilot`; Linux retains `even-pilot.service`. `EVEN_PILOT_*` variables, saved configuration and integration/protocol identifiers remain supported. Keeping these names preserves connection keys, host identity, Watch and Glance settings. The native `even-pilot` command remains a compatibility alias; use `terminal-plus` in new instructions.
+
+Existing npm setup helpers do not need to remain installed after a manual native upgrade; remove the old helper with `npm uninstall -g even-pilot` if desired. This does not uninstall the native companion.
 
 ## Windows and management page
 
@@ -15,11 +23,11 @@ Clear **Automatic updates** to stop both scheduled checks and automatic installa
 ## Linux / SSH
 
 ```sh
-~/.local/bin/even-pilot update check
-~/.local/bin/even-pilot update
-~/.local/bin/even-pilot update status
-~/.local/bin/even-pilot update off
-~/.local/bin/even-pilot update on
+~/.local/bin/terminal-plus update check
+~/.local/bin/terminal-plus update
+~/.local/bin/terminal-plus update status
+~/.local/bin/terminal-plus update off
+~/.local/bin/terminal-plus update on
 ```
 
 `update` starts an immediate verified update in the background; `check` only checks. `on`/`off` govern scheduled checks and automatic installation together. `status` shows the installed version, preference and last result. No sudo or global npm update is needed. Source checkouts are not overwritten; use an installer-managed installation for automatic updates. Manual installation of the new EXE/.run remains available.
@@ -30,7 +38,7 @@ The updater uses the fixed public repository over HTTPS, an exact platform/versi
 
 Installers retain old payload directories because working native terminals may still use them. The installer starts the new backend and checks its version. If startup fails, it restores the previous selection and attempts to restart it. Configuration, pairing keys, Watch and notification settings remain in their existing data directory. Existing terminals load connector changes when reopened, or Pi when reloaded while idle.
 
-**Updating a Windows/Linux companion does not replace Terminal+ on the phone.** Upload/install `terminal-plus-1.1.10.ehpk` separately through Even Hub; it works with Even-Pilot 1.1.8 companions. Terminal+ changes the Hub app ID to `local.terminalplus.app`; the portal may require a new listing/install. Saved phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion keys, Watch and notification settings remain in their existing data directory.
+**Updating a Windows/Linux companion does not replace Terminal+ on the phone.** Upload/install `terminal-plus-1.1.11.ehpk` separately through Even Hub; use Terminal+ 1.1.11 companions. Hub keeps app ID `local.terminalplus.app`. If moving from `local.evenpilot.app`, the portal may require a new listing/install and saved phone connections/voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion keys, Watch and notification settings remain in their existing data directory.
 
 ## Control API
 

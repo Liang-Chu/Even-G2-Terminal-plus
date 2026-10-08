@@ -9,7 +9,7 @@ Windows 安装器用户：再次运行新版 **Setup-x64.exe**，点击 **Instal
 以下手动步骤仅用于便携版或源码目录：
 
 1. 保留整个 `.local` 目录。它包含本机 key、Watch 设置和推送订阅；不要把它放进分发包。
-2. 右键托盘选择 **Quit Even-Pilot**。这只退出托盘，不会停后台或原生终端。
+2. 右键托盘选择 **Quit Terminal+**。这只退出托盘，不会停后台或原生终端。
 3. 在旧安装目录打开 PowerShell，停止该安装的原生监控后台。默认配置可执行以下命令；使用自定义数据目录、token 或端口时相应调整。停止期间不记录新的任务完成通知。
 
 ```powershell
@@ -20,7 +20,7 @@ if ($pilotState.nativeTerminals -ne $true) { throw 'This is not the native monit
 Invoke-RestMethod http://127.0.0.1:4317/api/shutdown -Method Post -Headers $pilotHeaders
 ```
 
-4. 等后台退出后，将新 ZIP 内的文件覆盖到同一安装目录，保留 `.local`，再运行 **Even-Pilot.exe**。ZIP 已包含运行环境。不要在同一端口启动第二套安装；由此目录启动的原生连接器应在任务结束后关闭再手动覆盖，自动安装器则会保留它们使用的旧版本目录。
+4. 等后台退出后，将新 ZIP 内的文件覆盖到同一安装目录，保留 `.local`，再运行 **Terminal-plus.exe**。ZIP 已包含运行环境。不要在同一端口启动第二套安装；由此目录启动的原生连接器应在任务结束后关闭再手动覆盖，自动安装器则会保留它们使用的旧版本目录。
 5. 上传安装配套的新 Hub 包。现有 Pi 等空闲时输入 `/reload`；连接器终端在任务结束后重开以加载新代码。普通 Codex 只读监控无需重开；普通 Claude 在下一次 prompt 接入新 Hooks，可用 `/hooks` 确认，未加载时等任务结束再重开。
 
 更新后台不会替用户关闭正在工作的终端。确认正在使用本项目的发布 ZIP；这个文件夹中的缓存、日志或个人配置不应直接打包分享。
@@ -59,11 +59,11 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 对刚生成的目录运行 `node tests/release-smoke.mjs "<发布目录>"` 和 `node tests/installer-smoke.mjs "<发布目录>"`。前者检查便携包；后者验证真正的安装 EXE、无系统 Node/npm 的启动、Windows 卸载注册、重装保留 key、升级保留工作进程、卸载保护以及保留数据。均使用隔离目录，不读取实际 CLI 历史或运行付费模型任务。
 
 
-代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。电脑端版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本和发布文档。Hub 名称／版本由 `apps/evenhub/app.json` 单独管理；`npm run pack:evenhub` 按该版本生成 `terminal-plus-<版本>.ehpk`，不要求与电脑端同号。目前 Terminal+ Hub 1.1.10 配合 Even-Pilot 电脑端 1.1.8 使用。新 `package_id` 为 `local.terminalplus.app`，替换原来的 `local.evenpilot.app`；名称和 ID 均不含 reviewer 禁止的 `even`。门户可能要求新建 Hub 条目／重新安装，旧应用保存的手机连接和语音 key 不保证迁移，必要时重新填写。
+代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本、`apps/evenhub/app.json` 和发布文档。Windows/Linux 与 Hub 本次统一为 **1.1.11**。`npm run pack:evenhub` 生成 `terminal-plus-<版本>.ehpk`；Hub 保持 `package_id` 为 `local.terminalplus.app`，名称和 ID 均不含 reviewer 禁止的 `even`。从 `local.evenpilot.app` 迁移时，门户可能要求新建条目／重新安装，旧应用保存的手机连接和语音 key 不保证迁移，必要时重新填写。
 
 ## 发布文件与私有文件
 
-`release/1.1.8/` 保留已验证的电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明。更名后的 Hub 包位于 `release/hub-1.1.10/`，用 `terminal-plus-1.1.10.ehpk` 替代旧 Hub 包上传。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
+验证通过后，将电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明整理到 `release/1.1.11/`，Hub 的 `terminal-plus-1.1.11.ehpk` 和校验和整理到 `release/hub-1.1.11/`。安装器和便携包包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。生成这些文件不等于已经发布；实际验证和发布情况见[发布状态](release-status.md)。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 

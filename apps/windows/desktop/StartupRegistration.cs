@@ -5,6 +5,7 @@ using Microsoft.Win32;
 // Per-user startup: no administrator rights, scheduled task, or service.
 sealed class StartupRegistration {
     internal const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    // Retain the existing value so an upgrade updates one login entry and its preference.
     internal const string ValueName = "Even-Pilot";
     readonly string keyPath;
     internal readonly string Command;

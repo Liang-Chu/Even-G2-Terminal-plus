@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, realpath } from "node:fs/promises";
 
 export class BackendAlreadyRunning extends Error {
-  constructor() { super("Another Even-Pilot backend already owns this data directory"); }
+  constructor() { super("Another Terminal+ backend already owns this data directory"); }
 }
 
 /** Kernel-owned IPC listener: exclusive across CLI/tray processes and released even after a crash. */

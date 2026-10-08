@@ -45,7 +45,7 @@ export function savePairingQr(origin: string, token: string, output: string) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const { values } = parseArgs({ options: {
-    url: { type: "string" }, output: { type: "string", default: ".local/even-pilot-pairing.png" },
+    url: { type: "string" }, output: { type: "string", default: ".local/terminal-plus-pairing.png" },
   } });
   try {
     if (!values.url) throw new Error("Usage: npm run pair -- --url http://<PC-LAN-or-Tailscale-IP>:4317; set EVEN_PILOT_TOKEN to the running bridge's control token first");

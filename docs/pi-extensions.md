@@ -1,10 +1,10 @@
 # Pi 可选 subagent 扩展
 
-安装脚本默认联网获取与本机 Pi 版本匹配的官方 subagent 示例，也支持从本机 npm 安装目录复制。脚本可单独分发，不依赖 Even-Pilot 项目目录。它不向正在运行的 Pi 发送消息或重载它。
+安装脚本默认联网获取与本机 Pi 版本匹配的官方 subagent 示例，也支持从本机 npm 安装目录复制。脚本可单独分发，不依赖 Terminal+ 项目目录。它不向正在运行的 Pi 发送消息或重载它。
 
 安装脚本是本项目编写的；扩展代码、角色正文和工作流模板来自 Pi 官方仓库。唯一的角色调整是移除 `model:` 固定值，继承当前模型。没有添加自拟的主动分工规则。
 
-**已有官方 subagent 示例可以直接复用，无需重装。**Even-Pilot 自动安装的是 `even-pilot-monitor.ts` 监控扩展；首次安装前已打开的 Pi 仍需等空闲后 `/reload` 才会加载它。subagent 是另一个可选扩展，只有尚未启用多 agent 时才需要执行本页安装步骤。以上同时适用于 Windows 和 Linux；任意第三方 subagent 扩展不保证有同样的计数格式。
+**已有官方 subagent 示例可以直接复用，无需重装。**Terminal+ 自动安装的是 `even-pilot-monitor.ts` 监控扩展；首次安装前已打开的 Pi 仍需等空闲后 `/reload` 才会加载它。subagent 是另一个可选扩展，只有尚未启用多 agent 时才需要执行本页安装步骤。以上同时适用于 Windows 和 Linux；任意第三方 subagent 扩展不保证有同样的计数格式。
 
 ## 先理解：安装、加载、调用是三件事
 
@@ -22,7 +22,7 @@ Pi 可以让模型自行调用已启用的工具。`read`、`bash`、`edit`、`w
 
 ## 第一步：添加到 Pi 的配置目录
 
-Linux：执行 `~/.local/bin/even-pilot enable-pi-subagents`，安装同一套官方示例，再按下方第二、三步加载和验证。
+Linux：执行 `~/.local/bin/terminal-plus enable-pi-subagents`，安装同一套官方示例，再按下方第二、三步加载和验证。
 
 Windows 前提：Windows PowerShell 5.1 或更新版本、已安装稳定版 Pi 0.87.1 或更新版本，并能通过 HTTPS 访问 `api.github.com` 和 `raw.githubusercontent.com`。脚本不会安装 Pi 本体，也不会配置模型或 API key。
 
@@ -87,7 +87,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\enable-pi-subagents.ps1 -S
 
 脚本只安装与本机 Pi 版本匹配的[官方 subagent 示例](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/subagent/README.md)，保留其角色和工作流内容，仅移除固定模型以继承当前选择。不额外注入主动分工规则。需要自定义策略时，可参考 [Anthropic 关于何时使用 subagent 的说明](https://code.claude.com/docs/en/sub-agents#choose-between-subagents-and-main-conversation)；它是设计参考，不是本脚本安装的 Pi 配置。
 
-运行子 agent 与监控计数是两个接口：Even-Pilot 已接入官方 subagent 示例，三个并行委派任务显示 `agents: 3`，串行链显示 `1`（统计未完成任务，包含队列中的任务）。未知扩展的数据格式仍显示 `1+` 下限，不猜测子任务数量。
+运行子 agent 与监控计数是两个接口：Terminal+ 已接入官方 subagent 示例，三个并行委派任务显示 `agents: 3`，串行链显示 `1`（统计未完成任务，包含队列中的任务）。未知扩展的数据格式仍显示 `1+` 下限，不猜测子任务数量。
 
 ## 其他实用官方示例
 
@@ -99,7 +99,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\enable-pi-subagents.ps1 -S
 | `preset.ts` | `/preset` 切换模型、思考级别、工具与指令组合 |
 | `handoff.ts` | `/handoff 目标` 把重点上下文交给新会话 |
 
-这些是官方示例，不代表默认全部启用。建议先启用 subagent，用顺后按需要添加 plan-mode 和 todo；无需一次装齐。它们独立于 Even-Pilot。
+这些是官方示例，不代表默认全部启用。建议先启用 subagent，用顺后按需要添加 plan-mode 和 todo；无需一次装齐。它们独立于 Terminal+。
 
 来源：[官方 subagent 示例](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/subagent/README.md)、[官方扩展示例目录](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/README.md)。
 

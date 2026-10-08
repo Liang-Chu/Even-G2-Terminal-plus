@@ -1,4 +1,4 @@
-// Even-Pilot Claude monitor hook. Owns no CLI control and never returns a decision.
+// Terminal+ Claude monitor hook. Owns no CLI control and never returns a decision.
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -88,7 +88,7 @@ export async function discoverClaudeOwner(options = {}) {
     return;
   }
   if (platform !== 'win32') return;
-  const helper = options.nativeHelper || resolve(dirname(process.execPath), '../apps/windows/desktop/Even-Pilot.TerminalInterrupt.exe');
+  const helper = options.nativeHelper || resolve(dirname(process.execPath), '../apps/windows/desktop/Terminal-plus.TerminalInterrupt.exe');
   try {
     if (lstatSync(helper).isFile()) {
       const value = await new Promise((done, fail) => execFile(helper, ['claude-owner', String(parentPid)],
