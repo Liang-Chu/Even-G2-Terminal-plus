@@ -2,7 +2,7 @@
 
 从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Terminal+ 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
 
-本文对应 **Terminal+ 1.1.13**。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
+本文对应 **Terminal+ 1.1.15**；验证和发布情况见[发布状态](release-status.md)。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
 
 ## 先分清四个部分
 
@@ -13,13 +13,13 @@
 | 原生 Pi／Codex／Claude | 原来的电脑、原来的系统用户 | 执行任务，保存完整输出及模型登录 |
 | Glance，可选 | 手机 | 接收已配置发送端的完成通知 |
 
-Terminal+ 是监控和简单会话管理端。桌面管理页只控制提供这个页面的电脑，手机 Hub 汇总已保存电脑的会话。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
+Terminal+ 是监控和简单会话管理端。浏览器管理页和手机 Hub 都能汇总明确保存的电脑上的 Pi、Codex、Claude 会话；每台监控端只读取本机 CLI 记录。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
 
 ## 安装电脑端
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.13-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.15-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Terminal+**、**Start with Windows**、更新和 **Quit Terminal+**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -105,9 +105,9 @@ terminal-plus new claude --cwd /your/project
 
 ## 先确认网络可达
 
-1. 手机和每台电脑安装 [Tailscale](https://tailscale.com/download)，加入同一 tailnet，或配置彼此访问权限。
+1. 手机／浏览器所在设备和每台电脑安装 [Tailscale](https://tailscale.com/download)，加入同一 tailnet，或配置彼此访问权限。
 2. 获取每台电脑自己的 IPv4，Linux 可执行 `tailscale ip -4`，Windows 在 Tailscale 界面查看。
-3. 手机浏览器打开 `http://电脑IP:4317`，应能看到页面，再继续 Hub 配置。
+3. 查看设备的浏览器逐台打开 `http://电脑IP:4317`，确认可达；每台保存的电脑都要能从该设备直接访问。
 4. 电脑保持开机、不休眠，主机防火墙允许预期私有网络的 TCP 4317。Terminal+ 不自动改防火墙。
 
 地址属于每台电脑，不写死进包。`0.0.0.0` 是监听地址，手机上的 `127.0.0.1` 是手机自己。无需子网路由、出口节点或公网端口转发；互通的 LAN 也能用，支持 Tailscale 内的 HTTP。
@@ -116,7 +116,7 @@ terminal-plus new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. 在 Even Hub 单独安装 **Terminal+ 1.1.13**（`terminal-plus-1.1.13.ehpk`）。使用 **Terminal+ 1.1.13** 电脑端和 Even App 2.2.10+，再连好 G2。
+1. 在 Even Hub 单独安装 **Terminal+ 1.1.15**（`terminal-plus-1.1.15.ehpk`）。使用 **Terminal+ 1.1.15** 电脑端和 Even App 2.2.10+，再连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `terminal-plus pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -126,9 +126,22 @@ terminal-plus new claude --cwd /your/project
    | Connection key | 同一台电脑显示的原始 key，不加 `Bearer` |
 
 4. 点击 **Connect computer**。信息自动保存，下次打开恢复。**Connected computers** 列出保存的设备；**View sessions** 查看会话，**Edit connection** 修改连接。
-5. 其他电脑也在手机展开 **Connect another computer**，填各自的 URL/key。设备列表保存在这部手机。每台桌面管理页只连接自己的后台，管理本机的会话。
+5. 其他电脑也在手机展开 **Connect another computer**，填各自的 URL/key。设备列表保存在这部手机；浏览器管理页需单独添加电脑。
 
 手机会话按设备分组、按最近更新时间排列。断网保留连接和 Watch，其他电脑继续使用；手机 Remove 只忘记这部手机保存的连接，不停后台或终端。**Glance notifications** 单独设置：手机添加电脑不会注册 watcher，也不会改变通知路由。
+
+浏览器和手机启动时立即连接已保存的电脑。每台电脑每轮启动或手动重连最多自动重试 5 次，每次在失败后等 30 秒。成功连接不重置已用次数；回到应用前台不重置次数、不提前重试。次数用完后保持 **Offline**，直到重新启动应用，或在手机 **Connection**／浏览器 **Computers** 对该电脑点击 **Reconnect**。手动重连只重置该电脑的次数。**Key rejected**（HTTP 401）不自动重试，需用 **Edit connection** 改正 key。整个过程保留 Watch。
+
+## 从另一台设备打开浏览器管理页
+
+1. 在 Windows、Linux 或其他设备的浏览器打开 `http://提供页面的电脑IP:4317/?desktop=1`，保持该电脑监控端运行。
+2. 打开 **Computers → Connect another computer**，填入目标电脑自己的 **Connect phone** 或 Linux `terminal-plus pair` 显示的 **Bridge URL** 和 **Connection key**，点击 **Connect computer**。从远程打开时，也需手工添加提供页面的电脑；本机桌面快捷方式会自动连接本机。
+3. 其他电脑逐台添加。**Sessions** 汇总 Pi、Codex、Claude，按最近更新排列并显示已 Watch／运行数量。用 **Status → All / Watched / Running** 筛选状态，用 **Devices** 勾选一台或多台电脑，也可搜索。选择 **All devices**，或取消最后一台的勾选，会显示全部电脑。
+4. **History** 只读消息，不启动 CLI、不改变 Watch。**Select** 复用活动会话，**Open terminal** 才明确打开来源电脑上的保存会话。Pi 保留已有输入能力；普通 Codex／Claude 仍只读，prompt／控制／工具支持仍由各自连接器决定。
+
+连接保存在当前浏览器、当前管理页来源地址（协议、主机、端口）下，与手机连接独立；换浏览器或地址会使用各自的设备列表。浏览器用保存的 key 直接连接每台目标电脑，提供页面的电脑不转发会话、不保存其他电脑的 key。每台目标都需能从浏览器通过 Tailscale 或 LAN 访问。刷新／重连保留 Watch；Remove 只忘记当前浏览器的连接。
+
+**Connect phone**、**Updates** 和桌面 **Glance notifications** 对应提供页面的电脑；要改另一台电脑的监控端设置，打开它自己的管理页。添加查看连接不会配置通知转发或 Glance 注册。
 
 ### Key 与二维码
 
@@ -143,9 +156,9 @@ terminal-plus new claude --cwd /your/project
 
 ## Watch 与原生终端
 
-桌面有 **Watched / All sessions**，手机有 **All / Watched / Running** 筛选。Watch 只记录监控；选中 live 会话复用现有连接，选中保存的历史可能打开原生终端。只读观察不会自动变成第二个写入端。
+浏览器和手机共用紧凑的 **Status**、**Devices** 下拉菜单。Status 单选 **All / Watched / Running**；Devices 可勾选多台电脑。选择 **All devices**，或取消最后一台的勾选，会显示全部电脑。Watch 只记录监控，不打开窗口。**History** 是只读预览，不改变 Watch、不启动 CLI；**Select** 复用活动会话，**Open terminal** 才明确打开来源电脑上的保存会话。普通 Codex／Claude 仍只读，Pi 和连接器的输入能力不变。
 
-- 显式打开桌面管理页默认 Watch 最近 24 小时更新的会话，不弹出关闭的终端。
+- 从本机桌面快捷方式或 `terminal-plus open` 打开时，默认 Watch 该电脑最近 24 小时更新的会话，不弹出关闭的终端。
 - 刷新、后台重启和网络重连不重新应用这个规则。
 - 手动 Unwatch 跨后续任务／重连保留；显式选择、远程输入或下次打开桌面可重新启用。
 - Unwatch、Quit、停止监控都不杀终端；手动关原终端是连接结束，不等于任务成功完成。
@@ -243,7 +256,7 @@ Windows 给现有 `<安装目录>\.local\bridge-config.json` 添加下面两个�
 3. **Central computer** 选择中心设备。
 4. **Save notification settings** 保存，其他来源重复。中心本身选择 **Directly from this computer**。下方 **Glance watcher** URL 会对应实际发送端／中心；仍需到 Glance 单独注册该 URL 和它的 key。
 
-也可以在每台来源的桌面设置：打开 **Glance notifications**，选 **Through a central computer**，**Center URL** 填 `http://CENTER_IP:4317`，**Center connection key** 填中心原始 key，再点 **Save notification settings**。只修改本机路由，不把中心加入桌面会话列表。中心控制 key 只用于注册，不由 UI 保存；后台保存专用 relay 凭据。已配置的中心 URL 会预填，不换中心时 key 留空即可。
+也可以在每台来源的桌面设置：打开 **Glance notifications**，选 **Through a central computer**，**Center URL** 填 `http://CENTER_IP:4317`，**Center connection key** 填中心原始 key，再点 **Save notification settings**。只修改提供页面的电脑的路由；保存通知设置不会把中心加入浏览器会话列表。中心控制 key 只用于注册，不由此弹窗保存；后台保存专用 relay 凭据。已配置的中心 URL 会预填，不换中心时 key 留空即可。
 
 Linux 来源电脑也可以在 SSH 执行：
 
@@ -260,7 +273,7 @@ terminal-plus settings
 
 已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `terminal-plus update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `terminal-plus update`，再用 `terminal-plus update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-1.1.13 的 Claude 监控修复只需更新电脑端；已有 Terminal+ Hub 继续兼容。**电脑更新不更新手机／G2 应用。**需要更新 Hub 时，再单独安装它的 `.ehpk`。从 `local.evenpilot.app` 迁移到 `local.terminalplus.app` 时，可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写各电脑已有的 URL/key 和转写 key。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+更新电脑端可使用 1.1.15 Pi／Codex／Claude 浏览器管理页、重连规则和筛选菜单。已有 Terminal+ Hub 仍兼容，但手机上的新重连和筛选功能需对应 Hub 包。每个浏览器连接一次，手机保存的连接不会同步到浏览器。**电脑更新不更新手机／G2 应用。**请在 Even Hub 单独安装 `.ehpk`。从 `local.evenpilot.app` 迁移到 `local.terminalplus.app` 时，可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写各电脑已有的 URL/key 和转写 key。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
 Windows 在 **设置 → 应用 → Terminal+** 卸载，Linux `terminal-plus uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `terminal-plus stop`。
 
@@ -272,10 +285,11 @@ npm 安装的版本完成上述卸载后，再执行 `npm uninstall -g terminal-
 | --- | --- |
 | 手机浏览器打不开 | 两端 Tailscale 在线、电脑 IP 正确、后台运行、电脑未休眠、防火墙 TCP 4317 |
 | 浏览器能开但 Hub fetch 失败 | 当前 Hub 包、纯 origin 无 `/api` 路径、Even App 网络权限；保留完整错误／origin 供诊断 |
-| Connection key 被拒绝 | 用当前运行安装的 **Connect phone**／`pair` 获取 key。同一台电脑新装到另一个目录可能生成不同 key；正常原目录更新会保留 |
+| 重试后仍 Offline | 恢复网络／电脑端后，在手机 **Connection**／浏览器 **Computers** 对该电脑点击 **Reconnect**。每轮最多自动重试 5 次，每次失败后等 30 秒 |
+| Key rejected | HTTP 401 后停止重试；用 **Edit connection** 填入当前安装的 **Connect phone**／`pair` key。另一安装目录可能生成不同 key；原目录更新会保留 |
 | Tailscale DNS unavailable | 先用数字 IP 验证，它不需要 MagicDNS |
 | 手机在线但 G2 reconnecting | Even App 的 G2／蓝牙连接及 G2 页状态，显示连接与后端连接不同 |
-| 新 CLI 不在列表 | 同用户／配置目录、首次保存 prompt、Pi `/reload`、Claude `/hooks`、桌面 **All sessions** 再 Watch |
+| 新 CLI 不在列表 | 同用户／配置目录、首次保存 prompt、Pi `/reload`、Claude `/hooks`、**Status → All**、**Devices → All devices**，再 Watch |
 | Codex／Claude 提示回原终端 | 当前是只读观察；需要远程输入才创建连接器 |
 | Linux 找不到命令 | 重开支持的 shell，或用 `~/.local/bin/terminal-plus`，检查 PATH 提示 |
 | Linux 打不开终端 | CLI 已安装登录、无头已装 tmux，从能找到 CLI 的 shell 重启后台 |

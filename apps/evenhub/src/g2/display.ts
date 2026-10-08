@@ -313,7 +313,8 @@ export class G2Display {
     const previous = this.state;
     const urgent = online !== this.online || state.session.key !== previous?.session.key || state.connected !== previous?.connected ||
       state.main.status !== previous?.main.status || !previous || sessionAgentCount(state, online) !== sessionAgentCount(previous, this.online) ||
-      state.source?.online !== previous?.source?.online || state.interactions?.[0]?.id !== previous?.interactions?.[0]?.id;
+      state.source?.online !== previous?.source?.online || state.source?.connectionState !== previous?.source?.connectionState ||
+      state.interactions?.[0]?.id !== previous?.interactions?.[0]?.id;
     const changed = state.session.key !== this.state?.session.key;
     if (changed) { this.taps.reset(); this.stopNotice = undefined; this.resetReading(); this.composer = undefined; this.draftConfirmation = undefined; this.interactionDraft = undefined; this.options.input?.cancel?.(); }
     this.state = state; this.online = online;
@@ -567,7 +568,7 @@ export class G2Display {
     this.mode = "sessions"; this.sessionError = ""; this.sessionLoading = true; this.sessionPage = 0;
     const request = ++this.sessionRequest; this.schedule();
     try {
-      if (!this.online || !this.sessionControls) throw new Error("Reconnecting. Try again when online.");
+      if (!this.online || !this.sessionControls) throw new Error(this.unavailableMessage());
       // The bridge stream already contains every watched session. Avoid a
       // round trip that scans all saved Pi history on every menu visit.
       const catalog = this.state?.monitoring ? this.sessionCatalog : await this.sessionControls.list();
@@ -583,7 +584,7 @@ export class G2Display {
     if (this.sessionError) { await this.openSessions(); return; }
     const session = this.sessions[this.selection];
     if (!session) return;
-    if (!this.online || !this.sessionControls) { this.sessionError = "Reconnecting. Try again when online."; this.schedule(); return; }
+    if (!this.online || !this.sessionControls) { this.sessionError = this.unavailableMessage(); this.schedule(); return; }
     this.sessionSwitching = true; this.sessionError = ""; this.schedule();
     try {
       const state = await this.sessionControls.open(session.key);
@@ -654,7 +655,7 @@ export class G2Display {
   private async answerChoice() {
     const choice = this.choice(), key = this.state?.session.key;
     if (!choice || !key || !this.options.respond || this.choiceSending) return;
-    if (!this.online || !this.state?.connected) { this.choiceNotice = "Reconnecting. Answer not sent."; this.schedule(); return; }
+    if (!this.online || !this.state?.connected) { this.choiceNotice = `${this.connectionStatus() || "Terminal offline"}. Answer not sent.`; this.schedule(); return; }
     if (!this.canAnswerChoice(choice)) { this.choiceNotice = "Review and answer on phone."; this.schedule(); return; }
     if (choice.expiresAt <= Date.now()) { this.choiceNotice = "Choice expired. Refresh on phone."; this.schedule(); return; }
     const question = choice.questions[0], option = question.options[this.choiceIndex];
@@ -675,8 +676,20 @@ export class G2Display {
     const count = this.state ? sessionAgentCount(this.state, this.online) : "?";
     return `${this.state?.source ? shortLine(this.state.source.name, 20) + " · " : ""}agents: ${count} |`;
   }
+  private connectionStatus() {
+    if (this.online && this.state && this.state.source?.online !== false) return undefined;
+    const sources = this.state?.source ? [this.state.source] : this.state?.hosts || [];
+    if (sources.length && sources.every(source => ["offline", "key-rejected"].includes(source.connectionState || "")))
+      return "offline · reconnect on phone";
+    return "reconnecting";
+  }
+  private unavailableMessage() {
+    return this.connectionStatus()?.startsWith("offline") ? "Offline. Reconnect in phone Connection." : "Reconnecting. Try again when online.";
+  }
   private status() {
-    if (!this.online || !this.state || this.state.source?.online === false) return "reconnecting";
+    const connection = this.connectionStatus();
+    if (connection) return connection;
+    if (!this.state) return "reconnecting";
     if (!this.state.connected) return "terminal offline";
     const status = this.state.main.status;
     const since = ["running", "waiting"].includes(this.state.main.status) ? this.state.main.startedAt : this.state.main.statusSince ?? this.state.main.settledAt;
@@ -686,8 +699,9 @@ export class G2Display {
   private statusLabel() {
     const notice = this.stopNotice;
     if (notice && notice.key === this.state?.session.key && notice.until > Date.now()) return notice.text;
-    if (!this.online || !this.state || this.state.source?.online === false) return "reconnecting";
-    return this.state.connected ? this.state.main.status : "terminal offline";
+    const connection = this.connectionStatus();
+    if (connection) return connection;
+    return this.state?.connected ? this.state.main.status : "terminal offline";
   }
   private async stopCurrentRun() {
     const state = this.state, key = state?.session.key;

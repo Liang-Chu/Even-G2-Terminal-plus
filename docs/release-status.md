@@ -1,10 +1,48 @@
-# Release status — Terminal+ 1.1.13
+# Release status — Terminal+ 1.1.15
+
+**Terminal+ 1.1.15** provides the Pi/Codex/Claude browser portal for Windows/Linux. Browser and phone connect each saved computer immediately, then allow up to five automatic retries per startup/manual reconnect cycle, each 30 seconds after failure. Successes and passive foregrounding do not reset the budget; foregrounding does not skip the wait. Exhausted computers stay Offline until targeted Reconnect or a fresh app startup. HTTP 401 stops retries with Key rejected. Compact Status and Devices dropdowns provide All/Watched/Running and multiple-computer filtering. Watch remains per source computer.
+
+## Current 1.1.15 verification — 2026-10-08
+
+| Check | Result |
+| --- | --- |
+| Windows source | 493 tests: 484 passed, 9 platform-related skips, 0 failed; typecheck and production build passed. Three C# desktop suites passed |
+| Retry and G2 regressions | Initial attempt plus five retries at 30-second intervals; exhausted and rejected-key states stay stopped through passive foreground/resume. Healthy lifecycle suspension resumes without spending a retry. Targeted reconnect retains other streams and Watch; selected G2 status ignores unrelated offline computers |
+| Browser acceptance | Final production frontend tested at 390 × 844 using two isolated HTTP bridges and synthetic histories/keys. Status single selection, device multiple selection, and independent online/offline sessions worked. Exhausted device displayed Offline with Reconnect; no new stream request for 78 seconds. Manual Reconnect restarted only that device, preserved Watch and the other stream, and the online G2 preview retained its selected computer. No real prompts or push delivery |
+| Windows packages | Final ZIP smoke and manifest hashes passed. Actual offline 1.1.14 → 1.1.15 installer upgrade passed; saved keys, existing settings and native-process survival verified |
+| Linux packages | Frozen source verified 256/256; 94/94 targeted tests and typecheck passed. Final native fresh install and npm fresh install passed, with 39 npm assertions. All 636 payload hashes and three downloaded artifacts verified. Sixteen installer/bootstrap/update sources match the verified 1.1.14 baseline; its upgrade/rollback checks were reused, not rerun for 1.1.15 |
+| Hub package | Official CLI checks passed, 121,286 bytes, SDK 0.0.16 / Even App 2.2.10 floor. Physical phone/G2 acceptance remains unverified |
+| Publication and hardware | User reports the 1.1.15 Hub package uploaded. GitHub/npm publication is awaiting public verification; Hub approval and physical phone/G2 acceptance are not confirmed |
+
+These package results were recorded after the artifacts were built. Live Windows/NUC installations were not upgraded in this verification; the NUC service remained active with its original process identity.
+
+Earlier checks below apply only to their named versions, not to the current 1.1.15 changes.
+
+## Previous 1.1.14 candidate verification — 2026-10-08
+
+The unpublished 1.1.14 candidate added the Windows/Linux browser portal for Pi, Codex and Claude. Each browser reaches saved computers directly, independently of phone connections. Its recorded checks do not establish the 1.1.15 reconnect/filter behavior or physical phone/G2 acceptance.
+
+| Check | Result |
+| --- | --- |
+| Windows source | 477 tests: 468 passed, 9 platform-related skips, 0 failed; typecheck and production build passed |
+| Windows desktop | All three C# suites passed |
+| Portal routing and reconnect | Scoped sessions with identical native IDs remain separate; tests cover all three CLIs, read-only history, late history/catalog responses, removed/offline hosts, replaced credentials, overlapping opening requests, saved connections and Unwatch without closing terminals |
+| Browser acceptance | Two isolated actual HTTP bridges served the production frontend. Pi/Codex/Claude appeared from both sources; device filters, remote history, live selected conversation, read-only ordinary Codex/Claude, remote Pi input and saved connection removal/re-add worked. API audit confirmed commands stayed on the target and history/viewer removal did not change Watch. Updates stayed on the serving computer. Synthetic histories and credentials; no real model calls or push delivery |
+| Windows packages | Final portable and actual 1.1.13 → 1.1.14 installer checks passed: offline install, retained keys/configuration and native-process survival |
+| Windows update | Actual --update passed failed-health rollback, healthy restart and saved preference/key retention |
+| Linux packages | All 255 frozen source files verified; 42 Linux/platform/bootstrap tests passed. Native fresh daemon installation, systemd 1.1.13 → 1.1.14 upgrade and failed-health rollback passed; local npm fresh/custom-root upgrade passed all 84 assertions. Final Fleet/desktop/history/connection regressions passed 39/39 on Linux; final native and npm fresh-install checks passed. Final payload contains 636 files; hashes verified |
+| Hub package | Official CLI package checks passed using SDK 0.0.16 / Even App 2.2.10 floor. Physical phone/G2 acceptance remains unverified |
+| Publication and hardware | GitHub/npm 1.1.14 publication and physical phone/G2 acceptance remain pending. Public latest was 1.1.11 when checked on 2026-10-08. Live NUC is still on companion 1.1.13 |
+
+The records below are historical; they do not establish current publication or physical-device acceptance.
+
+## Previous 1.1.13 companion fix
 
 **1.1.13** fixes Claude observation of large native transcripts through bounded head/tail reads and recovers blocked queues containing definitely retired events with no recoverable first prompt. Missing history and uncertain/live events still do not establish completion. Existing Terminal+ Hub installations continue to work with the fixed companion. The native companion has been installed on the NUC with its live Claude process preserved; GitHub/npm publication and physical phone/G2 acceptance remain pending.
 
 Existing Even-Pilot users still need one manual installer upgrade because older verified updaters may reject the repository redirect or renamed assets. Existing data, service and configuration identifiers remain for settings retention. See [migration](updates.md#migration-from-even-pilot).
 
-## Current 1.1.13 verification — 2026-10-08
+### 1.1.13 verification — 2026-10-08
 
 | Check | Result |
 | --- | --- |

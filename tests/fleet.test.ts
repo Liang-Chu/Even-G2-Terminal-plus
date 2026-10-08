@@ -10,7 +10,8 @@ import { NotificationJournal } from "../apps/windows/src/notifications.js";
 import { setTimeout as delay } from "node:timers/promises";
 
 const a = "http://100.64.0.1:4317", b = "http://100.64.0.2:4317", key = "a".repeat(32);
-function fixture(identity?: (connection: { url: string; token: string }) => Promise<unknown>) {
+function fixture(identity?: (connection: { url: string; token: string }) => Promise<unknown>,
+  respond?: (connection: { url: string; token: string }, path: string, data?: any) => Promise<unknown> | undefined) {
   const calls: { url: string; token: string; path: string; data?: any }[] = [];
   const endpoints = new Map<string, { state: RuntimeState; online: (value: boolean, error?: string) => void; update: (value: RuntimeState) => void; viewed?: string; closed: boolean }>();
   const states: RuntimeState[] = [];
@@ -28,6 +29,8 @@ function fixture(identity?: (connection: { url: string; token: string }) => Prom
       setViewedSession: value => { endpoint.viewed = value; },
       request: async (path, data) => {
         calls.push({ url: connection.url, token: connection.token, path, data });
+        const response = respond?.(connection, path, data);
+        if (response) return response;
         if (path === "/api/host") return identity ? identity(connection) : { id: connection.url, name: connection.url === a ? "liam" : "nuc", nameSource: "tailscale" };
         if (path === "/api/state") return endpoint.state;
         if (path === "/api/sessions") return { sessions: [{ ...endpoint.state.session, runtimeStatus: endpoint.state.main.status, live: true, monitored: true,
@@ -47,6 +50,43 @@ function fixture(identity?: (connection: { url: string; token: string }) => Prom
 }
 
 const flushMetadata = () => new Promise<void>(done => setImmediate(done));
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test("a key rejected by identity lookup after state verification cannot save or replace a computer", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  const requests: { origin: string; path: string; token: string | null }[] = [], streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  let originalSignal!: AbortSignal;
+  const state = initialState("/fixture");
+  t.mock.method(globalThis, "fetch", async (input: any, options: any) => {
+    const url = new URL(String(input)), token = new Headers(options.headers).get("Authorization");
+    requests.push({ origin: url.origin, path: url.pathname, token });
+    if (url.pathname === "/api/state") return Response.json(state);
+    if (url.pathname === "/api/host") return token === "Bearer invalid-identity-key" ? new Response("Unauthorized", { status: 401 })
+      : Response.json({ id: url.origin, name: "Original computer", nameSource: "hostname" });
+    assert.equal(url.pathname, "/api/events"); originalSignal = options.signal;
+    return new Response(new ReadableStream<Uint8Array>({ start(controller) { streams.push(controller); } }));
+  });
+  const fleet = new FleetClient(() => {}, () => {}, () => {});
+  t.after(() => { fleet.disconnect(); for (const stream of streams) try { stream.close(); } catch {} });
+  await assert.rejects(fleet.add({ url: b, token: "invalid-identity-key" }), /Connection key rejected/);
+  assert.deepEqual(fleet.connections(), []);
+  assert.deepEqual(requests.map(request => request.path), ["/api/state", "/api/host"]);
+  const original = { url: a, token: "original-key" };
+  await fleet.add(original); await flushMetadata();
+  assert.equal(fleet.hosts()[0].online, true); assert.equal(originalSignal.aborted, false);
+  const failedAt = requests.length;
+  await assert.rejects(fleet.add({ url: a, token: "invalid-identity-key" }), /Connection key rejected/);
+  assert.deepEqual(fleet.connections(), [original]); assert.equal(originalSignal.aborted, false);
+  assert.equal(fleet.hosts()[0].connectionState, "online");
+  assert.deepEqual(requests.slice(failedAt).map(request => request.path), ["/api/state", "/api/host"]);
+  const rejectedRequests = requests.filter(request => request.token === "Bearer invalid-identity-key").length;
+  t.mock.timers.tick(30_000); await flushMetadata();
+  assert.equal(requests.filter(request => request.token === "Bearer invalid-identity-key").length, rejectedRequests, "rejected candidates never start a stream or automatic retries");
+});
 
 test("an idle restored computer retries a failed name lookup without new SSE state events", async t => {
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
@@ -111,29 +151,80 @@ test("late and malformed identities cannot overwrite a replaced or removed conne
   t.mock.timers.tick(2000); await flushMetadata(); assert.equal(invalid.fleet.hosts()[0].name, "fixed-name");
 });
 
-test("desktop restores only its own computer without contacting saved remote devices or changing Watch", async () => {
+test("desktop restores all explicitly saved computers and prefers the saved active source", async t => {
   const f = fixture(), saved = [{ url: a, token: "local-key" }, { url: b, token: "remote-key" }];
+  t.after(() => f.fleet.disconnect());
+  const before = structuredClone(saved);
   await restoreViewerConnections(f.fleet, saved, b, a);
-  assert.deepEqual(f.fleet.connections(), [saved[0]]);
-  assert.equal(f.fleet.activeUrl(), a);
-  assert.equal(f.endpoints.has(b), false, "a saved notification center is not opened as a session viewer");
-  assert(f.calls.every(call => call.url === a && call.data === undefined));
-  assert.equal(saved.length, 2, "restoration does not delete saved credentials or phone preferences");
-  const previous = fixture();
-  await previous.add(); previous.calls.length = 0;
-  await restoreViewerConnections(previous.fleet, previous.fleet.connections(), b, a);
-  assert.equal(previous.endpoints.get(b)?.closed, true, "previous remote viewers are disconnected");
-  assert.equal(previous.endpoints.get(b)?.state.monitoring?.sessions[0].monitored, true, "disconnecting a viewer never unwatches its session");
-  assert.equal(previous.fleet.activeUrl(), a);
-  assert(previous.calls.every(call => call.url === a && call.data === undefined));
-  const missing = fixture();
-  await restoreViewerConnections(missing.fleet, [saved[1]], b, a);
-  assert.equal(missing.fleet.connections().length, 0, "missing local credentials never fall back to a remote computer");
-  assert.equal(missing.endpoints.size, 0);
+  assert.deepEqual(f.fleet.connections(), saved);
+  assert.equal(f.fleet.activeUrl(), b);
+  assert.equal(f.endpoints.size, 2);
+  const rows = (await f.fleet.request("/api/sessions")).sessions;
+  assert.deepEqual(rows.map((row: any) => row.key), [scopedKey(b, key), scopedKey(a, key)]);
+  assert(f.calls.some(call => call.url === a) && f.calls.some(call => call.url === b));
+  assert(f.calls.every(call => ["/api/host", "/api/sessions"].includes(call.path) && call.data === undefined), "restoring and browsing never Watch, open, create or relay sessions");
+  assert(f.calls.every(call => call.token === saved.find(item => item.url === call.url)?.token), "each credential stays on its own computer");
+  assert.equal(f.fleet.snapshot().monitoring?.watched, 2);
+  assert.deepEqual(saved, before, "restoration preserves saved credentials and preferences");
 });
 
-test("phone restores all saved computers and its selected session source", async () => {
+test("desktop falls back to its saved serving computer only when the saved active source is missing", async t => {
+  const saved = [{ url: b, token: "remote-key" }, { url: a, token: "local-key" }];
+  for (const activeUrl of [undefined, "http://100.64.0.3:4317"]) {
+    const f = fixture(); t.after(() => f.fleet.disconnect());
+    await restoreViewerConnections(f.fleet, saved, activeUrl, a);
+    assert.deepEqual(f.fleet.connections(), saved);
+    assert.equal(f.fleet.activeUrl(), a);
+  }
+  const remoteOnly = fixture(); t.after(() => remoteOnly.fleet.disconnect());
+  await restoreViewerConnections(remoteOnly.fleet, [saved[0]], b, a);
+  assert.equal(remoteOnly.fleet.activeUrl(), b);
+  assert.equal(remoteOnly.endpoints.has(a), false, "a serving origin without saved credentials is never discovered or added");
+  const empty = fixture(); t.after(() => empty.fleet.disconnect());
+  await restoreViewerConnections(empty.fleet, [], b, a);
+  assert.deepEqual(empty.fleet.connections(), []);
+  assert.equal(empty.endpoints.size, 0);
+});
+
+test("desktop restoration retains failed remotes, replaces changed credentials and removes unsaved connections independently", async t => {
+  const f = fixture(); t.after(() => f.fleet.disconnect());
+  await f.add();
+  const local = f.endpoints.get(a)!, remote = f.endpoints.get(b)!;
+  remote.online(false, "Connection key rejected. Open Connection and update this computer’s key.");
+  f.calls.length = 0;
+  await restoreViewerConnections(f.fleet, f.fleet.connections(), b, a);
+  assert.equal(f.endpoints.get(a), local);
+  assert.equal(f.endpoints.get(b), remote);
+  assert.equal(remote.closed, false);
+  assert.equal(f.fleet.activeUrl(), b, "the saved active source remains selected even when offline");
+  assert.equal(f.fleet.hosts().find(host => host.url === b)?.online, false);
+  assert.equal(f.fleet.snapshot().monitoring?.watched, 2);
+  const rows = (await f.fleet.request("/api/sessions")).sessions;
+  assert.equal(rows.find((row: any) => row.source.url === b).runtimeStatus, "offline");
+  assert(f.calls.every(call => call.url === a && call.token === "token-for-laptop" && call.data === undefined));
+
+  const saved = [{ url: a, token: "current-local-key" }, { url: b, token: "token-for-nuc" }];
+  await restoreViewerConnections(f.fleet, saved, b, a);
+  assert.equal(local.closed, true);
+  assert.notEqual(f.endpoints.get(a), local);
+  assert.equal(f.endpoints.get(b), remote, "a changed local credential never recreates a failed remote connection");
+  local.online(false); local.state.session.name = "stale"; local.update(local.state);
+  assert.equal(f.fleet.hosts().find(host => host.url === a)?.online, true);
+  assert.deepEqual(f.fleet.connections(), saved);
+  assert(f.calls.every(call => call.data === undefined));
+  assert(f.calls.some(call => call.url === a && call.token === "current-local-key"));
+
+  await restoreViewerConnections(f.fleet, [saved[1]], b, a);
+  assert.equal(f.endpoints.get(a)?.closed, true);
+  assert.equal(f.endpoints.get(a)?.state.monitoring?.sessions[0].monitored, true, "removing a viewer never unwatches its session");
+  local.update(local.state);
+  assert.deepEqual(f.fleet.connections(), [saved[1]]);
+  assert.equal(remote.closed, false);
+});
+
+test("phone restores all saved computers and its selected session source", async t => {
   const f = fixture(), saved = [{ url: a, token: "local-key" }, { url: b, token: "remote-key" }];
+  t.after(() => f.fleet.disconnect());
   await restoreViewerConnections(f.fleet, saved, b);
   assert.deepEqual(f.fleet.connections(), saved);
   assert.equal(f.fleet.activeUrl(), b);
@@ -201,6 +292,9 @@ test("G2 viewing suppression transfers between hosts without leaking a native ke
 test("fleet names the host with a rejected key instead of hiding authentication behind offline", async () => {
   const f = fixture(); await f.add();
   f.endpoints.get(b)!.online(false, "Connection key rejected. Open Connection and update this computer’s key.");
+  assert.equal(f.connectionMessages.at(-1), undefined, "another computer's failure does not replace the selected online viewer with an error");
+  assert.match(f.fleet.hosts().find(host => host.url === b)!.warning!, /Connection key rejected/);
+  f.fleet.choose(b);
   assert.match(f.connectionMessages.at(-1)!, /^nuc: Connection key rejected/);
   assert.doesNotMatch(f.connectionMessages.at(-1)!, /nuc offline/);
   assert.match(f.fleet.hosts().find(host => host.url === b)!.warning!, /Connection key rejected/);
@@ -233,6 +327,170 @@ test("new terminal source is explicit and is stripped from the native backend re
   assert.equal(sent.url, b); assert.deepEqual(sent.data, { tunnel: "codex", cwd: "/work" });
   assert.equal(f.fleet.activeUrl(), b);
   f.fleet.disconnect();
+});
+
+test("late fallback state from a replaced or removed connection cannot select it or overwrite another host", async t => {
+  for (const change of ["replace", "remove"] as const) {
+    const read = deferred<void>(), state = deferred<RuntimeState>();
+    const f = fixture(undefined, (connection, path) => {
+      if (connection.url !== b || connection.token !== "token-for-nuc") return;
+      if (path === "/api/session/resume") return Promise.resolve({ accepted: true });
+      if (path === "/api/state") { read.resolve(); return state.promise; }
+    });
+    t.after(() => f.fleet.disconnect()); await f.add();
+    const old = f.endpoints.get(b)!;
+    const opening = f.fleet.request("/api/session/resume", { key: scopedKey(b, key) });
+    await read.promise;
+    if (change === "replace") await f.fleet.add({ url: b, token: "replacement-nuc-token" }, true, false);
+    else f.fleet.remove(b);
+    f.fleet.choose(a);
+    const rejected = assert.rejects(opening, /removed or reconfigured/);
+    state.resolve({ ...old.state, session: { ...old.state.session, name: "Stale response" } });
+    await rejected;
+    assert.equal(f.fleet.activeUrl(), a);
+    assert.equal(f.fleet.snapshot().source?.url, a);
+    assert.equal(f.fleet.snapshot().session.name, "Same title");
+    assert.equal(old.closed, true);
+    if (change === "replace") {
+      assert.notEqual(f.endpoints.get(b), old);
+      assert.equal(f.endpoints.get(b)?.state.session.name, "Same title");
+      assert.equal(f.fleet.connections().find(connection => connection.url === b)?.token, "replacement-nuc-token");
+    } else assert.equal(f.fleet.hosts().some(host => host.url === b), false);
+  }
+});
+
+test("delayed opening responses keep a newer deliberate selection, including reselecting the same computer", async t => {
+  for (const fallback of [false, true]) for (const initialUrl of [a, b]) {
+    const read = deferred<void>(), response = deferred<RuntimeState>();
+    const f = fixture(undefined, (connection, path) => {
+      if (connection.url !== b) return;
+      if (path === "/api/session/resume") {
+        if (fallback) return Promise.resolve({ accepted: true });
+        read.resolve(); return response.promise;
+      }
+      if (fallback && path === "/api/state") { read.resolve(); return response.promise; }
+    });
+    t.after(() => f.fleet.disconnect()); await f.add();
+    f.fleet.choose(initialUrl);
+    const opening = f.fleet.request("/api/session/resume", { key: scopedKey(b, key) });
+    await read.promise;
+    f.fleet.choose(a);
+    f.fleet.setViewedSession(scopedKey(a, key));
+    const remote = f.endpoints.get(b)!.state;
+    response.resolve({ ...remote, session: { ...remote.session, name: "Late response" } });
+    const result = await opening;
+    assert.equal(f.fleet.activeUrl(), a);
+    assert.equal(result.source.url, a, "callers receive the current viewer snapshot");
+    assert.equal(result.session.key, scopedKey(a, key));
+    assert.equal(f.states.at(-1)?.source?.url, a);
+    assert.equal(f.endpoints.get(a)?.viewed, key);
+    assert.equal(f.endpoints.get(b)?.viewed, undefined);
+    f.fleet.choose(b);
+    assert.equal(f.fleet.snapshot().session.name, "Same title", "an obsolete opening response cannot replace cached host state");
+  }
+});
+
+test("a current terminal-opening request with fallback state still selects its target computer", async t => {
+  const f = fixture(); t.after(() => f.fleet.disconnect()); await f.add();
+  const result = await f.fleet.request(`/api/runtime/${scopedKey(b, key)}/terminal`, {});
+  assert.equal(f.fleet.activeUrl(), b);
+  assert.equal(result.source.url, b);
+  assert.equal(result.session.key, scopedKey(b, key));
+  assert.equal(result.monitoring.watched, 2);
+});
+
+test("the newest overlapping opening request wins in either completion order across hosts or sessions on one host", async t => {
+  const c = "http://100.64.0.3:4317", newerKey = "b".repeat(32);
+  for (const sameHost of [false, true]) for (const olderFirst of [false, true]) {
+    const older = deferred<RuntimeState>(), newer = deferred<RuntimeState>();
+    const f = fixture(undefined, (connection, path, data) => {
+      if (path !== "/api/session/resume") return;
+      return connection.url === b && data.key === key ? older.promise : newer.promise;
+    });
+    t.after(() => f.fleet.disconnect()); await f.add();
+    if (!sameHost) await f.fleet.add({ url: c, token: "token-for-third-computer" }, true, false);
+    const newerUrl = sameHost ? b : c;
+    const olderState = f.endpoints.get(b)!.state, newerState = f.endpoints.get(newerUrl)!.state;
+    const first = f.fleet.request("/api/session/resume", { key: scopedKey(b, key) });
+    const second = f.fleet.request("/api/session/resume", { key: scopedKey(newerUrl, newerKey) });
+    const finishOlder = () => older.resolve({ ...olderState, session: { ...olderState.session, key, name: "Older session" } });
+    const finishNewer = () => newer.resolve({ ...newerState, session: { ...newerState.session, key: newerKey, name: "Newer session" } });
+    if (olderFirst) {
+      finishOlder(); const firstResult = await first;
+      assert.equal(f.fleet.activeUrl(), a, "the earlier response cannot select while a newer opening is pending");
+      assert.equal(firstResult.source.url, a);
+      finishNewer(); await second;
+    } else {
+      finishNewer(); await second;
+      finishOlder(); const firstResult = await first;
+      assert.equal(firstResult.source.url, newerUrl);
+      assert.equal(firstResult.session.key, scopedKey(newerUrl, newerKey));
+    }
+    assert.equal(f.fleet.activeUrl(), newerUrl);
+    assert.equal(f.fleet.snapshot().session.key, scopedKey(newerUrl, newerKey));
+    assert.equal(f.fleet.snapshot().session.name, "Newer session");
+    f.fleet.choose(b);
+    assert.equal(f.fleet.snapshot().session.name, sameHost ? "Newer session" : "Same title", "stale responses never overwrite host caches");
+  }
+});
+
+test("saved computers have independent retry budgets and targeted reconnect retains Watch and the selected online viewer", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  const streams = new Map<string, ReadableStreamDefaultController<Uint8Array>>(), attempts = new Map<string, number>();
+  const requests: { url: string; path: string; token: string | null }[] = [], messages: (string | undefined)[] = [];
+  let recoverRemote = false;
+  const state = initialState("/fixture"); state.connected = true;
+  state.session = { key, id: "saved-session", cwd: "/fixture", tunnel: "pi" };
+  state.monitoring = { watched: 1, running: 0, since: 1,
+    sessions: [{ key, cwd: "/fixture", name: "Watched", status: "idle", monitored: true, current: true }] };
+  t.mock.method(globalThis, "fetch", async (input: any, options: any) => {
+    const url = new URL(String(input));
+    requests.push({ url: url.origin, path: url.pathname, token: new Headers(options.headers).get("authorization") });
+    if (url.pathname === "/api/events") {
+      const count = (attempts.get(url.origin) || 0) + 1; attempts.set(url.origin, count);
+      if (url.origin === b && count > 1 && !recoverRemote) throw new TypeError("Remote offline");
+      return new Response(new ReadableStream<Uint8Array>({ start(controller) {
+        streams.set(url.origin, controller);
+        controller.enqueue(new TextEncoder().encode(`event: state\ndata: ${JSON.stringify(state)}\n\n`));
+      } }));
+    }
+    if (url.pathname === "/api/host") return Response.json({ id: url.origin, name: url.origin === a ? "liam" : "nuc", nameSource: "tailscale" });
+    if (url.pathname === "/api/g2/view") return Response.json({ accepted: true });
+    throw new Error(`Unexpected fixture request ${url.pathname}`);
+  });
+  const fleet = new FleetClient(() => {}, (_online, message) => messages.push(message), () => {});
+  t.after(() => { fleet.disconnect(); for (const stream of streams.values()) try { stream.close(); } catch {} });
+  const saved = [{ url: a, token: "synthetic-local-key" }, { url: b, token: "synthetic-remote-key" }];
+  await restoreViewerConnections(fleet, saved, a); await flushMetadata();
+  assert.deepEqual([...attempts.values()], [1, 1]);
+  assert(requests.every(request => request.path !== "/api/state"), "saved startup uses one stream attempt and no duplicate verification probe");
+  assert.equal(fleet.snapshot().monitoring?.watched, 2);
+  streams.get(b)!.error(new TypeError("Remote offline")); await flushMetadata();
+  for (let retry = 1; retry <= 5; retry++) {
+    streams.get(a)!.enqueue(new TextEncoder().encode(": heartbeat\n\n")); await flushMetadata();
+    t.mock.timers.tick(30_000); await flushMetadata();
+    const remote = fleet.hosts().find(host => host.url === b)!;
+    assert.equal(attempts.get(b), retry + 1);
+    assert.equal(remote.retryAttempt, retry);
+    assert.equal(remote.connectionState, retry === 5 ? "offline" : "retrying");
+    assert.equal(fleet.snapshot().connected, true);
+    assert.equal(fleet.snapshot().source?.url, a);
+    assert.equal(fleet.snapshot().monitoring?.watched, 2);
+    assert.equal(messages.at(-1), undefined, "offline rows cannot leave an unrelated error on the valid selected session");
+  }
+  fleet.resume(); fleet.connect();
+  streams.get(a)!.enqueue(new TextEncoder().encode(": heartbeat\n\n")); await flushMetadata();
+  t.mock.timers.tick(30_000); await flushMetadata();
+  assert.equal(attempts.get(a), 1); assert.equal(attempts.get(b), 6);
+  assert.equal(fleet.hosts().find(host => host.url === b)?.connectionState, "offline");
+  recoverRemote = true; fleet.reconnectHost(b); await flushMetadata();
+  assert.equal(attempts.get(a), 1, "targeted manual reconnect does not disrupt another computer's stream");
+  assert.equal(attempts.get(b), 7);
+  assert.equal(fleet.activeUrl(), a);
+  assert.equal(fleet.hosts().find(host => host.url === b)?.connectionState, "online");
+  assert.equal(fleet.hosts().find(host => host.url === b)?.retryAttempt, 0);
+  assert.equal(fleet.snapshot().monitoring?.watched, 2);
+  assert(requests.every(request => request.token === "Bearer " + saved.find(connection => connection.url === request.url)?.token));
 });
 
 test("two authenticated HTTP bridges stream independently, isolate credentials and scope real G2 leases", async t => {

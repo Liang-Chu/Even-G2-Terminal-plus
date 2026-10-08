@@ -1,5 +1,5 @@
 import { initialState, type RuntimeState, type HostSource } from "../../../../packages/cockpit-state/types.js";
-import { BridgeClient, type BridgeApi, type Connection } from "./client.js";
+import { BridgeClient, type BridgeApi, type Connection, type ConnectionStatus } from "./client.js";
 import type { SessionSummary } from "../sessions/panel.js";
 import { mergeSessionState } from "../sessions/live.js";
 
@@ -7,8 +7,9 @@ interface Completion { id: number; outcome: string; session: string }
 interface Transport extends BridgeApi {
   verify(): Promise<RuntimeState>; connect(): void; disconnect(): void; reconnect(): void; setViewedSession(key?: string): void;
 }
-type Factory = (connection: Connection, state: (state: RuntimeState) => void, online: (online: boolean, error?: string) => void, completion: (value: Completion) => void) => Transport;
+type Factory = (connection: Connection, state: (state: RuntimeState) => void, online: (online: boolean, error?: string, status?: ConnectionStatus) => void, completion: (value: Completion) => void) => Transport;
 interface Host { connection: Connection; client: Transport; state?: RuntimeState; catalog?: SessionSummary[]; info?: HostSource; online: boolean; error?: string;
+  status?: ConnectionStatus;
   metadataDue: number; metadataPending?: boolean; metadataFailures?: number; metadataTimer?: ReturnType<typeof setTimeout> }
 const namespace = (url: string) => btoa(url).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 export const scopedKey = (url: string, key: string) => namespace(url) + ":" + key;
@@ -20,6 +21,7 @@ export class FleetClient implements BridgeApi {
   private viewed?: string;
   private suspended = false;
   private revision = 0;
+  private selectionRevision = 0;
   private since = Date.now();
   private phase = "";
   constructor(private onState: (state: RuntimeState) => void, private onConnection: (online: boolean, message?: string) => void,
@@ -39,7 +41,7 @@ export class FleetClient implements BridgeApi {
   private source(host: Host): HostSource {
     return { ...(host.info || { id: namespace(host.connection.url), name: new URL(host.connection.url).hostname,
       nameSource: "address" as const, warning: "Device name unavailable; retrying while connected." }),
-      url: host.connection.url, online: host.online, ...(host.error ? { warning: host.error } : {}) };
+      url: host.connection.url, online: host.online, ...host.status, ...(host.error ? { warning: host.error } : {}) };
   }
   private target(key: string) {
     const decoded = decodeURIComponent(key), split = decoded.lastIndexOf(":");
@@ -74,12 +76,15 @@ export class FleetClient implements BridgeApi {
     this.revision++;
     const sources = this.hosts(), online = sources.filter(host => host.online).length;
     const offline = sources.filter(host => !host.online);
-    const rejected = offline.filter(host => host.warning?.startsWith("Connection key rejected."));
-    const retrying = offline.filter(host => !rejected.includes(host));
+    const rejected = offline.filter(host => host.connectionState === "key-rejected");
+    const retrying = offline.filter(host => ["connecting", "retrying"].includes(host.connectionState || ""));
+    const exhausted = offline.filter(host => !rejected.includes(host) && !retrying.includes(host));
     const messages = rejected.map(host => `${host.name}: ${host.warning}`);
     if (retrying.length) messages.push(`${retrying.map(host => host.name).join(", ")} offline · reconnecting; Watch retained`);
+    if (exhausted.length) messages.push(`${exhausted.map(host => host.name).join(", ")} offline · reconnect manually; Watch retained`);
     this.syncPresence(); this.onState(this.snapshot());
-    this.onConnection(online > 0, messages.length ? messages.join(" · ") : undefined);
+    const selected = this.active ? this.entries.get(this.active) : undefined;
+    this.onConnection(online > 0, !selected?.online && messages.length ? messages.join(" · ") : undefined);
   }
   private scheduleMetadata(host: Host, wait: number) {
     clearTimeout(host.metadataTimer);
@@ -114,14 +119,15 @@ export class FleetClient implements BridgeApi {
     }
   }
   async add(connection: Connection, restoring = false, select = true, currentAttempt = () => true) {
-    const host = { connection, online: false, metadataDue: 0 } as Host;
+    const host = { connection, online: false, metadataDue: 0, status: { connectionState: "connecting", retryAttempt: 0 } } as Host;
     const current = () => this.entries.get(connection.url) === host;
     host.client = this.factory(connection, state => {
       if (!current()) return;
       host.state = state; this.emit(); void this.metadata(host);
-    }, (online, error) => {
+    }, (online, error, status) => {
       if (!current()) return;
       host.online = online; host.error = error;
+      host.status = status || { connectionState: online ? "online" : error?.startsWith("Connection key rejected.") ? "key-rejected" : "offline", retryAttempt: host.status?.retryAttempt || 0 };
       if (!online) { clearTimeout(host.metadataTimer); host.metadataTimer = undefined; }
       this.emit(); if (online) void this.metadata(host);
     }, completion => { if (current()) this.onCompletion({ ...completion, session: `${this.source(host).name} · ${completion.session}` }); });
@@ -135,7 +141,7 @@ export class FleetClient implements BridgeApi {
           host.info = info; host.metadataDue = Date.now() + 60_000;
         }
       } catch (error) {
-        if (error instanceof Error && error.message.startsWith("This computer is already saved")) throw error;
+        if (error instanceof Error && (error.message.startsWith("This computer is already saved") || error.message.startsWith("Connection key rejected."))) throw error;
       }
     }
     if (!currentAttempt()) throw new Error("Connection attempt was replaced");
@@ -148,6 +154,7 @@ export class FleetClient implements BridgeApi {
   }
   choose(url: string) {
     if (!this.entries.has(url)) throw new Error("Computer not saved");
+    this.selectionRevision++;
     const changed = this.active !== url;
     this.active = url;
     if (changed) { this.viewed = undefined; this.onSelect(url); }
@@ -156,7 +163,7 @@ export class FleetClient implements BridgeApi {
   remove(url: string) {
     const host = this.entries.get(url);
     clearTimeout(host?.metadataTimer); host?.client.disconnect(); this.entries.delete(url);
-    if (this.active === url) { this.active = this.entries.keys().next().value; this.viewed = undefined; if (this.active) this.onSelect(this.active); }
+    if (this.active === url) { this.selectionRevision++; this.active = this.entries.keys().next().value; this.viewed = undefined; if (this.active) this.onSelect(this.active); }
     this.emit();
   }
   setViewedSession(key?: string) { this.viewed = key; this.syncPresence(); }
@@ -170,8 +177,23 @@ export class FleetClient implements BridgeApi {
     }
   }
   connect() { this.suspended = false; for (const host of this.entries.values()) host.client.connect(); }
-  disconnect() { this.suspended = true; for (const host of this.entries.values()) { host.online = false; clearTimeout(host.metadataTimer); host.metadataTimer = undefined; host.client.disconnect(); } }
-  reconnect() { this.suspended = false; for (const host of this.entries.values()) { host.online = false; host.client.reconnect(); } this.emit(); }
+  /** Visibility/page restoration preserves every computer's existing retry cycle. */
+  resume() { this.connect(); }
+  disconnect() { this.suspended = true; for (const host of this.entries.values()) {
+    host.online = false;
+    if (host.status?.connectionState !== "key-rejected") host.status = { connectionState: "offline", retryAttempt: host.status?.retryAttempt || 0 };
+    clearTimeout(host.metadataTimer); host.metadataTimer = undefined; host.client.disconnect();
+  } }
+  /** Only this computer receives a fresh automatic retry budget. */
+  reconnectHost(url: string) {
+    const host = this.entries.get(url);
+    if (!host) throw new Error("Computer not saved");
+    this.suspended = false; host.online = false; host.error = undefined;
+    host.status = { connectionState: "connecting", retryAttempt: 0 };
+    clearTimeout(host.metadataTimer); host.metadataTimer = undefined;
+    host.client.reconnect(); this.emit();
+  }
+  reconnect() { for (const url of this.entries.keys()) this.reconnectHost(url); }
   private async catalog() {
     await Promise.all([...this.entries.values()].map(async host => {
       if (!host.online) return;
@@ -208,14 +230,20 @@ export class FleetClient implements BridgeApi {
       if (body) delete body.sourceUrl; switchHost = true;
     } else host = this.active ? this.entries.get(this.active) : undefined;
     host = this.requireOnline(host);
+    // The latest opening request or deliberate choice owns the viewer, even if
+    // an older command finishes later or the same computer is chosen again.
+    const selection = switchHost ? ++this.selectionRevision : this.selectionRevision;
     const result = await host.client.request(routed, body === undefined ? data : body, timeout);
     if (this.entries.get(host.connection.url) !== host) throw new Error("Computer was removed or reconfigured while the request was in flight. Check its native terminal before retrying.");
     if (route?.[3] === "history") return { ...result, session: { ...result.session, key: scopedKey(host.connection.url, result.session.key), source: this.source(host) } };
-    if (result?.session && result?.main) host.state = result;
     if (switchHost) {
-      if (!result?.session || !result?.main) host.state = await host.client.request("/api/state");
+      if (selection !== this.selectionRevision) return this.snapshot();
+      const state = result?.session && result?.main ? result : await host.client.request("/api/state");
+      if (this.entries.get(host.connection.url) !== host) throw new Error("Computer was removed or reconfigured while the request was in flight. Check its native terminal before retrying.");
+      if (selection !== this.selectionRevision) return this.snapshot();
+      host.state = state;
       this.choose(host.connection.url);
-    }
+    } else if (result?.session && result?.main) host.state = result;
     this.emit();
     return switchHost || route?.[3] === "monitor" ? this.snapshot() : result;
   }

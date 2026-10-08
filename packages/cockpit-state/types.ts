@@ -1,6 +1,10 @@
 export type AgentStatus = "idle" | "running" | "waiting" | "failed";
 export type Tunnel = "pi" | "codex" | "claude";
-export interface HostSource { id: string; name: string; nameSource: "tailscale" | "hostname" | "address"; url?: string; online?: boolean; warning?: string }
+export interface HostSource {
+  id: string; name: string; nameSource: "tailscale" | "hostname" | "address"; url?: string; online?: boolean; warning?: string;
+  connectionState?: "connecting" | "retrying" | "online" | "offline" | "key-rejected";
+  retryAttempt?: number;
+}
 export interface TranscriptEntry {
   id: number;
   role: "user" | "assistant" | "tool";

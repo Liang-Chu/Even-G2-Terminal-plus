@@ -1,14 +1,14 @@
 # Terminal+
 
-通过手机 Even Hub 和 Even G2 查看 Windows/Linux 上运行的 Pi、Codex、Claude Code 会话。继续使用原生终端工作；每台电脑运行轻量监控端，手机汇总它们已 Watch 的会话。
+通过浏览器、手机 Even Hub 和 Even G2 查看 Windows/Linux 上运行的 Pi、Codex、Claude Code 会话。继续使用原生终端工作；每台电脑运行轻量监控端，查看端汇总已保存电脑的会话。
 
 查看来源设备、模型、上报的运行 agent 数和最近消息。可选功能包括逐句语音输入、agent 任务详情，以及通过 Glance 发送完成通知。
 
-**Terminal+ 1.1.13** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.15** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows／Linux／Hub 下载](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [English](README.md) · [完整配置](docs/setup.zh-CN.md)
 
-Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令和文件名在不适合使用 `+` 时使用 `terminal-plus`／`Terminal-plus`。本文面向 **1.1.13**；验证和发布情况见[发布状态](docs/release-status.md)。
+Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令和文件名在不适合使用 `+` 时使用 `terminal-plus`／`Terminal-plus`。本文对应 **1.1.15**；验证和发布情况见[发布状态](docs/release-status.md)。
 
 ## 先跑通
 
@@ -16,11 +16,11 @@ Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令�
 
 先确保 Pi、Codex 或 Claude Code 已安装并能正常使用。每台需要监控的电脑安装一次 Terminal+，必须与 CLI 使用**同一个系统用户**。继续使用已有模型登录；Terminal+ 不安装 CLI 本体。
 
-- **Windows：**在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.13-Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用 **Terminal+** 快捷方式或双击托盘图标。不需要系统 Node/npm。
-- **Linux／SSH：**下载 `Terminal-plus-1.1.13-Setup-linux-x64.run`，在普通用户下执行，不用 `sudo`：
+- **Windows：**在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.15-Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用 **Terminal+** 快捷方式或双击托盘图标。不需要系统 Node/npm。
+- **Linux／SSH：**下载 `Terminal-plus-1.1.15-Setup-linux-x64.run`，在普通用户下执行，不用 `sudo`：
 
   ```sh
-  sh ./Terminal-plus-1.1.13-Setup-linux-x64.run
+  sh ./Terminal-plus-1.1.15-Setup-linux-x64.run
   ```
 
   **新开 shell** 后执行 `terminal-plus` 和 `terminal-plus pair`。当前终端先用 `~/.local/bin/terminal-plus`。安装器包含自己的 Node 运行时和后端依赖。
@@ -64,21 +64,32 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 ### 3. 连接手机
 
 1. 通过互联网访问电脑时，手机和电脑都安装 [Tailscale](https://tailscale.com/download)，加入同一个 tailnet 并保持连接。能互通的局域网也可以。
-2. 在 Even Hub 单独安装 **Terminal+ 1.1.13**（`terminal-plus-1.1.13.ehpk`），再在 Even App 连好 G2。使用 **Terminal+ 1.1.13** Windows/Linux 电脑端。
+2. 在 Even Hub 单独安装 **Terminal+ 1.1.15**（`terminal-plus-1.1.15.ehpk`），再在 Even App 连好 G2。使用 **Terminal+ 1.1.15** Windows/Linux 电脑端。
 3. 获取该电脑的 URL/key：Windows 点击 **Connect phone**；Linux 运行 `terminal-plus pair`。
 4. 手机应用打开 **Connection → Connect another computer**，填入 **Bridge URL** 和 **Connection key**，点击 **Connect computer**。
 
 使用 **Connect phone**／`pair` 打印的可达 URL，如 `http://电脑的TailscaleIP:4317`。Key 填原值，不加 `Bearer`，请保密。手机自动保存连接；其他电脑按相同步骤添加。保持电脑端运行，电脑不要休眠。Linux 的 `pair` 只打印信息；`terminal-plus` 才启动监控。
 
-每台桌面管理页只管理本机。Hub 手工填写 URL/key，二维码供 Glance 使用。连接失败时先用手机浏览器打开 Bridge URL。[连接排查](docs/setup.zh-CN.md#常见问题)
+Hub 手工填写 URL/key，二维码供 Glance 使用。连接失败时先用手机浏览器打开 Bridge URL。[连接排查](docs/setup.zh-CN.md#常见问题)
+
+### 从另一台设备打开浏览器管理页
+
+1. 浏览器打开 `http://电脑IP:4317/?desktop=1`，使用一台运行 Terminal+ 且可达的电脑地址。
+2. 打开 **Computers → Connect another computer**，填入每台目标电脑自己的 **Connect phone** 或 `terminal-plus pair` 显示的 URL/key；其他电脑逐台添加。
+3. 在 **Sessions** 用 **Status → All / Watched / Running** 筛选状态，用 **Devices** 勾选一台或多台电脑。选择 **All devices**，或取消最后一台电脑的勾选，会显示全部电脑。
+
+连接保存在当前浏览器、当前管理页地址下，不会自动从手机同步。浏览器需通过 Tailscale 或 LAN 访问每台已保存电脑。本机桌面快捷方式自动连接本机。**Connect phone**、**Updates** 和桌面 **Glance notifications** 对应提供页面的电脑。[浏览器管理页详情](docs/setup.zh-CN.md#从另一台设备打开浏览器管理页)
+
+浏览器和手机启动或手动重连时，立即连接该电脑；每台电脑每轮最多自动重试 5 次，每次在失败后等 30 秒。成功连接不重置已用次数；回到应用前台不重置次数、不提前重试。次数用完后保持 **Offline**，直到重新启动应用，或在浏览器 **Computers**／手机 **Connection** 对该电脑点击 **Reconnect**。**Key rejected** 不自动重试，需用 **Edit connection** 改正 key。Watch 保留。
 
 ### 4. 选择会话
 
-在 **Sessions** 开启 **Watch**，再打开 G2 应用。G2 回到上次可用的已 Watch 会话，列表只显示已 Watch 且可连接的会话。桌面找不到时，切换 **All sessions**。
+在 **Sessions** 开启 **Watch**，再打开 G2 应用。G2 回到上次可用的已 Watch 会话，列表只显示已 Watch 且可连接的会话。找不到会话时，选择 **Status → All** 和 **Devices → All devices**。
 
 - Watch 不打开终端；Unwatch 不停止任务、不关闭终端。
-- 打开桌面管理页默认 Watch 最近 24 小时更新的会话；刷新／重连不重置 Watch。手动 Unwatch 跨后续任务和断线保留。
-- 选择保存的会话可打开终端。退出托盘、停止监控都保留原生终端。
+- 从本机桌面快捷方式或 `terminal-plus open` 打开时，默认 Watch 该电脑最近 24 小时更新的会话；刷新／重连不重置 Watch。手动 Unwatch 跨后续任务和断线保留。
+- **History** 只读历史，不启动 CLI、不改变 Watch。**Select** 复用活动会话，**Open terminal** 才明确打开来源电脑上的保存会话。Pi 保留输入能力；普通 Codex／Claude 会话仍只读。
+- 退出托盘、停止监控都保留原生终端。
 
 [会话管理](docs/setup.zh-CN.md#watch-与原生终端)
 
@@ -117,7 +128,7 @@ Android 安装 [Glance](https://github.com/Liang-Chu/Glance)，接收每个会�
 
 ## 更新
 
-1.1.13 的 Claude 监控修复只需更新电脑端。已有 Terminal+ Hub 继续兼容；此修复不要求更新手机／G2 应用。
+更新 Windows/Linux 电脑端可使用 1.1.15 浏览器管理页、重连规则和筛选菜单。手机上的重连和筛选改进需单独安装对应 Hub `.ehpk`；已有 Terminal+ Hub 仍兼容电脑端。每个浏览器用各电脑自己的 URL/key 连接一次；手机保存的连接不会同步到浏览器。
 
 **从 Even-Pilot 升级：**先手工运行一次新版 Terminal+ 安装器。仓库更名后，旧更新器可能无法完成更新。为保留 connection key、Watch 和通知设置，安装／数据／服务目录及 `EVEN_PILOT_*` 配置继续兼容原名称。[迁移和更新指南](docs/updates.md#migration-from-even-pilot)
 

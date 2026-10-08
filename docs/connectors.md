@@ -1,10 +1,12 @@
-# Codex and Claude Code connectors
+# Pi, Codex and Claude Code sessions
 
-Windows and Linux have one session manager for **Pi / Codex / Claude**. Each row shows its tunnel and model. Watch, most-recent sorting, G2 navigation, voice input, G2 summary tags, and Glance notifications use the same shared implementation. Linux installation and terminal commands are in [Linux setup](linux.md).
+Windows and Linux have one session manager for **Pi / Codex / Claude**. The [browser portal](setup.md#browser-portal-from-another-device) and phone/G2 can view all explicitly saved computers. Each row shows its source computer, tunnel and model.
+
+Watch, most-recent sorting, G2 navigation, voice input, G2 summary tags, and Glance notifications use the same shared implementation. **History** is read-only and does not start a CLI or change Watch; **Select** reuses a live session, while **Open terminal** explicitly opens a saved session on its source computer. Pi input and each connector's prompt/control/tool capabilities remain unchanged. Linux installation and terminal commands are in [Linux setup](linux.md).
 
 ## Start a session
 
-1. Install and sign in to the native CLI you want to use (`codex` or `claude`). Terminal+ reuses that CLI’s local login and permissions; no additional model API key is required here.
+1. Install and sign in to the native CLI you want to use (`pi`, `codex` or `claude`). Terminal+ reuses that CLI’s local login and permissions; no additional model API key is required here.
 2. Open the Terminal+ manager (the Windows shortcut or Linux application menu). Choose **+ New terminal**, select **Tunnel**, and enter the project directory. An ordinary native terminal opens.
 3. For Claude, accept its **local development channel** confirmation in that terminal. This enables the Terminal+ MCP channel; it does not bypass tool approvals. Claude channels require a supported Claude account and channel access.
 4. Select the session on phone/G2. Prompts go into the same native session. Keep that terminal open while using it remotely.
@@ -48,7 +50,7 @@ To reopen an existing session manually, append `--resume <native-session-id>`. T
 
 Codex uses its official App Server over authenticated loopback WebSocket. The native Codex TUI connects to the same server; a local link observes public lifecycle events and selected-session changes and forwards explicit remote answers to pending requests. Native responses pass through unchanged; the first answer claims the request. It does not scrape terminal text or intercept reasoning. The server belongs to the native terminal wrapper, not the tray. The remote App Server interface is experimental; CLI changes may require connector updates. Previously tested with Codex 0.157.0; 0.159.1 passed isolated initialization and empty-thread start/read during this audit, without a real model prompt.
 
-Claude's remote connector remains experimental in 1.1.13. It uses per-launch lifecycle hooks plus an MCP channel, alongside the separate ordinary-terminal observer above. Connector configuration is local to that launch; duplicate global monitor events are skipped for connector-owned terminals. Its native transcript is read for visible messages and history only. The development-channel confirmation is required because this is a local custom channel. Previously tested with Claude Code 2.1.276: live hook and G2-channel delivery passed, but a successful model response was not verified. Ordinary-terminal hook payloads were also checked against installed Claude Code 2.1.287. Isolated connector tests pass; real Claude response and cancellation remain unverified.
+Claude's remote connector remains experimental in 1.1.15. It uses per-launch lifecycle hooks plus an MCP channel, alongside the separate ordinary-terminal observer above. Connector configuration is local to that launch; duplicate global monitor events are skipped for connector-owned terminals. Its native transcript is read for visible messages and history only. The development-channel confirmation is required because this is a local custom channel. Previously tested with Claude Code 2.1.276: live hook and G2-channel delivery passed, but a successful model response was not verified. Ordinary-terminal hook payloads were also checked against installed Claude Code 2.1.287. Isolated connector tests pass; real Claude response and cancellation remain unverified.
 
 Ordinary Windows Claude hooks run synchronously with a hidden encoded PowerShell launcher for literal path handling and UTF-8 stdin. A synthetic installed-hook fixture measured about 0.55 seconds per hook, including about 0.1 seconds for the native read-only owner probe. Tool-heavy turns can incur noticeable overhead; this is a fixture measurement, not a real-model latency guarantee. Linux uses direct Node hooks. The observer caches Windows liveness probes rather than launching one for every event.
 
@@ -81,7 +83,7 @@ Phone displays pending questions above its prompt field with their supplied deta
 
 Replies require the control key and bind to both session/connector instance and a short-lived request ID. Replies remain possible while the agent waits. Answering in the native Codex terminal clears the remote card; remote answers suppress a second native reply for the same request. Session changes, disconnects and resolved events retire requests. Claude's protocol silently ignores already-resolved IDs; its next tool/run hook also removes the card, so a submitted verdict is not a guarantee that the tool ran. No reply is retried after an uncertain delivery. Watch and terminal lifetime are unaffected.
 
-Refresh the desktop page and install the Terminal+ Hub package for the choice UI (Terminal+ 1.1.13 with Terminal+ 1.1.13). For existing Pi terminals, run `/reload` while idle. Reopen existing Codex/Claude connector terminals through Terminal+ while idle to load the new code; this update does not close them for you.
+Refresh the desktop page and install the Terminal+ Hub package for the choice UI (Terminal+ 1.1.15 with Terminal+ 1.1.15). For existing Pi terminals, run `/reload` while idle. Reopen existing Codex/Claude connector terminals through Terminal+ while idle to load the new code; this update does not close them for you.
 
 API: `POST /api/interaction/respond`, with `Authorization: Bearer <connection-key>` and JSON `{ "sessionKey": "<key>", "requestId": "<id from state.interactions>", "answers": { "<question-id>": "<option-id or free text>" } }`. Menu requests marked `cancelable` also accept `cancel: true` with empty answers. Only current offered option IDs are accepted for closed-choice questions. `POST /api/prompt` retains its existing shape for slash commands. `/api/state` and SSE carry `interactions` and `commandStatus`.
 

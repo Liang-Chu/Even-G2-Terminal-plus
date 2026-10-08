@@ -1,6 +1,8 @@
-# Terminal+ 1.1.13 for Linux
+# Terminal+ 1.1.15 for Linux
 
-Install the Linux companion to watch local Pi, Codex and Claude Code sessions through Even Hub on your phone and Even G2. Continue using your native terminal, with optional voice input and per-session completion notifications through Glance.
+This guide covers **Terminal+ 1.1.15**. See [release status](https://github.com/Liang-Chu/Even-G2-Terminal-plus/blob/main/docs/release-status.md) for verification and publication details.
+
+Install the Linux companion to watch local Pi, Codex and Claude Code sessions through a browser, Even Hub on your phone and Even G2. Continue using your native terminal, with optional voice input and per-session completion notifications through Glance.
 
 Requires Linux **x64/glibc**, Node **22+** and npm for this installation method. Run as the same ordinary user who runs your CLI, without `sudo`.
 
@@ -41,7 +43,7 @@ For optional voice input, save your own transcription API key in the phone's **V
 
 ## Update and remove
 
-The companion automatically installs verified stable GitHub updates by default. Use `terminal-plus update off` to disable, `update on` to enable, or `update` to install now. You do not need `npm update`; rerunning setup will not downgrade a newer companion. Update the phone's Hub package separately.
+The companion automatically installs verified stable GitHub updates by default. Use `terminal-plus update off` to disable, `update on` to enable, or `update` to install now. You do not need `npm update`; rerunning setup will not downgrade a newer companion. Install the matching Hub package separately for the phone's 1.1.15 bounded retries and Status/Devices filters.
 
 Close terminals that still use installation files, then remove the companion and its npm helper:
 

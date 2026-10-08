@@ -5,6 +5,14 @@ export interface Connection {
   url: string;
   token: string;
 }
+export interface ConnectionStatus {
+  connectionState: "connecting" | "retrying" | "online" | "offline" | "key-rejected";
+  /** Initial attempt is 0; automatic retries are 1 through 5. */
+  retryAttempt: number;
+}
+const retryInterval = 30_000, maxRetries = 5;
+const rejectedKeyMessage = "Connection key rejected. Open Connection and update this computer’s key.";
+class RejectedConnectionKey extends Error { constructor() { super(rejectedKeyMessage); } }
 export interface BridgeApi {
   request(path: string, data?: unknown, timeout?: number): Promise<any>;
   hosts?(): import("../../../../packages/cockpit-state/types.js").HostSource[];
@@ -24,12 +32,17 @@ export class BridgeClient {
   private stopped = true;
   private cursor = 0;
   private retry?: ReturnType<typeof setTimeout>;
+  private retryAt?: number;
+  private attempt = -1;
+  private resumeOnline = false;
+  private connectionState: ConnectionStatus["connectionState"] = "connecting";
+  private lastError?: string;
   private generation = 0;
   private presence?: G2PresenceReporter;
   constructor(
     private connection: Connection,
     private onState: (state: RuntimeState) => void,
-    private onConnection: (connected: boolean, message?: string) => void,
+    private onConnection: (connected: boolean, message?: string, status?: ConnectionStatus) => void,
     private onCompletion: (value: {
       id: number;
       outcome: string;
@@ -47,10 +60,10 @@ export class BridgeClient {
       body: data === undefined ? undefined : JSON.stringify(data),
       signal: AbortSignal.timeout(timeout), credentials: "omit", redirect: "error",
     }); } catch (error) { throw connectionFailure(this.connection, error); }
+    if (response.status === 401) { this.rejectKey(); throw new RejectedConnectionKey(); }
     const result = await response.json();
     if (!response.ok)
-      throw new Error(response.status === 401 ? "Connection key rejected. Open Connection and update this computer’s key."
-        : result.error || `Bridge returned ${response.status}`);
+      throw new Error(result.error || `Bridge returned ${response.status}`);
     return result;
   }
   async verify(): Promise<RuntimeState> {
@@ -67,20 +80,62 @@ export class BridgeClient {
     this.presence?.set(key);
   }
   connect() {
-    if (!this.stopped) return;
+    if (!this.stopped || this.connectionState === "offline" || this.connectionState === "key-rejected") return;
+    const resumeOnline = this.resumeOnline;
+    if (!resumeOnline && this.attempt >= maxRetries) { this.report(false, "offline", this.lastError); return; }
     this.stopped = false;
+    this.resumeOnline = false;
     this.presence?.resume();
-    void this.stream();
+    if (this.attempt < 0 || resumeOnline) void this.stream(resumeOnline);
+    else {
+      this.retryAt ??= Date.now() + retryInterval;
+      this.report(false, "retrying", this.lastError); this.scheduleRetry();
+    }
   }
+  /** Passive app lifecycle restoration never refreshes the retry budget. */
+  resume() { this.connect(); }
   disconnect() {
+    // Suspending a healthy stream is a lifecycle action, not a failed retry.
+    // Preserve this permission through duplicate page/visibility suspension.
+    this.resumeOnline ||= !this.stopped && this.connectionState === "online";
     this.presence?.suspend();
     this.stopped = true;
     this.generation++;
     clearTimeout(this.retry);
+    this.retry = undefined;
+    if (this.resumeOnline) this.retryAt = undefined;
+    else if (this.attempt >= 0 && this.connectionState !== "offline" && this.connectionState !== "key-rejected")
+      this.retryAt ??= Date.now() + retryInterval;
     this.controller?.abort();
   }
-  reconnect() { this.disconnect(); this.connect(); }
-  private async stream() {
+  /** Explicit user action starts one new initial attempt and five retries. */
+  reconnect() {
+    this.disconnect(); this.attempt = -1; this.retryAt = undefined; this.resumeOnline = false;
+    this.connectionState = "connecting"; this.lastError = undefined; this.connect();
+  }
+  private report(connected: boolean, connectionState: ConnectionStatus["connectionState"], message?: string) {
+    this.connectionState = connectionState; this.lastError = message;
+    this.onConnection(connected, message, { connectionState, retryAttempt: Math.max(0, this.attempt) });
+  }
+  private rejectKey() {
+    this.disconnect(); this.retryAt = undefined; this.resumeOnline = false;
+    this.report(false, "key-rejected", rejectedKeyMessage);
+  }
+  private scheduleRetry() {
+    clearTimeout(this.retry);
+    if (this.stopped || this.connectionState === "offline" || this.connectionState === "key-rejected") return;
+    const generation = this.generation;
+    this.retry = setTimeout(() => {
+      this.retry = undefined;
+      if (!this.stopped && generation === this.generation) void this.stream();
+    }, Math.max(0, (this.retryAt || Date.now()) - Date.now()));
+    this.retry.unref?.();
+  }
+  private async stream(preserveAttempt = false) {
+    if (this.stopped) return;
+    if (!preserveAttempt && this.attempt >= maxRetries) { this.report(false, "offline", this.lastError); return; }
+    if (!preserveAttempt) this.attempt++;
+    this.retryAt = undefined;
     this.controller?.abort();
     const controller = new AbortController();
     this.controller = controller;
@@ -92,6 +147,7 @@ export class BridgeClient {
       watchdog = setTimeout(() => controller.abort(), 40_000);
     };
     touch();
+    this.report(false, this.attempt === 0 ? "connecting" : "retrying", this.lastError);
     try {
       const response = await fetch(this.connection.url + "/api/events", {
         headers: {
@@ -101,14 +157,10 @@ export class BridgeClient {
         signal: controller.signal,
         credentials: "omit", redirect: "error",
       });
-      if (!response.ok || !response.body)
-        throw new Error(
-          response.status === 401
-            ? "Connection key rejected. Open Connection and update this computer’s key."
-            : `Bridge returned ${response.status}`,
-        );
+      if (response.status === 401) throw new RejectedConnectionKey();
+      if (!response.ok || !response.body) throw new Error(`Bridge returned ${response.status}`);
       if (!current()) return;
-      this.onConnection(true);
+      this.report(true, "online");
       const reader = response.body.getReader(),
         decoder = new TextDecoder();
       let buffer = "";
@@ -143,17 +195,19 @@ export class BridgeClient {
         }
       }
     } catch (error) {
-      if (current())
-        this.onConnection(
-          false,
-          connectionFailure(this.connection, error).message,
-        );
+      if (current()) {
+        if (error instanceof RejectedConnectionKey) this.rejectKey();
+        else {
+          this.retryAt = Date.now() + retryInterval;
+          this.report(false, this.attempt < maxRetries ? "retrying" : "offline", connectionFailure(this.connection, error).message);
+        }
+      }
     } finally {
       clearTimeout(watchdog!);
       // A malformed event or a throwing observer must also release its stream
       // before reconnecting; otherwise old requests remain alive on the bridge.
       controller.abort();
     }
-    if (current()) this.retry = setTimeout(() => void this.stream(), 2_000);
+    if (current()) this.scheduleRetry();
   }
 }

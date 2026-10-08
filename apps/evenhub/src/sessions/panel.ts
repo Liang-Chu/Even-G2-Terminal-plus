@@ -2,6 +2,7 @@ import type { RuntimeState, Tunnel, HostSource } from "../../../../packages/cock
 import type { BridgeApi } from "../bridge/client.js";
 import { mergeSessionState, monitoringSignature } from "./live.js";
 import { deviceKey, sessionAge, sessionGroups, type SessionScope } from "./groups.js";
+import { SessionFilterDropdowns } from "./filters.js";
 
 export interface SessionSummary {
   key: string;
@@ -62,11 +63,12 @@ export class SessionsPanel {
   private historyView = element("div", undefined, "session-history");
   private project = element("select");
   private search = element("input");
-  private selectedDevice = "";
-  private devices = element("div", undefined, "session-devices");
-  private devicesSignature = "";
+  private selectedDevices: string[] = [];
   private scope: SessionScope = "all";
-  private scopeControls = element("nav", undefined, "session-scopes");
+  private filters = new SessionFilterDropdowns({
+    scope: value => { this.scope = value; this.limits.clear(); this.renderList(); },
+    devices: value => { this.selectedDevices = value; this.limits.clear(); this.renderList(); },
+  });
   private collapsed = new Set<string>();
   private limits = new Map<string, number>();
   private cwd = element("input");
@@ -99,21 +101,13 @@ export class SessionsPanel {
     projectLabel.append(this.project);
     const searchLabel = element("label", "SEARCH"); this.search.type = "search"; this.search.placeholder = "Name, model or project";
     this.search.setAttribute("aria-label", "Search sessions"); searchLabel.append(this.search);
-    const deviceField = element("div", undefined, "session-device-filter");
-    deviceField.append(element("span", "DEVICE", "session-filter-label"), this.devices);
-    this.devices.setAttribute("role", "group"); this.devices.setAttribute("aria-label", "Filter sessions by device");
     this.project.onchange = () => this.renderList(); this.search.oninput = () => this.renderList();
     this.refresh.textContent = "Refresh";
-    this.refresh.type = "button"; this.refresh.onclick = () => void this.load(); filters.append(searchLabel, projectLabel, this.refresh, deviceField);
-    this.scopeControls.setAttribute("aria-label", "Session filters");
-    for (const [value, label] of [["all", "All"], ["watched", "Watched"], ["running", "Running"]] as const) {
-      const button = element("button", label, "outline"); button.type = "button"; button.dataset.scope = value;
-      button.onclick = () => { this.scope = value; this.limits.clear(); this.renderList(); }; this.scopeControls.append(button);
-    }
+    this.refresh.type = "button"; this.refresh.onclick = () => void this.load(); filters.append(searchLabel, projectLabel, this.refresh, this.filters.element);
     const columns = element("div", undefined, "session-columns");
     this.list.setAttribute("aria-label", "Saved sessions"); this.list.setAttribute("role", "region");
     this.historyView.setAttribute("aria-label", "Saved session history"); this.historyView.setAttribute("role", "region");
-    columns.append(this.list, this.historyView); this.browsePane.append(filters, this.scopeControls, columns);
+    columns.append(this.list, this.historyView); this.browsePane.append(filters, columns);
     this.historyView.hidden = !!options.mount;
     const cwdLabel = element("label", "PROJECT DIRECTORY ON YOUR PC"); this.cwd.required = true;
     this.cwd.placeholder = "Project path on the selected computer"; this.cwd.setAttribute("aria-label", "New session project directory"); cwdLabel.append(this.cwd);
@@ -150,13 +144,30 @@ export class SessionsPanel {
 
   private browsing() { return this.mode === "browse" && (this.dialog.open || !!this.options.mount && !this.options.mount.closest("[hidden]")); }
 
+  private reconcile(sessions: SessionSummary[]) {
+    const hosts = this.options.client()?.hosts?.();
+    if (!hosts) return sessions;
+    return sessions.flatMap(session => {
+      if (!session.source) return [session];
+      const host = hosts.find(host => deviceKey(host) === deviceKey(session.source));
+      return host ? [{ ...session, source: host, ...(host.online === false ? { live: false, runtimeStatus: "offline" as const } : {}) }] : [];
+    });
+  }
+
   update(state: RuntimeState, online: boolean) {
     const reconnected = online && !this.online;
     this.state = state; this.online = online;
     const knownHosts = this.options.client()?.hosts?.(), hosts = knownHosts || [], signature = JSON.stringify(hosts);
     if (signature !== this.hostSignature) {
       this.hostSignature = signature;
-      if (knownHosts) this.sessions = this.sessions.filter(session => !session.source || hosts.some(host => deviceKey(host) === deviceKey(session.source)));
+      if (knownHosts) {
+        this.sessions = this.reconcile(this.sessions);
+        if (this.selected?.source) {
+          const host = hosts.find(host => deviceKey(host) === deviceKey(this.selected!.source));
+          if (host) this.selected = { ...this.selected, source: host };
+          else { this.selected = undefined; this.history = undefined; this.historyRequest++; }
+        }
+      }
       const selected = this.computer.value || this.options.client()?.activeUrl?.();
       this.computer.replaceChildren(...hosts.map(host => new Option(`${host.name}${host.online ? "" : " (offline)"}`, host.url)));
       if (selected && hosts.some(host => host.url === selected)) this.computer.value = selected;
@@ -183,6 +194,12 @@ export class SessionsPanel {
     if ((!this.options.mount || mode === "new") && !this.dialog.open) this.dialog.showModal();
     if (mode === "browse") void this.load();
     else this.cwd.focus();
+  }
+  /** Read-only history entry from the portal; never resumes or watches a CLI. */
+  openHistory(session: SessionSummary) {
+    this.setMode("browse");
+    if (!this.dialog.open) this.dialog.showModal();
+    void this.select(session);
   }
   private setMode(mode: "browse" | "new") {
     this.mode = mode; this.browsePane.hidden = !this.options.mount && mode !== "browse"; this.newPane.hidden = mode !== "new";
@@ -218,39 +235,29 @@ export class SessionsPanel {
       const result = await client.request("/api/sessions") as { sessions: SessionSummary[]; skipped: number };
       if (request !== this.listRequest || client !== this.options.client()) return;
       this.loading = false;
-      this.sessions = this.state ? mergeSessionState(result.sessions, this.state) : result.sessions;
+      this.sessions = this.reconcile(this.state ? mergeSessionState(result.sessions, this.state) : result.sessions);
       const selectedProject = this.project.value;
       this.project.replaceChildren(new Option("All projects", ""));
       for (const cwd of [...new Set(this.sessions.map(session => session.cwd))].sort()) this.project.append(new Option(cwd, cwd));
       this.project.value = [...this.project.options].some(option => option.value === selectedProject) ? selectedProject : "";
       this.message(result.skipped ? `${result.skipped} unreadable or unsupported session files skipped.` : "");
-      if (this.selected) this.selected = this.sessions.find(session => session.key === this.selected!.key);
+      if (this.selected) {
+        this.selected = this.sessions.find(session => session.key === this.selected!.key);
+        if (!this.selected) { this.history = undefined; this.historyRequest++; }
+      }
       this.renderList(); this.renderHistory();
     } catch (error) {
-      if (request === this.listRequest) this.message(error instanceof Error ? error.message : "Could not load sessions");
-    } finally { if (request === this.listRequest) { this.loading = false; if (!this.sessions.length && this.browsing()) this.renderList(); this.updateButtons(); } }
+      if (request === this.listRequest && client === this.options.client()) this.message(error instanceof Error ? error.message : "Could not load sessions");
+    } finally { if (request === this.listRequest && client === this.options.client()) { this.loading = false; if (!this.sessions.length && this.browsing()) this.renderList(); this.updateButtons(); } }
   }
   private renderList() {
     const focused = this.list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.focusKey : undefined;
     this.list.replaceChildren();
     const hosts = this.options.client()?.hosts?.() || this.state?.hosts || [];
     const all = sessionGroups(this.sessions, hosts);
-    if (!all.some(group => group.key === this.selectedDevice)) this.selectedDevice = "";
-    const devicesSignature = JSON.stringify(all.map(group => [group.key, group.name, group.sessions.length]));
-    if (devicesSignature !== this.devicesSignature) {
-      const focusedDevice = this.devices.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.device : undefined;
-      this.devicesSignature = devicesSignature;
-      this.devices.replaceChildren();
-      for (const [key, label] of [["", "All devices"], ...all.map(group => [group.key, `${group.name} (${group.sessions.length})`])]) {
-        const button = element("button", label, "outline"); button.type = "button"; button.dataset.device = key;
-        button.onclick = () => { this.selectedDevice = key; this.limits.clear(); this.renderList(); };
-        this.devices.append(button);
-        if (key === focusedDevice) button.focus({ preventScroll: true });
-      }
-    }
-    this.devices.querySelectorAll<HTMLButtonElement>("button").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.device === this.selectedDevice)));
-    this.scopeControls.querySelectorAll<HTMLButtonElement>("button").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.scope === this.scope)));
-    const groups = sessionGroups(this.sessions, hosts, { device: this.selectedDevice, search: this.search.value, project: this.project.value, scope: this.scope });
+    this.selectedDevices = this.selectedDevices.filter(key => all.some(group => group.key === key));
+    this.filters.update(this.scope, this.selectedDevices, all);
+    const groups = sessionGroups(this.sessions, hosts, { devices: this.selectedDevices, search: this.search.value, project: this.project.value, scope: this.scope });
     if (!groups.length) {
       this.list.append(element("p", !hosts.length && !this.online ? "Connect a computer to see its sessions." : this.loading ? "Loading sessions…" : "No matching sessions.", "caption"));
       if (!hosts.length && !this.online && this.options.connect) {
@@ -321,14 +328,16 @@ export class SessionsPanel {
     if (focused) [...this.list.querySelectorAll<HTMLButtonElement>("button")].find(button => button.dataset.focusKey === focused)?.focus({ preventScroll: true });
   }
   private async select(session: SessionSummary) {
+    const client = this.options.client();
+    if (!client || !this.online || session.source?.online === false) { this.message("This computer is offline. Reconnect to read its history."); return; }
     this.selected = session; this.history = undefined;
     const request = ++this.historyRequest; this.renderList(); this.renderHistory();
     try {
-      const result = await this.options.client()!.request(`/api/sessions/${encodeURIComponent(session.key)}/history`) as SessionHistory;
-      if (request !== this.historyRequest) return;
+      const result = await client.request(`/api/sessions/${encodeURIComponent(session.key)}/history`) as SessionHistory;
+      if (request !== this.historyRequest || client !== this.options.client() || this.selected?.key !== session.key || this.selected.source?.online === false) return;
       this.history = result; this.renderHistory();
     } catch (error) {
-      if (request === this.historyRequest) { this.message(error instanceof Error ? error.message : "Could not read history"); }
+      if (request === this.historyRequest && client === this.options.client()) { this.message(error instanceof Error ? error.message : "Could not read history"); }
     }
   }
   private renderHistory() {
@@ -347,7 +356,7 @@ export class SessionsPanel {
       ? "An open connected terminal is monitored directly. Otherwise its original session opens in a new terminal."
       : active ? "This is the selected native session." : "Open the original session on its source computer. An already connected terminal is reused.", "caption"));
     const messages = element("div", undefined, "history-messages");
-    if (!this.history) messages.append(element("p", "Loading history…", "caption"));
+    if (!this.history) messages.append(element("p", this.selected.source?.online === false ? "Reconnect this computer to read its history." : "Loading history…", "caption"));
     else {
       if (this.history.truncated) messages.append(element("p", "Showing recent history. The agent keeps the complete conversation.", "caption"));
       if (!this.history.messages.length) messages.append(element("p", "No conversation messages in this session yet.", "caption"));

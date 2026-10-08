@@ -8,6 +8,7 @@ import {
   sessionLabel,
   toolLabel,
   statusBar,
+  sessionAgentCount,
 } from "../../../packages/cockpit-state/selectors.js";
 import { type Connection } from "./bridge/client.js";
 import { FleetClient } from "./bridge/fleet.js";
@@ -46,7 +47,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <section class="details-card"><div class="panel-heading"><div><span class="section-number">03</span><h2>Runtime</h2></div></div><dl><div><dt>Activity</dt><dd id="tools">No active tools</dd></div><div><dt>Model</dt><dd id="model">—</dd></div><div><dt>Project</dt><dd id="cwd">—</dd></div><div><dt>Session</dt><dd id="session-id">—</dd></div></dl><div class="session-actions"><button id="manage-sessions" class="outline" disabled>Switch session ↗</button><button id="new-session" class="outline" disabled>＋ New</button></div><p id="monitor-summary" class="caption">Choose a session to open it. History is available separately.</p></section>
   </aside></div>
   <footer class="page-footer"><span>${appName.toUpperCase()} <span class="version">/ ${appVersion}</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
-  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Choose a computer to view its sessions.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connect phone panel, or run terminal-plus pair on Linux.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
+  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Offline computers retry five times, 30 seconds apart; then choose Reconnect.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connect phone panel, or run terminal-plus pair on Linux.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -67,7 +68,10 @@ const hostsList = $("connected-computers"), connectionEditor = $<HTMLDetailsElem
 let editingConnection = false;
 if (desktopMode) {
   $("open-settings").textContent = "Connect phone";
-  dialog.hidden = true;
+  const computers = document.createElement("button"); computers.type = "button"; computers.className = "subtle"; computers.textContent = "Computers";
+  computers.onclick = openComputers;
+  $("open-settings").before(computers);
+  notificationSettingsButton.hidden = true;
   document.querySelector(".page-heading")!.setAttribute("hidden", "");
   document.querySelector(".page-heading p")!.textContent = "Monitor sessions. Open a terminal. Send a prompt.";
   document.querySelector(".terminal-panel h2")!.textContent = "Send to selected terminal";
@@ -106,7 +110,7 @@ async function respondToInteraction(key: string, answer: InteractionAnswer) {
 }
 const interactions = new InteractionPanel(respondToInteraction);
 $("prompt-form").before(interactions.element);
-if (!config) config = desktopMode ? connectionSettings.all().find(item => item.url === location.origin) : connectionSettings.current();
+if (!config) config = connectionSettings.current();
 const g2Canvas = document.createElement("canvas"); g2Canvas.width = 576; g2Canvas.height = 288;
 g2Canvas.className = "g2-canvas"; g2Canvas.setAttribute("aria-label", "G2 display preview");
 $("g2-preview").before(g2Canvas);
@@ -210,12 +214,27 @@ async function openSessions(mode: "browse" | "new") {
   } catch (error) { sessionsLoading = undefined; notice(error instanceof Error ? error.message : "Session manager unavailable"); }
 }
 let desktopSessions: import("./sessions/desktop.js").DesktopSessions | undefined;
+let portalConversation: HTMLDetailsElement | undefined;
+let portalSummary: HTMLElement | undefined;
+let portalSessionKey = "";
 if (desktopMode) {
   const [, { DesktopSessions }] = await Promise.all([import("./desktop.css"), import("./sessions/desktop.js")]);
-  desktopSessions = new DesktopSessions(() => client, notice, () => { void openSessions("new"); });
+  desktopSessions = new DesktopSessions(() => client, notice, () => { void openSessions("new"); }, session => { void openSessionHistory(session); });
+  portalConversation = document.createElement("details"); portalConversation.className = "desktop-conversation";
+  portalSummary = document.createElement("summary"); portalSummary.textContent = "Conversation · choose a session";
+  const terminal = document.querySelector<HTMLElement>(".terminal-panel")!;
+  terminal.before(portalConversation); portalConversation.append(portalSummary, terminal);
+  const metadata = document.createElement("p"); metadata.id = "desktop-session-meta"; metadata.className = "caption";
+  terminal.querySelector(".panel-heading > div")!.append(metadata);
+  portalConversation.ontoggle = () => { if (portalConversation?.open) render(); };
   const glanceButton = document.createElement("button"); glanceButton.type = "button";
   glanceButton.className = "subtle"; glanceButton.textContent = "Glance"; glanceButton.onclick = () => { void openNotificationSettings(); };
   document.querySelector(".header-right")!.append(glanceButton);
+}
+
+async function openSessionHistory(session: SessionSummary) {
+  await openSessions("browse");
+  sessions?.openHistory(session);
 }
 
 function notice(message: string) {
@@ -249,13 +268,19 @@ function render() {
     state.main.status === "running" || state.main.status === "waiting";
   const ready = online && state.connected;
   const hosts = client?.hosts() || [], connectedHosts = hosts.filter(host => host.online).length;
-  $("link-state").textContent = desktopMode ? online ? "Connected" : "Reconnecting"
-    : hosts.length ? `${connectedHosts}/${hosts.length} computers connected` : "Not connected";
+  $("link-state").textContent = hosts.length ? `${connectedHosts}/${hosts.length} computers connected` : "Not connected";
   renderStatus();
   $("session-label").textContent = state.session.key
     ? `${state.source ? state.source.name + " · " : ""}${sessionLabel(state)}`
     : "No session connected";
-  if (desktopMode) document.querySelector(".terminal-panel h2")!.textContent = state.session.key ? `Prompt → ${state.source ? state.source.name + " · " : ""}${sessionLabel(state)}` : "Select a session to send a prompt";
+  if (desktopMode) {
+    const label = state.session.key ? `${state.source ? state.source.name + " · " : ""}${sessionLabel(state)}` : "Choose a session";
+    document.querySelector(".terminal-panel h2")!.textContent = label;
+    if (portalSummary) portalSummary.textContent = `Conversation · ${label}`;
+    $("desktop-session-meta").textContent = `${(state.session.tunnel || "pi").toUpperCase()} · ${state.session.model || "—"} · agents: ${sessionAgentCount(state, online)} · ${ready ? state.main.status : "offline"} · ${toolLabel(state)}`;
+    if (state.session.key && state.session.key !== portalSessionKey && portalConversation) portalConversation.open = true;
+    portalSessionKey = state.session.key || "";
+  }
   $("tools").textContent = toolLabel(state);
   $("model").textContent = (state.source ? state.source.name + " · " : "") + (state.session.tunnel || "pi").toUpperCase() + " · " + (state.session.model || "—");
   $("cwd").textContent = state.session.cwd || "—";
@@ -274,10 +299,14 @@ function render() {
       ? state.capabilities?.interrupt === false ? "Agent is working. Use Ctrl+C in its terminal to stop." : "Agent is working. You can stop this run."
       : "Ready when you are");
   renderHosts();
-  if (desktopMode) { desktopSessions?.update(state); return; }
-  glasses.update(state, online);
-  // The session browser is the phone's home. Build conversation DOM on demand.
-  if (hub?.view !== "conversation") return;
+  if (desktopMode) {
+    desktopSessions?.update(state);
+    if (!portalConversation?.open) return;
+  } else {
+    glasses.update(state, online);
+    // Build conversation DOM only while its viewer is open.
+    if (hub?.view !== "conversation") return;
+  }
   const signature = JSON.stringify([state.session.key, state.session.tunnel, ready, online, state.transcript,
     state.assistantOpen, state.currentAssistantText, state.main.error]);
   if (signature === transcriptSignature) return;
@@ -342,10 +371,9 @@ function render() {
   }
   if (state.assistantOpen) add("assistant", state.currentAssistantText);
   if (state.main.error) add("error", state.main.error);
-  if (atBottom) log.scrollTop = log.scrollHeight;
+  if (!sameSession || atBottom) log.scrollTop = log.scrollHeight;
 }
 function openComputers() {
-  if (desktopMode) return;
   $("connection-error")?.remove();
   clearConnectionEditor();
   renderHosts();
@@ -389,8 +417,10 @@ function fleet() {
     (connected, error) => {
       if (client !== candidate) return;
       online = connected;
-      if (error) notice(error);
-      else if (connected) notice("");
+      if (connected) notice("");
+      else if (candidate.hosts().length && candidate.hosts().every(host => ["offline", "key-rejected"].includes(host.connectionState || "")))
+        notice("Computers offline. Open Connection to reconnect.");
+      else if (error) notice("Connecting to saved computers…");
       render();
     },
     (completion) => {
@@ -405,7 +435,6 @@ async function restoreConnections() {
   await restoreViewerConnections(fleet(), connectionSettings.all(), connectionSettings.current()?.url, desktopMode ? location.origin : undefined);
 }
 async function connect(next: Connection) {
-  if (desktopMode && next.url !== location.origin) throw new Error("Open this computer's Terminal+ desktop shortcut to connect automatically.");
   const attempt = ++connectionAttempt;
   const target = fleet();
   if (!target.connections().some(item => item.url === next.url) && target.connections().length >= 16) throw new Error("Remove a computer before adding another (maximum 16).");
@@ -416,7 +445,6 @@ async function connect(next: Connection) {
 }
 let hostsSignature = "";
 function renderHosts() {
-  if (desktopMode) return;
   const hosts = client?.hosts() || [], signature = JSON.stringify([hosts, client?.activeUrl()]);
   if (signature === hostsSignature) return;
   hostsSignature = signature; hostsList.replaceChildren();
@@ -425,7 +453,8 @@ function renderHosts() {
   for (const host of hosts) {
     const row = document.createElement("div"); row.className = "connection-host";
     const info = document.createElement("div"), name = document.createElement("strong"), detail = document.createElement("small");
-    const status = host.online ? "Connected" : host.warning?.startsWith("Connection key rejected.") ? "Key rejected" : "Reconnecting";
+    const status = host.online ? "Connected" : host.connectionState === "key-rejected" ? "Key rejected"
+      : host.connectionState === "offline" ? "Offline" : host.connectionState === "retrying" ? `Retrying · ${host.retryAttempt || 1}/5` : "Connecting";
     name.textContent = `${host.name} · ${status}`;
     detail.textContent = host.url || ""; info.append(name, detail);
     if (host.warning) { const warning = document.createElement("small"); warning.textContent = host.warning; info.append(warning); }
@@ -440,10 +469,17 @@ function renderHosts() {
       connectionEditor.open = true; $<HTMLInputElement>("bridge-url").focus(); };
     const choose = document.createElement("button"); choose.type = "button"; choose.className = "text-button";
     choose.textContent = "View sessions"; choose.disabled = !host.online;
-    choose.onclick = () => { voice?.cancel(); client?.choose(host.url!); dialog.close(); void openSessions("browse"); };
+    choose.onclick = () => {
+      voice?.cancel(); client?.choose(host.url!); dialog.close();
+      if (desktopMode) desktopSessions?.showDevice(host.url!);
+      else void openSessions("browse");
+    };
     const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button"; remove.textContent = "Remove";
     remove.onclick = () => { void removeConnection(host.url!); };
-    actions.append(choose, edit, remove); row.append(info, actions); hostsList.append(row);
+    const reconnect = document.createElement("button"); reconnect.type = "button"; reconnect.className = "text-button"; reconnect.textContent = "Reconnect";
+    reconnect.hidden = host.online || !["offline", "key-rejected"].includes(host.connectionState || "");
+    reconnect.onclick = () => { client?.reconnectHost(host.url!); };
+    actions.append(choose, reconnect, edit, remove); row.append(info, actions); hostsList.append(row);
   }
 }
 async function removeConnection(url: string) {
@@ -540,10 +576,10 @@ window.addEventListener("pagehide", event => {
   voice?.cancel();
   if (!event.persisted) { clearInterval(statusClock); glasses.dispose(); desktopSessions?.close(); }
 });
-window.addEventListener("pageshow", event => { if (event.persisted) { client?.reconnect(); glasses.resync(); } });
+window.addEventListener("pageshow", event => { if (event.persisted) { client?.resume(); glasses.resync(); } });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) voice?.cancel();
-  else { client?.reconnect(); glasses.resync(); }
+  else { client?.resume(); glasses.resync(); }
 });
 render();
 if (hub) void openSessions("browse");

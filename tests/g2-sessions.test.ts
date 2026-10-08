@@ -13,6 +13,30 @@ const state = (key = "current", text = "Latest **reply**"): RuntimeState => ({ .
   session: { key, id: key, name: key, cwd: "C:\\project" }, currentAssistantText: text });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test("G2 keeps connected conversation status when another computer exhausts its retries", t => {
+  let body = "";
+  const display = new G2Display((_, value) => { body = value; }, () => {});
+  t.after(() => display.dispose());
+  display.update({ ...state(), source: { id: "local", name: "laptop", nameSource: "tailscale", online: true, connectionState: "online" },
+    hosts: [{ id: "remote", name: "nuc", nameSource: "tailscale", online: false, connectionState: "offline", retryAttempt: 5 }] }, true);
+  assert.match(body, /Latest reply/);
+  assert.doesNotMatch(body, /offline|reconnecting/);
+});
+
+test("G2 changes an exhausted selected computer to static Offline and retains watched sessions", async t => {
+  let body = "";
+  const display = new G2Display((_, value) => { body = value; }, () => {}, { list: async () => [], open: async () => state() });
+  t.after(() => display.dispose());
+  const runtime: RuntimeState = { ...state(), connected: false,
+    source: { id: "remote", name: "nuc", nameSource: "tailscale", online: false, connectionState: "retrying", retryAttempt: 5 },
+    monitoring: { watched: 1, running: 0, since: 0, sessions: [{ key: "current", name: "Current", cwd: "/test", status: "offline", monitored: true, current: true }] } };
+  display.update(runtime, false); assert.match(body, /reconnecting/);
+  display.update({ ...runtime, source: { ...runtime.source!, connectionState: "offline" } }, false);
+  assert.match(body, /offline · reconnect on phone/); assert.doesNotMatch(body, /reconnecting/);
+  await display.openSessions(); assert.match(body, /Offline\. Reconnect in phone Connection/);
+  assert.equal(runtime.monitoring!.sessions[0].monitored, true);
+});
+
 test("G2 hides offline watched sessions and restores them when reachable without changing Watch", async t => {
   let body = "", opened = "";
   const display = new G2Display((_, value) => { body = value; }, () => {}, {

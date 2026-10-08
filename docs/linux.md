@@ -2,7 +2,7 @@
 
 首次部署按[完整安装连接指南](setup.zh-CN.md)操作；没有历史记忆的操作者／agent 从[运行手册](agent-runbook.md)开始。本页保留 Linux 命令和服务的详细参考。
 
-Terminal+ 1.1.13 包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。历史版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；本次更名的验证结果见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
+Terminal+ 1.1.15 包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。历史版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；1.1.15 的验证和发布情况见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
 
 发行版仍需能运行官方 Node Linux 二进制；Alpine/musl 不适用此预编译包。ARM64 构建脚本可在对应 Linux 主机运行，但当前未进行 ARM64 实机验收。GNOME、KDE、XFCE、Kitty、xterm 的启动参数有回归测试；NUC 没有图形桌面，不能代替这些桌面的实机验收。
 
@@ -78,7 +78,7 @@ terminal-plus new claude --cwd /your/project
 
 `watch` 只监控，`unwatch` 只取消监控，两者都不打开或关闭终端。`select` 才打开或复用终端并选中会话；`new` 创建独立原生终端。自 1.1.0 起，Linux CLI 仅提供监控、管理和设置，已移除 `send`、`interrupt`、`terminal` 包装命令；实际 prompt 在原生终端或受支持的手机／G2 页面输入。
 
-`sessions --watched` 只列已 Watch；`sessions --json` 输出完整 key，便于脚本调用。`terminal-plus --help` 查看全部命令。自己的 Pi/Codex 仍用原本的 `pi`／`codex` 启动；如需断开 SSH 后继续，先进入自己的 tmux 会话。
+`sessions --watched` 只列已 Watch；`sessions --json` 输出完整 key，便于脚本调用。`terminal-plus --help` 查看全部命令。自己的 Pi／Codex／Claude 仍用原本的 `pi`／`codex`／`claude` 启动；如需断开 SSH 后继续，先进入自己的 tmux 会话。
 
 安装发行版提供的 `tmux`；Ubuntu/Debian 可执行 `sudo apt install tmux python3`。这两个工具由系统管理，Terminal+ 安装器不会自动提权安装。
 
@@ -139,11 +139,13 @@ sudo loginctl enable-linger "$(id -un)"
 
 通过 npm 安装时，完成上面的卸载后再执行 `npm uninstall -g terminal-plus`，移除 setup 命令。仅卸载 npm 包不会停止或移除独立安装的监控端。电脑端自动更新继续使用 GitHub Releases，无需同步更新 npm 包；重新运行 setup 也不会降级已安装的更新版本。
 
-## 5. 手机、Even Hub 和 Glance
+## 5. 浏览器、手机、Even Hub 和 Glance
 
-两端登录 Tailscale 后，在 Linux 执行 `~/.local/bin/terminal-plus pair`，在手机 Hub **Connection → Connect another computer** 填入输出的 Bridge URL 和 connection key，点击 **Connect computer**。使用 **Linux 这台机器**的地址与 key，不能沿用 Windows 的地址；连接保存在当前手机。其他电脑也在手机添加，手机汇总会话；桌面管理页只管理提供该页面的电脑。添加设备不会自动配置通知。默认 TCP 4317；`EVEN_PILOT_PORT` 可修改端口，随后重新启动监控。
+两端登录 Tailscale 后，在 Linux 执行 `~/.local/bin/terminal-plus pair`，在手机 Hub **Connection → Connect another computer** 填入输出的 Bridge URL 和 connection key，点击 **Connect computer**。使用 **Linux 这台机器**的地址与 key，不能沿用 Windows 的地址；连接保存在当前手机。其他电脑也在手机添加，手机汇总会话；浏览器管理页另行保存自己的设备列表。添加设备不会自动配置通知。默认 TCP 4317；`EVEN_PILOT_PORT` 可修改端口，随后重新启动监控。
 
-运行 `terminal-plus open` 获取管理入口：有桌面环境时自动打开已授权的本地管理页；无头时复制它打印的完整私有链接到浏览器。桌面管理页自动连接自己的后台，不需要另填 URL/key。地址优先选择本机 Tailscale IPv4，不写死任何用户的 IP。
+运行 `terminal-plus open` 获取管理入口：有桌面环境时自动打开已授权的本地管理页；无头时复制它打印的完整私有链接到浏览器。这个启动入口自动连接自己的后台，不需要另填 URL/key。地址优先选择本机 Tailscale IPv4，不写死任何用户的 IP。
+
+从另一台设备也可打开 `http://Linux电脑IP:4317/?desktop=1`，在 **Computers → Connect another computer** 手工填入目标电脑自己的 URL/key；提供页面的电脑也需添加。浏览器直接访问每台保存的电脑，需逐台保证 Tailscale／LAN 可达。连接按浏览器和管理页地址保存，不会自动从手机同步。**Sessions** 汇总 Pi、Codex、Claude，支持设备筛选、已 Watch／运行数量和最近更新排序；**History** 只读，不启动 CLI 或改变 Watch。**Select** 复用活动会话，**Open terminal** 明确打开来源电脑的保存会话。输入／控制能力保持原有范围。**Connect phone**、**Updates**、桌面 **Glance notifications** 仍对应提供页面的电脑。[浏览器管理页步骤](setup.zh-CN.md#从另一台设备打开浏览器管理页)
 
 可选语音在手机 **Voice** 配置自己的转写 API key。新建或未指定模型的 OpenAI 配置默认使用 **GPT Transcribe**，流式显示文字；已有明确的 Whisper 选择、provider 和 key 保留。[语音配置](voice.md)
 

@@ -2,7 +2,7 @@
 
 This guide starts from a computer with a working Pi, Codex or Claude Code login. No previous Terminal+ configuration is assumed. For the shortest path, see the [quickstart](../README.md); [中文版](setup.zh-CN.md).
 
-These instructions cover **Terminal+ 1.1.13**. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
+These instructions cover **Terminal+ 1.1.15**. See [release status](release-status.md) for verification and publication details. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
 
 ## What you install
 
@@ -13,13 +13,13 @@ These instructions cover **Terminal+ 1.1.13**. Existing users should follow the 
 | Original Pi/Codex/Claude CLI | Its original computer and user account | Runs the actual task and retains full output and its own model login |
 | Glance, optional | Phone | Receives completion notifications from a configured sender |
 
-The companion is a watcher and lightweight session manager. Its desktop manager controls only the computer serving that page; the phone Hub combines sessions from saved computers. Installing it does not install the three CLIs or duplicate their model credentials. Voice and notification credentials are separate optional settings.
+The companion is a watcher and lightweight session manager. Its browser portal and the phone Hub combine Pi, Codex and Claude sessions from explicitly saved computers. Each companion observes its own local CLI records. Installing it does not install the three CLIs or duplicate their model credentials. Voice and notification credentials are separate optional settings.
 
 ## Install a companion
 
 ### Windows
 
-1. Download `Terminal-plus-1.1.13-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
+1. Download `Terminal-plus-1.1.15-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Terminal+**, **Start with Windows**, update controls and **Quit Terminal+**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -114,9 +114,9 @@ To verify in Pi, ask it to use two `scout` subagents for a read-only project che
 
 ## Make the phone and computer reachable
 
-1. Install [Tailscale](https://tailscale.com/download) on the phone and every companion computer. Join the same tailnet, or arrange access between them.
+1. Install [Tailscale](https://tailscale.com/download) on the phone/browser device and every companion computer. Join the same tailnet, or arrange access between them.
 2. Find each computer's own Tailscale IPv4 address. On Linux use `tailscale ip -4`; on Windows use the Tailscale UI or that command if available.
-3. In the phone browser, test `http://COMPUTER_IP:4317`, replacing `COMPUTER_IP`. The page should load before you try the Hub app.
+3. In the viewing device's browser, test `http://COMPUTER_IP:4317` for each computer, replacing `COMPUTER_IP`. Each saved computer must be directly reachable from that device.
 4. Keep the computer awake and allow inbound TCP 4317 through its host firewall on the intended private network. Terminal+ does not change the firewall automatically.
 
 The addresses are user-specific and never baked into a package. `0.0.0.0` means listen on local interfaces; `127.0.0.1` on the phone means the phone. No subnet router, exit node or public router port-forwarding is needed. A directly reachable LAN works too. HTTP over Tailscale is supported.
@@ -125,7 +125,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install **Terminal+ 1.1.13** (`terminal-plus-1.1.13.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.13** companions and Even App 2.2.10+, then connect G2 to the phone.
+1. Install **Terminal+ 1.1.15** (`terminal-plus-1.1.15.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.15** companions and Even App 2.2.10+, then connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `terminal-plus pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -135,9 +135,22 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
    | Connection key | That same computer's displayed plain key, without `Bearer` |
 
 4. Choose **Connect computer**. Connection details persist on this phone and restore next time. Saved devices appear under **Connected computers**; use **View sessions** to select one, or **Edit connection** to correct its saved values.
-5. Add each additional machine on the phone through the same collapsed **Connect another computer** form, using its own URL/key. The saved computer list belongs to this phone. Each desktop manager connects only to its own companion and manages that computer's sessions.
+5. Add each additional machine on the phone through the same collapsed **Connect another computer** form, using its own URL/key. The saved computer list belongs to this phone; add computers separately in a browser portal.
 
 Phone sessions are grouped by computer and ordered by latest update. A temporary disconnect keeps the saved connection and Watch membership; other computers still work. Removing a computer from the phone only forgets its connection there, without stopping its backend or terminals. **Glance notifications** is a separate setup: saving a computer on the phone does not register a watcher or change notification delivery.
+
+Browser and phone connect each saved computer immediately at startup. Each computer gets up to five automatic retries per startup or manual reconnect cycle, each 30 seconds after failure. Successful connections do not reset used retries, and returning to the app's foreground does not reset the cycle or skip the wait. Once the budget is used, the computer stays **Offline** until a fresh app startup or its **Reconnect** under phone **Connection** / browser **Computers**. Manual Reconnect resets only that computer's budget. **Key rejected** (HTTP 401) does not retry; use **Edit connection** to correct its key. Watch is retained throughout.
+
+## Browser portal from another device
+
+1. On Windows, Linux or another device, open `http://SERVING_COMPUTER_IP:4317/?desktop=1` in a browser. Keep that computer's companion running.
+2. Open **Computers → Connect another computer**. Enter a target computer's **Bridge URL** and **Connection key** from its own **Connect phone** panel or Linux `terminal-plus pair`, then choose **Connect computer**. Add the serving computer too when entering remotely; the local desktop shortcut connects it automatically.
+3. Repeat for other computers. **Sessions** shows Pi, Codex and Claude together, ordered by latest update, with watched/running counts. Choose **Status → All / Watched / Running**, use **Devices** to select one or several computers, and search to find a session. **All devices**, or clearing the last selected computer, shows every computer.
+4. Choose **History** to read messages without starting a CLI or changing Watch. **Select** reuses a live session; **Open terminal** explicitly opens a saved session on its source computer. Pi supports its existing input controls; ordinary Codex/Claude sessions stay read-only, and connector capabilities still govern prompt/control/tools.
+
+Connections are saved in this browser for this portal origin (scheme, host and port), independently of phone connections. A different browser or portal address has its own saved list. The browser connects directly to each target with its saved key; the computer serving the page does not relay sessions or store other computers' keys. Every target must be reachable from the browser over Tailscale or LAN. Refresh/reconnect retains Watch, and removing a saved computer only forgets it in this browser.
+
+**Connect phone**, **Updates** and desktop **Glance notifications** apply to the computer serving the page. To change another computer's companion settings, open its own portal. Adding a viewer connection does not configure notification forwarding or Glance registration.
 
 ### Keys and the QR
 
@@ -152,9 +165,9 @@ The displayed QR contains the computer URL and connection key. Glance understand
 
 ## Watch and native terminal operations
 
-Desktop **Watched / All sessions** and phone **All / Watched / Running** filters help locate sessions. Watch only records membership; it does not open a window. Selecting an available live session reuses its connection; selecting a saved session can open its native terminal. An already observed read-only session is not turned into a second writer.
+Browser and phone share compact **Status** and **Devices** dropdowns. Status selects **All**, **Watched** or **Running**; Devices can select several computers. Choose **All devices** or clear the last selection to show every computer. Watch only records membership; it does not open a window. **History** is a read-only preview and does not change Watch or start a CLI. **Select** reuses a live session; **Open terminal** explicitly opens a saved session on its source computer. Ordinary Codex/Claude sessions stay read-only; Pi and connector input capabilities remain unchanged.
 
-- Each explicit desktop opening applies Watch to sessions updated in the last 24 hours, without opening closed terminals.
+- Opening from a computer's desktop shortcut or `terminal-plus open` applies Watch to that computer's sessions updated in the last 24 hours, without opening closed terminals.
 - Browser refresh, backend restart and network reconnection do not reapply that opening rule.
 - Explicit Unwatch survives subsequent native tasks/reconnects. Selecting the session, remote input or a later desktop opening can enable it again.
 - Unwatch, tray Quit and monitoring shutdown never kill native terminals. Closing a native terminal disconnects its connector; it is not a successful completion.
@@ -252,7 +265,7 @@ After the center is configured and registered, choose a setup method. From the p
 3. **Central computer:** select the center.
 4. Choose **Save notification settings**; repeat for other sources. The center itself uses **Directly from this computer**. The shown **Glance watcher** URL follows the sender/center; register that URL and its key in Glance separately.
 
-Or configure each source on its own desktop: open **Glance notifications**, choose **Through a central computer**, fill **Center URL** with `http://CENTER_IP:4317` and **Center connection key** with that center's plain key, then **Save notification settings**. These settings affect only this computer. The center is not added to desktop session viewing; its control key is used for registration and is not saved by the UI. The backend keeps a dedicated relay credential. An already saved center URL is prefilled; leave the key empty when keeping the same center.
+Or configure each source on its own desktop: open **Glance notifications**, choose **Through a central computer**, fill **Center URL** with `http://CENTER_IP:4317` and **Center connection key** with that center's plain key, then **Save notification settings**. These settings affect only this computer. Saving notification settings does not add the center to browser session viewing; its control key is used for registration and is not saved by this dialog. The backend keeps a dedicated relay credential. An already saved center URL is prefilled; leave the key empty when keeping the same center.
 
 The same operation over SSH, on each Linux source:
 
@@ -269,7 +282,7 @@ To return a source to independent delivery use `terminal-plus settings push dire
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `terminal-plus update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `terminal-plus update`, then `terminal-plus update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-The 1.1.13 Claude monitoring fix requires only the companion update; existing Terminal+ Hub installations continue to work. **Companion updates do not install the phone/G2 app.** Install a new `.ehpk` separately in Even Hub when you choose to update it. Moving from `local.evenpilot.app` to `local.terminalplus.app` may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+Update the companion for the 1.1.15 Pi/Codex/Claude browser portal, reconnect policy and filters. Existing Terminal+ Hub installations remain compatible, but the new phone reconnect and filter controls require the matching Hub package. Connect each browser once; phone connections do not synchronize to it. **Companion updates do not install the phone/G2 app.** Install the `.ehpk` separately in Even Hub. Moving from `local.evenpilot.app` to `local.terminalplus.app` may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Terminal+**. Linux uses `terminal-plus uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `terminal-plus stop`; native terminals keep working.
 
@@ -281,10 +294,11 @@ For an npm installation, run `npm uninstall -g terminal-plus` after the native u
 | --- | --- |
 | Phone browser cannot reach the URL | Both Tailscale devices online, correct computer IP, companion running, computer awake, TCP 4317 allowed |
 | Browser works but Hub cannot fetch | Install the current Hub package, use plain HTTP(S) origin/no API path, check the Even App network permission; keep the precise error/origin for diagnosis |
-| Connection key rejected | Copy the current running installation's **Connect phone** / `pair` key. A fresh installation in another directory can have a different key on the same computer; normal in-place updates retain it |
+| Offline after retries | Restore the network/companion, then use that computer's **Reconnect** under phone **Connection** / browser **Computers**. Each cycle allows five automatic retries, 30 seconds after failure |
+| Key rejected | Retries stop on HTTP 401. Use **Edit connection** with the current installation's **Connect phone** / `pair` key. Another installation directory can have a different key; normal in-place updates retain it |
 | Tailscale reports DNS unavailable | Test the numeric Tailscale IP; MagicDNS is not needed for that connection |
 | G2 shows reconnecting but phone is online | Check Even App's G2/Bluetooth connection and the G2 page's display status; backend connection and display connection are separate |
-| New CLI missing | Same user/config directory; first saved prompt; Pi idle `/reload`; Claude `/hooks`; desktop **All sessions**, then Watch |
+| New CLI missing | Same user/config directory; first saved prompt; Pi idle `/reload`; Claude `/hooks`; **Status → All**, **Devices → All devices**, then Watch |
 | Codex/Claude says use original terminal | It is read-only observation; use a connector session if remote input is required |
 | Linux command not found | Reopen a supported shell or use `~/.local/bin/terminal-plus`; check the installer PATH message |
 | Linux cannot open a CLI | Install/login to that CLI, ensure `tmux` for headless launch, then restart the companion from the shell that can find it |
