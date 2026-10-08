@@ -8,7 +8,7 @@ See the source computer, model, reported running-agent count and recent messages
 
 [Windows / Hub downloads](https://github.com/Liang-Chu/Even-Pilot/releases) · [Linux on npm](https://www.npmjs.com/package/even-pilot) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
 
-**Available now:** Linux npm **1.1.8**. GitHub currently has **1.1.7** Windows and Hub packages; Windows **1.1.8** and Terminal+ Hub **1.1.10** are prepared but awaiting upload. This guide describes that compatible pair. The phone app is named **Terminal+**; the computer companion remains **Even-Pilot**.
+The phone app is named **Terminal+**; the Windows/Linux companion is **Even-Pilot**. Install companion **1.1.8** and Hub **1.1.10** for this guide.
 
 ## Quick start
 

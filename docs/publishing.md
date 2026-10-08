@@ -1,6 +1,6 @@
 # Publish Even-Pilot 1.1.8
 
-The companion release folder is `release/1.1.8`. The renamed Terminal+ 1.1.10 Hub package is in `release/hub-1.1.10`; it works with Even-Pilot 1.1.8 companions. Building packages does not publish them. The separate Linux npm package embeds the verified installer; the source checkout stays private to npm.
+The GitHub upload folder is `release/github-1.1.8`: verified companion binaries from `release/1.1.8`, Terminal+ 1.1.10 from `release/hub-1.1.10`, refreshed standalone guides and checksums. Terminal+ works with Even-Pilot 1.1.8 companions. Building packages does not publish them. The separate Linux npm package embeds the verified installer; the source checkout stays private to npm.
 
 ## GitHub
 
@@ -17,7 +17,7 @@ The companion release folder is `release/1.1.8`. The renamed Terminal+ 1.1.10 Hu
 
 4. Leave **Set as a pre-release** unchecked, select **Set as the latest release**, then publish. This lets existing companions discover 1.1.8. Retain the documented known limitations. GitHub pre-releases are excluded from update checks. Installed companions with **Automatic updates** enabled check and install verified releases automatically; manual **Update** remains available. Keep installer filenames unchanged.
 5. Open the published page while signed out and confirm all downloads are public. Verify GitHub's installer asset SHA-256 digests against `SHA256SUMS.txt`; the updater requires those asset digests. Do not attach inventories, logs, source-build folders, real keys or Firebase JSON files.
-6. Update the availability notice in both root READMEs once Windows 1.1.8 and Terminal+ Hub 1.1.10 are public. Keep the npm link and the step-by-step setup commands.
+6. Verify the root READMEs' download links and compatibility instructions against the published assets: companion 1.1.8 and Terminal+ Hub 1.1.10. Keep the npm link and the step-by-step setup commands.
 
 ## npm — Linux
 

@@ -8,7 +8,7 @@
 
 [Windows／Hub 下载](https://github.com/Liang-Chu/Even-Pilot/releases) · [Linux npm 包](https://www.npmjs.com/package/even-pilot) · [English](README.md) · [完整配置](docs/setup.zh-CN.md)
 
-**当前可用：**Linux npm **1.1.8** 已发布。GitHub 的 Windows 和 Hub 包目前为 **1.1.7**；Windows **1.1.8** 和 Terminal+ Hub **1.1.10** 已准备好，尚待上传。本文说明这组兼容版本。手机应用名为 **Terminal+**，电脑端仍为 **Even-Pilot**。
+手机应用名为 **Terminal+**，Windows/Linux 电脑端为 **Even-Pilot**。按本文安装电脑端 **1.1.8** 和 Hub **1.1.10** 即可。
 
 ## 先跑通
 
