@@ -1,6 +1,6 @@
 # Release status — Terminal+ 1.1.11
 
-The Windows/Linux companion and phone/G2 app share the name **Terminal+ 1.1.11**. Native assets use `Terminal-plus`, Linux commands use `terminal-plus`, and the repository is [Liang-Chu/Even-G2-Terminal-plus](https://github.com/Liang-Chu/Even-G2-Terminal-plus). Hub keeps `local.terminalplus.app`. [terminal-plus@1.1.11](https://www.npmjs.com/package/terminal-plus) is publicly available as `latest`; its repository URL and SHA-512 digest match the final release package. The checks below establish local artifact and public npm installation results; GitHub release publication and physical phone/G2 acceptance remain separate.
+The Windows/Linux companion and phone/G2 app share the name **Terminal+ 1.1.11**. Native assets use `Terminal-plus`, Linux commands use `terminal-plus`, and the repository is [Liang-Chu/Even-G2-Terminal-plus](https://github.com/Liang-Chu/Even-G2-Terminal-plus). Hub keeps `local.terminalplus.app`. [GitHub v1.1.11](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases/tag/v1.1.11) is the verified stable Latest release. [terminal-plus@1.1.11](https://www.npmjs.com/package/terminal-plus) is publicly available as `latest`; its repository URL and SHA-512 digest match the final release package. Physical phone/G2 acceptance remains separate.
 
 Existing Even-Pilot users need one manual installer upgrade because older verified updaters may reject the repository redirect or renamed assets. Existing data, service and configuration identifiers remain for settings retention. See [migration](updates.md#migration-from-even-pilot).
 
@@ -18,6 +18,7 @@ Existing Even-Pilot users need one manual installer upgrade because older verifi
 | Linux update worker | Failed-health update rolled back; successful update restarted the new backend |
 | Linux npm package | Five-file allowlist passed; local fresh-install and custom-root upgrade checks passed all 85 assertions |
 | Public npm installation | `terminal-plus@1.1.11` is public/`latest`; repository URL and final tarball SHA-512 match. Unauthenticated public-registry Linux fresh installation passed 39 assertions. Fixtures were cleaned; live installations were untouched |
+| Public GitHub release | Stable Latest `v1.1.11`, 14 assets with matching sizes and SHA-256 digests. Windows/Linux installers and Hub package were downloaded without authentication and matched the tested artifacts; both platform update parsers accepted the new repository and installer names |
 | Production dependencies | npm audit reports zero known vulnerabilities; checked 2026-10-07 |
 | Hub package | Official CLI 0.1.14 produced a 118,793-byte `.ehpk`, retaining SDK 0.0.16 / Even App 2.2.10 requirements. Physical installation and G2 acceptance remain unverified |
 
