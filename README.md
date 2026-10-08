@@ -4,11 +4,11 @@ Watch Pi, Codex and Claude Code sessions running on Windows/Linux through Even H
 
 See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
-**Terminal+ 1.1.11** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.12** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows / Linux / Hub downloads](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
 
-The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.11**.
+The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.12**.
 
 ## Quick start
 
@@ -16,11 +16,11 @@ The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Comma
 
 Start with a working Pi, Codex or Claude Code installation. Install Terminal+ on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing model login stays in use; Terminal+ does not install the CLIs.
 
-- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.11-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
-- **Linux / SSH:** download `Terminal-plus-1.1.11-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
+- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.12-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
+- **Linux / SSH:** download `Terminal-plus-1.1.12-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
 
   ```sh
-  sh ./Terminal-plus-1.1.11-Setup-linux-x64.run
+  sh ./Terminal-plus-1.1.12-Setup-linux-x64.run
   ```
 
   Open a **new shell**, then run `terminal-plus` and `terminal-plus pair`. In the current shell, use `~/.local/bin/terminal-plus`. The installer includes its own Node runtime and backend dependencies.
@@ -62,7 +62,7 @@ For Codex/Claude remote input, use **+ New terminal** in the manager to create a
 ### 3. Connect the phone
 
 1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
-2. Install **Terminal+ 1.1.11** (`terminal-plus-1.1.11.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.11** Windows/Linux companion.
+2. Install **Terminal+ 1.1.12** (`terminal-plus-1.1.12.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.12** Windows/Linux companion.
 3. Get this computer's URL and key: Windows **Connect phone**; Linux `terminal-plus pair`.
 4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
@@ -92,7 +92,7 @@ Swipe to select; tap a message to expand it or the active-agent row to view avai
 
 ### Voice input
 
-In the phone's **Voice** settings, save your own **OpenAI API key** (Whisper/GPT Transcribe) or **ElevenLabs key**. A ChatGPT subscription alone does not provide API access. The phone needs internet access to the speech service.
+In the phone's **Voice** settings, save your own **OpenAI API key** or **ElevenLabs key**. New or model-less OpenAI configurations default to **GPT Transcribe**, with streamed text. Existing provider, keys and explicitly saved Whisper choices are retained. A ChatGPT subscription alone does not provide API access. The phone needs internet access to the speech service.
 
 In an input-capable session, open **New prompt**. Tap to record/stop each sentence; record again to add another. Hold deletes the latest segment, repeating once per second. Double tap returns for an empty draft; otherwise choose **Send & exit** or **Exit only**. [Voice setup and controls](docs/voice.md)
 

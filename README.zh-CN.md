@@ -4,11 +4,11 @@
 
 查看来源设备、模型、上报的运行 agent 数和最近消息。可选功能包括逐句语音输入、agent 任务详情，以及通过 Glance 发送完成通知。
 
-**Terminal+ 1.1.11** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.12** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows／Linux／Hub 下载](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [English](README.md) · [完整配置](docs/setup.zh-CN.md)
 
-Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令和文件名在不适合使用 `+` 时使用 `terminal-plus`／`Terminal-plus`。本文对应 **1.1.11**。
+Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令和文件名在不适合使用 `+` 时使用 `terminal-plus`／`Terminal-plus`。本文对应 **1.1.12**。
 
 ## 先跑通
 
@@ -16,11 +16,11 @@ Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令�
 
 先确保 Pi、Codex 或 Claude Code 已安装并能正常使用。每台需要监控的电脑安装一次 Terminal+，必须与 CLI 使用**同一个系统用户**。继续使用已有模型登录；Terminal+ 不安装 CLI 本体。
 
-- **Windows：**在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.11-Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用 **Terminal+** 快捷方式或双击托盘图标。不需要系统 Node/npm。
-- **Linux／SSH：**下载 `Terminal-plus-1.1.11-Setup-linux-x64.run`，在普通用户下执行，不用 `sudo`：
+- **Windows：**在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.12-Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用 **Terminal+** 快捷方式或双击托盘图标。不需要系统 Node/npm。
+- **Linux／SSH：**下载 `Terminal-plus-1.1.12-Setup-linux-x64.run`，在普通用户下执行，不用 `sudo`：
 
   ```sh
-  sh ./Terminal-plus-1.1.11-Setup-linux-x64.run
+  sh ./Terminal-plus-1.1.12-Setup-linux-x64.run
   ```
 
   **新开 shell** 后执行 `terminal-plus` 和 `terminal-plus pair`。当前终端先用 `~/.local/bin/terminal-plus`。安装器包含自己的 Node 运行时和后端依赖。
@@ -62,7 +62,7 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 ### 3. 连接手机
 
 1. 通过互联网访问电脑时，手机和电脑都安装 [Tailscale](https://tailscale.com/download)，加入同一个 tailnet 并保持连接。能互通的局域网也可以。
-2. 在 Even Hub 单独安装 **Terminal+ 1.1.11**（`terminal-plus-1.1.11.ehpk`），再在 Even App 连好 G2。使用 **Terminal+ 1.1.11** Windows/Linux 电脑端。
+2. 在 Even Hub 单独安装 **Terminal+ 1.1.12**（`terminal-plus-1.1.12.ehpk`），再在 Even App 连好 G2。使用 **Terminal+ 1.1.12** Windows/Linux 电脑端。
 3. 获取该电脑的 URL/key：Windows 点击 **Connect phone**；Linux 运行 `terminal-plus pair`。
 4. 手机应用打开 **Connection → Connect another computer**，填入 **Bridge URL** 和 **Connection key**，点击 **Connect computer**。
 
@@ -92,7 +92,7 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 
 ### 逐句语音输入
 
-在手机 **Voice** 保存自己的 **OpenAI API key**（Whisper／GPT Transcribe）或 **ElevenLabs key**。ChatGPT 订阅本身不提供 API 访问；手机需要能访问语音服务的互联网连接。
+在手机 **Voice** 保存自己的 **OpenAI API key** 或 **ElevenLabs key**。新建或未指定模型的 OpenAI 配置默认使用 **GPT Transcribe**，流式显示文字；已有 provider、key 和明确保存的 Whisper 选择继续保留。ChatGPT 订阅本身不提供 API 访问；手机需要能访问语音服务的互联网连接。
 
 在支持输入的会话打开 **New prompt**。单击开始／停止一句录音，再次录音追加下一句。长按删除上一段，持续按住每秒删除一段。空草稿双击返回；有内容时选择 **Send & exit** 或 **Exit only**。[语音设置与操作](docs/voice.md)
 

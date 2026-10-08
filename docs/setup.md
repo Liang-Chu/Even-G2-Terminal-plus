@@ -2,7 +2,7 @@
 
 This guide starts from a computer with a working Pi, Codex or Claude Code login. No previous Terminal+ configuration is assumed. For the shortest path, see the [quickstart](../README.md); [中文版](setup.zh-CN.md).
 
-These instructions cover **Terminal+ 1.1.11**. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
+These instructions cover **Terminal+ 1.1.12**. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
 
 ## What you install
 
@@ -19,7 +19,7 @@ The companion is a watcher and lightweight session manager. Its desktop manager 
 
 ### Windows
 
-1. Download `Terminal-plus-1.1.11-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
+1. Download `Terminal-plus-1.1.12-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Terminal+**, **Start with Windows**, update controls and **Quit Terminal+**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -123,7 +123,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install **Terminal+ 1.1.11** (`terminal-plus-1.1.11.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.11** companions and Even App 2.2.10+, then connect G2 to the phone.
+1. Install **Terminal+ 1.1.12** (`terminal-plus-1.1.12.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.12** companions and Even App 2.2.10+, then connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `terminal-plus pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -192,7 +192,7 @@ Phone **Sessions** finds/manages sessions; **Conversation** shows messages, fold
 
 The list begins with **New prompt**, even when the session is read-only; in that case input tells you to continue in the original terminal. While working, a native active-agent row appears directly underneath. Tap it to open a snapshot of the main requested task and reported sub-agent tasks/tools; connectors without those details show them as unavailable. Double tap returns to the list. The latest ten messages follow; earlier history stays on phone/computer. Counts and message updates defer during browsing to preserve native focus. The header shows source computer, selected-session count, tunnel, model and title.
 
-Voice is optional: open phone **Voice**, select OpenAI or ElevenLabs, enter your own transcription key and save. It persists on that device. The phone sends audio directly to the chosen transcription provider, then sends the finished prompt to the target companion. [Voice models, privacy and gestures](voice.md)
+Voice is optional: open phone **Voice**, select OpenAI or ElevenLabs, enter your own transcription key and save. New or model-less OpenAI settings default to **GPT Transcribe** with streamed text; existing explicit Whisper choices, provider and keys are retained. Settings persist on that device. The phone sends audio directly to the chosen transcription provider, then sends the finished prompt to the target companion. [Voice models, privacy and gestures](voice.md)
 
 Ordinary Claude questions can be read in history; answering requires an explicit connector session. Supported connector questions wait up to five minutes for the remote reply, and phone **Cancel** returns them to the native terminal immediately. Supported multiple questions use the phone; unsupported or multi-select forms stay native. [Question capabilities](connectors.md#phone-commands-and-choices)
 
@@ -267,7 +267,7 @@ To return a source to independent delivery use `terminal-plus settings push dire
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `terminal-plus update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `terminal-plus update`, then `terminal-plus update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-**Companion updates do not install the phone/G2 app.** Install its `.ehpk` separately in Even Hub with Terminal+ 1.1.11 companions. Moving from `local.evenpilot.app` to `local.terminalplus.app` may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+**Companion updates do not install the phone/G2 app.** Install its `.ehpk` separately in Even Hub with Terminal+ 1.1.12 companions. Moving from `local.evenpilot.app` to `local.terminalplus.app` may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Terminal+**. Linux uses `terminal-plus uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `terminal-plus stop`; native terminals keep working.
 

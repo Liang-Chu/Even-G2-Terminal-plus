@@ -1,4 +1,4 @@
-# Even Hub description — Terminal+ 1.1.11
+# Even Hub description — Terminal+ 1.1.12
 
 Terminal+ lets you view coding sessions running on Windows/Linux through Even Hub and Even G2 while you keep working in your normal terminal.
 
@@ -9,7 +9,7 @@ Terminal+ lets you view coding sessions running on Windows/Linux through Even Hu
 - Manage Watch/Unwatch without stopping terminals or tasks. Temporary disconnections retain Watch.
 - Receive per-session completion push notifications on your phone and G2 via Glance. Configure independent senders or forward through one central server.
 
-For internet access to your computers, connect the phone and computers through Tailscale. Voice recognition requires your own OpenAI API key (Whisper or GPT Transcribe), or an ElevenLabs key; a ChatGPT subscription alone is insufficient.
+For internet access to your computers, connect the phone and computers through Tailscale. Voice recognition requires your own OpenAI API key or an ElevenLabs key; a ChatGPT subscription alone is insufficient. New or model-less OpenAI configurations default to GPT Transcribe with streamed text; existing provider, keys and explicit Whisper selections are retained.
 
 Phone/voice replies require an input-capable session. Ordinary Codex/Claude sessions are read-only; Claude support is experimental.
 

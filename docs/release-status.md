@@ -1,10 +1,30 @@
-# Release status — Terminal+ 1.1.11
+# Release status — Terminal+ 1.1.12
 
-The Windows/Linux companion and phone/G2 app share the name **Terminal+ 1.1.11**. Native assets use `Terminal-plus`, Linux commands use `terminal-plus`, and the repository is [Liang-Chu/Even-G2-Terminal-plus](https://github.com/Liang-Chu/Even-G2-Terminal-plus). Hub keeps `local.terminalplus.app`. [GitHub v1.1.11](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases/tag/v1.1.11) is the verified stable Latest release. [terminal-plus@1.1.11](https://www.npmjs.com/package/terminal-plus) is publicly available as `latest`; its repository URL and SHA-512 digest match the final release package. Physical phone/G2 acceptance remains separate.
+Terminal+ **1.1.12** defaults new or model-less OpenAI voice configurations to **GPT Transcribe**, with streamed text. Explicit Whisper selections, providers and API keys remain saved. The companion and Hub share the version and keep Hub ID `local.terminalplus.app`. GitHub and npm publication of 1.1.12 remain pending verification; physical phone/G2 acceptance is unverified.
 
-Existing Even-Pilot users need one manual installer upgrade because older verified updaters may reject the repository redirect or renamed assets. Existing data, service and configuration identifiers remain for settings retention. See [migration](updates.md#migration-from-even-pilot).
+Existing Even-Pilot users still need one manual installer upgrade because older verified updaters may reject the repository redirect or renamed assets. Existing data, service and configuration identifiers remain for settings retention. See [migration](updates.md#migration-from-even-pilot).
 
-## Current verification — 2026-10-07
+## Current 1.1.12 verification — 2026-10-07–08
+
+| Check | Result |
+| --- | --- |
+| Voice regression | 50 targeted tests passed, covering default GPT Transcribe and preservation of explicit Whisper/provider/key settings |
+| Windows source | 444 tests: 436 passed, 8 skipped, 0 failed |
+| Windows desktop | All three C# desktop test suites passed |
+| Windows final packages | Final portable package and actual offline 1.1.11 → 1.1.12 installer reinstall/upgrade passed. Fixture cleanup completed |
+| Windows update worker | Failed-health update rolled back; successful update restarted the new backend |
+| Linux source | 444 tests: 441 passed, 3 skipped; type checking and frontend build passed |
+| Linux final installer | Actual same-version 1.1.12 reinstall and 1.1.11 → 1.1.12 native upgrade passed |
+| Linux update worker | Failed-health update rolled back; successful update restarted the new backend |
+| Linux npm package | Final local fresh-install and custom-root upgrade checks passed all 84 assertions; five-file allowlist passed |
+| Linux artifact verification | All 634 native manifest hashes matched; source/frontend matched the tested build. No Linux fixture processes remain |
+| Hub package | Official CLI produced a 118,807-byte `.ehpk`; physical phone installation and G2 acceptance remain unverified |
+| Publication | npm authorization link expired; publication retry is pending. GitHub 1.1.12 is not yet published |
+
+## Previous 1.1.11 verification — 2026-10-07
+
+The rebranding release used [Liang-Chu/Even-G2-Terminal-plus](https://github.com/Liang-Chu/Even-G2-Terminal-plus), `Terminal-plus` native assets and `terminal-plus` commands. At publication, [GitHub v1.1.11](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases/tag/v1.1.11) was verified as stable Latest, and [terminal-plus@1.1.11](https://www.npmjs.com/package/terminal-plus) as public npm `latest`. The repository URL and SHA-512 digest matched its final package. These historical results do not establish 1.1.12 publication or hardware acceptance.
+
 
 | Check | Result |
 | --- | --- |
@@ -17,8 +37,8 @@ Existing Even-Pilot users need one manual installer upgrade because older verifi
 | Linux migration | Actual native installer upgraded 1.1.8 to 1.1.11 in a non-systemd installation |
 | Linux update worker | Failed-health update rolled back; successful update restarted the new backend |
 | Linux npm package | Five-file allowlist passed; local fresh-install and custom-root upgrade checks passed all 85 assertions |
-| Public npm installation | `terminal-plus@1.1.11` is public/`latest`; repository URL and final tarball SHA-512 match. Unauthenticated public-registry Linux fresh installation passed 39 assertions. Fixtures were cleaned; live installations were untouched |
-| Public GitHub release | Stable Latest `v1.1.11`, 14 assets with matching sizes and SHA-256 digests. Windows/Linux installers and Hub package were downloaded without authentication and matched the tested artifacts; both platform update parsers accepted the new repository and installer names |
+| Public npm installation | At publication, `terminal-plus@1.1.11` was public/`latest`; repository URL and final tarball SHA-512 match. Unauthenticated public-registry Linux fresh installation passed 39 assertions. Fixtures were cleaned; live installations were untouched |
+| Public GitHub release | At publication, stable Latest `v1.1.11` had 14 assets with matching sizes and SHA-256 digests. Windows/Linux installers and Hub package were downloaded without authentication and matched the tested artifacts; both platform update parsers accepted the new repository and installer names |
 | Production dependencies | npm audit reports zero known vulnerabilities; checked 2026-10-07 |
 | Hub package | Official CLI 0.1.14 produced a 118,793-byte `.ehpk`, retaining SDK 0.0.16 / Even App 2.2.10 requirements. Physical installation and G2 acceptance remain unverified |
 
@@ -56,6 +76,6 @@ Runtime packaging checks allowed production files and bundled dependencies, inve
 - **Platforms:** release installers target Windows 10/11 x64 and Linux x64/glibc. Windows binaries are unsigned. ARM64, Alpine/musl and Linux graphical desktops have not been physically validated.
 - **Notifications:** configure a direct sender or one forwarding center and register Glance separately. No Firebase, connection or speech credentials are shipped. The session actually displayed on G2 suppresses its own completion notification while the viewing lease is valid.
 
-Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install `terminal-plus-1.1.11.ehpk` separately with Terminal+ 1.1.11 companions. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
+Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install `terminal-plus-1.1.12.ehpk` separately with Terminal+ 1.1.12 companions. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
 
 See [setup](../README.md), [release notes](../RELEASE_NOTES.md), [connector limits](connectors.md) and [Glance setup](glance-push.md).

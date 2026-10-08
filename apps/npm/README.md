@@ -1,4 +1,4 @@
-# Terminal+ for Linux
+# Terminal+ 1.1.12 for Linux
 
 Install the Linux companion to watch local Pi, Codex and Claude Code sessions through Even Hub on your phone and Even G2. Continue using your native terminal, with optional voice input and per-session completion notifications through Glance.
 
@@ -34,6 +34,8 @@ First installation deploys files without starting monitoring; `terminal-plus` st
 Install the matching Even Hub package from [GitHub Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases). For internet access, keep the phone and computers connected to the same Tailscale network. Enter the URL and connection key printed by `terminal-plus pair` in the phone app's **Connection** settings.
 
 Use `terminal-plus sessions`, `watch SESSION`, `unwatch SESSION` and `settings` for session and notification management. Unwatch does not stop a terminal. Run `terminal-plus --help` for commands.
+
+For optional voice input, save your own transcription API key in the phone's **Voice** settings. New or model-less OpenAI configurations default to **GPT Transcribe** with streamed text; existing provider, keys and explicit Whisper choices are retained.
 
 [Step-by-step setup, CLI integration and controls](https://github.com/Liang-Chu/Even-G2-Terminal-plus#readme) · [Glance notifications](https://github.com/Liang-Chu/Glance)
 

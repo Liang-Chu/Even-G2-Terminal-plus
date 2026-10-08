@@ -1,8 +1,12 @@
-# Unreleased
+# Terminal+ 1.1.12
 
-- New and model-less OpenAI voice configurations default to **GPT Transcribe**, with streamed text. Existing explicit Whisper choices, providers and API keys remain saved. Voice settings show Whisper's 2027-02-26 retirement date when selected. Published 1.1.11 already supports switching to GPT Transcribe manually.
+- New and model-less OpenAI voice configurations default to **GPT Transcribe**, with streamed text.
+- Existing explicit Whisper choices, providers and API keys remain saved.
+- Voice settings show Whisper's 2027-02-26 retirement date when selected.
 
-# Terminal+ 1.1.11
+Install the Windows/Linux 1.1.12 companion and `terminal-plus-1.1.12.ehpk` separately. Hub keeps `local.terminalplus.app`, retaining existing phone settings within that app identity. See [release status](https://github.com/Liang-Chu/Even-G2-Terminal-plus/blob/v1.1.12/docs/release-status.md) for verified checks and remaining physical phone/G2 acceptance.
+
+# Terminal+ 1.1.11 — history
 
 Unifies the Windows/Linux companion and phone/G2 app under **Terminal+**.
 
