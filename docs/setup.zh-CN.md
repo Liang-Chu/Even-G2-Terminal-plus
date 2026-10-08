@@ -112,7 +112,7 @@ even-pilot new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. 在 Even Hub 单独安装 **Pilot 1.1.9**（`pilot-1.1.9.ehpk`）。它配合 **Even-Pilot 1.1.8** 电脑端使用，两者版本号不必相同。使用 Even App 2.2.10+ 连好 G2。
+1. 在 Even Hub 单独安装 **Terminal+ 1.1.10**（`terminal-plus-1.1.10.ehpk`）。它配合 **Even-Pilot 1.1.8** 电脑端使用，两者版本号不必相同。使用 Even App 2.2.10+ 连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `even-pilot pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -256,7 +256,7 @@ even-pilot settings
 
 已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `even-pilot update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `even-pilot update`，再用 `even-pilot update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-**电脑更新不更新 Pilot。**Even Hub 需单独安装它的 `.ehpk`；Pilot 1.1.9 配合电脑端 1.1.8 使用。连接、Watch、订阅保留；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
+**电脑更新不更新 Terminal+。**Even Hub 需单独安装它的 `.ehpk`；Terminal+ 1.1.10 配合电脑端 1.1.8 使用。新 app ID 可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写各电脑已有的 URL/key 和转写 key。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
 Windows 在 **设置 → 应用 → Even-Pilot** 卸载，Linux `even-pilot uninstall`。先自行关闭连接中的原生终端，卸载会保护正在使用的连接并保留运行数据。只停 Linux 监控用 `even-pilot stop`。
 
@@ -276,6 +276,6 @@ npm 安装的版本完成上述卸载后，再执行 `npm uninstall -g even-pilo
 | Linux 找不到命令 | 重开支持的 shell，或用 `~/.local/bin/even-pilot`，检查 PATH 提示 |
 | Linux 打不开终端 | CLI 已安装登录、无头已装 tmux，从能找到 CLI 的 shell 重启后台 |
 | Glance 没推送 | Watch、正确发送端/中心、Firebase 权限、PUSH 保存注册、会话没有正显示在 G2 |
-| 电脑更新后 G2 没变 | 单独安装 Pilot 的 `.ehpk` |
+| 电脑更新后 G2 没变 | 单独安装 Terminal+ 的 `.ehpk` |
 
 Linux 日志：`journalctl --user -u even-pilot.service`。Windows 启动诊断：`<安装目录>\.local\desktop-startup.log`。普通重连问题不用清运行数据，那里面有 key、主机身份、Watch 和订阅。交给没有历史记忆的操作者／agent 时，请从[运行手册](agent-runbook.md)开始。

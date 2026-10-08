@@ -21,4 +21,4 @@ New users: [quick start](../README.md) / [中文快速开始](../README.zh-CN.md
 | Runtime design | [Architecture](architecture.md) |
 | Tested platforms and remaining limits | [Release status](release-status.md) |
 
-[Companion release notes](../RELEASE_NOTES.md) · [Pilot Hub release notes](hub-release-notes.md)
+[Companion release notes](../RELEASE_NOTES.md) · [Terminal+ Hub release notes](hub-release-notes.md)

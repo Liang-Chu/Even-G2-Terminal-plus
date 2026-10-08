@@ -10,6 +10,6 @@ Fixes accumulated Claude agent counts and removes generated context from G2 ques
 - Glance senders accept your own Firebase project and reject registrations for a different project. Removed unused Hub UI and shortened the documentation.
 - Linux x64 can also be installed through npm. Its setup helper embeds the verified installer, preserves existing settings and terminals, and keeps newer companion versions.
 
-Update the Windows/Linux companion to 1.1.8 and install **Pilot 1.1.9** (`pilot-1.1.9.ehpk`) separately in Even Hub. The Hub app has been renamed Pilot; companion and Hub version numbers need not match. Existing connections, Watch, voice and notification settings are retained; native CLI sessions keep running.
+Update the Windows/Linux companion to 1.1.8 and install **Terminal+ 1.1.10** (`terminal-plus-1.1.10.ehpk`) separately in Even Hub. Companion and Hub version numbers need not match. Terminal+ uses a new Hub app ID, so a new install may be needed and saved phone connections/voice keys may not transfer; re-enter them if needed. Companion Watch and notification settings remain in place; native CLI sessions keep running.
 
 Older unresolved Claude state may show `?` until a fresh trusted parent completion confirms that its acknowledged children have finished. Claude remains experimental; physical G2 acceptance of the new detail view is pending.

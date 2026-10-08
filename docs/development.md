@@ -59,11 +59,11 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 对刚生成的目录运行 `node tests/release-smoke.mjs "<发布目录>"` 和 `node tests/installer-smoke.mjs "<发布目录>"`。前者检查便携包；后者验证真正的安装 EXE、无系统 Node/npm 的启动、Windows 卸载注册、重装保留 key、升级保留工作进程、卸载保护以及保留数据。均使用隔离目录，不读取实际 CLI 历史或运行付费模型任务。
 
 
-代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。电脑端版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本和发布文档。Hub 名称／版本由 `apps/evenhub/app.json` 单独管理；`npm run pack:evenhub` 按该版本生成 `pilot-<版本>.ehpk`，不要求与电脑端同号。目前 Pilot Hub 1.1.9 配合 Even-Pilot 电脑端 1.1.8 使用。
+代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。电脑端版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本和发布文档。Hub 名称／版本由 `apps/evenhub/app.json` 单独管理；`npm run pack:evenhub` 按该版本生成 `terminal-plus-<版本>.ehpk`，不要求与电脑端同号。目前 Terminal+ Hub 1.1.10 配合 Even-Pilot 电脑端 1.1.8 使用。新 `package_id` 为 `local.terminalplus.app`，替换原来的 `local.evenpilot.app`；名称和 ID 均不含 reviewer 禁止的 `even`。门户可能要求新建 Hub 条目／重新安装，旧应用保存的手机连接和语音 key 不保证迁移，必要时重新填写。
 
 ## 发布文件与私有文件
 
-`release/1.1.8/` 保留已验证的电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明。更名后的 Hub 包位于 `release/hub-1.1.9/`，用 `pilot-1.1.9.ehpk` 替代旧 Hub 包上传。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
+`release/1.1.8/` 保留已验证的电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明。更名后的 Hub 包位于 `release/hub-1.1.10/`，用 `terminal-plus-1.1.10.ehpk` 替代旧 Hub 包上传。安装器和便携包已包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 
@@ -73,7 +73,7 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 
 对照实现：[Even Transit](https://github.com/langerhans/even-transit/blob/main/src/pages/results.ts)、[eveng2-demo](https://github.com/bigdra50/eveng2-demo/blob/main/src/pages/list.ts) 都使用原生列表和文字容器；它们的 itemWidth 为 566 或 560 px。[G2CC 的作者实测记录](https://github.com/expectbugs/G2CC/blob/master/docs/G2_BLE_PROTOCOL.md) 也描述了原生文字区域对页面绘制的作用，但这不是 SDK 对所有设备的保证。
 
-`npm run build` 生成桌面/浏览器通用的 `apps/evenhub/dist`；`npm run build:hub` 生成 `apps/evenhub/dist-hub`，编译时排除桌面专用会话管理、配对弹窗和 CSS。`npm run pack:evenhub` 只打包后者。会话管理模块按需导入，语音设置弹窗第一次打开时创建，已保存的 key 仍在启动时恢复。固定版本 @evenrealities/pretext 0.1.4 的字形、范围和字距表在构建时无损压缩，测量函数保持上游实现；测试逐项比对解码表和测量结果，许可保留。
+`npm run build` 生成桌面/浏览器通用的 `apps/evenhub/dist`；`npm run build:hub` 生成 `apps/evenhub/dist-hub`，编译时排除桌面专用会话管理、配对弹窗和 CSS。`npm run pack:evenhub` 只打包后者。会话管理模块按需导入，语音设置弹窗第一次打开时创建，同一应用身份内已保存的 key 在启动时恢复；跨 Hub app ID 迁移需按前述步骤重新配置。固定版本 @evenrealities/pretext 0.1.4 的字形、范围和字距表在构建时无损压缩，测量函数保持上游实现；测试逐项比对解码表和测量结果，许可保留。
 
 列表捕获事件，原生固件负责滑动、高亮；不依赖逐次滑动回调。点击索引映射到已挂载快照中的消息，展开后由单个文字容器原生滚动。已移除气泡布局、隐藏列表和自绘光标。尚未连接会话时显示连接提示；空快照不阻止第一批历史加载，收到历史后自动重建一次。停在输入行时，新消息每两秒合并更新；列表浏览、全文阅读和编辑期间冻结消息和活跃数量快照，显示 +new，从全文／编辑页返回时读取最新值。菜单不提供 Refresh messages 或 New prompt。这样不会通过重建列表重置用户正在操作的原生焦点。列表接口不支持就地更新行或设置选中位置，见[官方显示接口](https://github.com/even-realities/everything-evenhub/blob/main/plugins/everything-evenhub/skills/glasses-ui/SKILL.md)。
 

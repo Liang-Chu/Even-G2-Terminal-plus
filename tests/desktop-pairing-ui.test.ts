@@ -54,7 +54,7 @@ test("desktop phone connection uses the supplied computer's pairing details with
     assert.equal(field("pairing-origin").value, origin);
     assert.equal(field("pairing-key").value, key);
     assert.equal(dialog.querySelector("img").src, pairing.image);
-    assert.match(dialog.innerHTML, /Even Hub → Pilot → Connection/);
+    assert.match(dialog.innerHTML, /Even Hub → Terminal\+ → Connection/);
     assert.doesNotMatch(dialog.innerHTML, /<form|Connect another computer|Firebase|notification mode/);
     assert.equal(dialog.attributes.get("aria-labelledby"), "pairing-title");
     assert.deepEqual(calls, [["/api/pairing", undefined]], "Viewing connection details only reads the paired computer");

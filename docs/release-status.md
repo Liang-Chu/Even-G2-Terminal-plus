@@ -1,6 +1,6 @@
-# Release status — companion 1.1.8 / Pilot Hub 1.1.9
+# Release status — companion 1.1.8 / Terminal+ Hub 1.1.10
 
-Hub-only rename reviewed 2026-10-04: the manifest, phone branding and default G2 heading are **Pilot 1.1.9**. Package ID, pairing format and connection/voice storage keys are unchanged. Both frontend builds and 74 G2, pairing and settings regression tests passed. The official CLI produced a 118,785-byte package with the same SDK 0.0.16 / Even App 2.2.10 floor; the Hub bundle excludes desktop updater assets and root package metadata. Windows/Linux/npm remain 1.1.8. Physical installation of the renamed package still needs a phone check.
+Hub-only rename reviewed 2026-10-07: the manifest, phone branding and default G2 heading are **Terminal+ 1.1.10**. The previous rename retained `local.evenpilot.app`; the new package ID is `local.terminalplus.app`, and the filename is `terminal-plus-1.1.10.ehpk`. Packaging now rejects the reserved word in either the app name or package ID. Both frontend builds and 74 G2, pairing and settings regression tests passed. The official CLI produced a 118,798-byte package with the same SDK 0.0.16 / Even App 2.2.10 floor. Windows/Linux/npm remain 1.1.8. The new app ID changes the phone app's storage namespace: existing backend keys still work, but phone connections and voice keys may need entering again. Physical installation of the renamed package still needs a phone check.
 
 This patch fixes Claude queue starvation and delayed child-event accounting, adds G2 agent-task details, removes generated context from G2 questions, preserves newer voice settings and supports user-owned Firebase sender projects. G2 navigation also skips obsolete queued text writes, sends the selected page before saving preferences and wraps only visible preview rows. Final source checks and independent reviews passed.
 
@@ -30,6 +30,6 @@ Runtime packages include only allowed production files and bundled dependencies.
 - **Platforms:** release installers target Windows 10/11 x64 and Linux x64/glibc. Windows binaries are unsigned. ARM64, Alpine/musl and Linux graphical desktops have not been physically validated.
 - **Notifications:** configure a direct sender or one forwarding center and register Glance separately. No Firebase, connection or speech credentials are shipped. The session actually displayed on G2 suppresses its own completion notification while the viewing lease is valid.
 
-Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install Pilot's phone `.ehpk` separately; Pilot 1.1.9 works with Even-Pilot 1.1.8 companions. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
+Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install Terminal+'s phone `.ehpk` separately; Terminal+ 1.1.10 works with Even-Pilot 1.1.8 companions. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
 
 See [setup](../README.md), [release notes](../RELEASE_NOTES.md), [connector limits](connectors.md) and [Glance setup](glance-push.md).

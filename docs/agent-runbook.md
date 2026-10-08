@@ -121,7 +121,7 @@ The source package retains `private: true`. `npm run release:npm -- /absolute/pa
 1. Verify the generated installer/package and checksum against the intended version. Keep secrets and personal runtime data out of the release folder.
 2. Update Windows by running its Setup EXE; update Linux as the owning user with `sh ./<new-Setup-linux-x64.run>`, or use the installed explicit update command. Do not overwrite an active immutable payload.
 3. Confirm the installed version, backend running state, saved device identity and Watch. Old native terminals remain independent; reload Pi or reopen connector terminals only after their task finishes.
-4. Install Pilot's `.ehpk` separately on the phone. Pilot 1.1.9 works with Even-Pilot 1.1.8 companions. Recheck saved connections before asking the owner to re-enter anything.
+4. Install `terminal-plus-1.1.10.ehpk` separately on the phone. Terminal+ 1.1.10 works with Even-Pilot 1.1.8 companions. The new ID `local.terminalplus.app` may require a new Hub listing/install; do not assume old phone settings transfer. Re-enter each computer's existing URL/key and the owner's voice transcription key if needed, then verify sessions. Do not rotate companion keys or clear backend Watch/Glance settings for this Hub migration.
 5. State what was tested, on which platform/version, and what still needs physical phone/G2 acceptance. Do not send a live notification, make a paid model request or publish externally unless that work is authorized.
 
 [Publication checklist](publishing.md) · [Known platform/connector limits](release-status.md) · [First-time troubleshooting](setup.md#troubleshooting)

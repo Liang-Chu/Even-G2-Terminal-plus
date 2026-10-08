@@ -30,7 +30,7 @@ The updater uses the fixed public repository over HTTPS, an exact platform/versi
 
 Installers retain old payload directories because working native terminals may still use them. The installer starts the new backend and checks its version. If startup fails, it restores the previous selection and attempts to restart it. Configuration, pairing keys, Watch and notification settings remain in their existing data directory. Existing terminals load connector changes when reopened, or Pi when reloaded while idle.
 
-**Updating a Windows/Linux companion does not replace Pilot on the phone.** Upload/install `pilot-1.1.9.ehpk` separately through Even Hub; it works with Even-Pilot 1.1.8 companions. Existing phone connection and voice settings remain saved.
+**Updating a Windows/Linux companion does not replace Terminal+ on the phone.** Upload/install `terminal-plus-1.1.10.ehpk` separately through Even Hub; it works with Even-Pilot 1.1.8 companions. Terminal+ changes the Hub app ID to `local.terminalplus.app`; the portal may require a new listing/install. Saved phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion keys, Watch and notification settings remain in their existing data directory.
 
 ## Control API
 

@@ -1,6 +1,6 @@
-# Even Hub description — Pilot 1.1.9
+# Even Hub description — Terminal+ 1.1.10
 
-Pilot lets you view coding sessions running on Windows/Linux through Even Hub and Even G2 while you keep working in your normal terminal.
+Terminal+ lets you view coding sessions running on Windows/Linux through Even Hub and Even G2 while you keep working in your normal terminal.
 
 - Monitor Pi, Codex CLI/local Codex Desktop and Claude Code across Windows and Linux computers.
 - See reported running-agent counts, running/idle time, source computer and model, plus available agent task details.
@@ -12,6 +12,8 @@ Pilot lets you view coding sessions running on Windows/Linux through Even Hub an
 For internet access to your computers, connect the phone and computers through Tailscale. Voice recognition requires your own OpenAI API key (Whisper or GPT Transcribe), or an ElevenLabs key; a ChatGPT subscription alone is insufficient.
 
 Phone/voice replies require an input-capable session. Ordinary Codex/Claude sessions are read-only; Claude support is experimental.
+
+Moving from an earlier Hub app may require connecting your computers and setting up Voice again.
 
 Required Windows/Linux companion and setup:
 [Even-Pilot](https://github.com/Liang-Chu/Even-Pilot)

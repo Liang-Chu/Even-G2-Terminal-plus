@@ -34,7 +34,7 @@ document.title = `${appName} · Agents, in sight`;
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <div class="live-status" aria-label="Live agent status"><div class="live-status-inner"><span id="running-count" title="Running monitored agents">? AGENTS</span><span id="runtime-status">OFFLINE</span><time id="status-time" aria-label="Time in current status">--:--</time></div></div>
-  <header class="masthead"><a class="brand" href="./"><span class="brand-icon" aria-hidden="true"></span><span>${desktopMode ? "Even-" : ""}<b>${hubName}</b><small>AGENTS, IN SIGHT.</small></span></a><div class="header-right"><span id="link-state" class="connection">Not connected</span><button id="open-settings" class="subtle">Connection <span>↗</span></button></div></header>
+  <header class="masthead"><a class="brand" href="./"><span class="brand-icon" aria-hidden="true"></span><span>${desktopMode ? "Even-<b>Pilot</b>" : `<b>${hubName}</b>`}<small>AGENTS, IN SIGHT.</small></span></a><div class="header-right"><span id="link-state" class="connection">Not connected</span><button id="open-settings" class="subtle">Connection <span>↗</span></button></div></header>
   <main><div class="page-heading"><div><div class="eyebrow">[ LOCAL AGENT CONSOLE ]</div><h1>KEEP AGENTS IN SIGHT.</h1><p>Your sessions. Desktop / phone / G2.</p></div><div class="session-indicator"><span class="dot"></span><span id="session-label">No session connected</span></div></div>
   <div id="notice" role="status" hidden></div>
   <div class="workspace"><section class="terminal-panel"><div class="panel-heading"><div><span class="section-number">01</span><h2>Terminal</h2></div></div>

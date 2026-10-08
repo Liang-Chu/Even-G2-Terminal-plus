@@ -121,7 +121,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install **Pilot 1.1.9** (`pilot-1.1.9.ehpk`) separately in Even Hub. It works with **Even-Pilot 1.1.8** companions; the two version numbers need not match. Use Even App 2.2.10+ and connect G2 to the phone.
+1. Install **Terminal+ 1.1.10** (`terminal-plus-1.1.10.ehpk`) separately in Even Hub. It works with **Even-Pilot 1.1.8** companions; the two version numbers need not match. Use Even App 2.2.10+ and connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `even-pilot pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -265,7 +265,7 @@ To return a source to independent delivery use `even-pilot settings push direct`
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `even-pilot update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `even-pilot update`, then `even-pilot update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-**Companion updates do not install Pilot.** Install its `.ehpk` separately in Even Hub. Pilot 1.1.9 works with companion 1.1.8. Existing connections, Watch and subscriptions persist. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
+**Companion updates do not install Terminal+.** Install its `.ehpk` separately in Even Hub. Terminal+ 1.1.10 works with companion 1.1.8. Its new app ID may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter each computer's existing URL/key and your transcription key if needed. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 
 Windows uninstall is in **Settings → Apps → Even-Pilot**. Linux uses `even-pilot uninstall`. Close connected terminals yourself first; uninstall protects running connections and preserves runtime data. To stop only monitoring on Linux use `even-pilot stop`; native terminals keep working.
 
@@ -285,6 +285,6 @@ For an npm installation, run `npm uninstall -g even-pilot` after the native unin
 | Linux command not found | Reopen a supported shell or use `~/.local/bin/even-pilot`; check the installer PATH message |
 | Linux cannot open a CLI | Install/login to that CLI, ensure `tmux` for headless launch, then restart the companion from the shell that can find it |
 | No Glance completion push | Watch enabled, sender/center running, valid sender credentials, watcher saved/registered as PUSH on the correct sender, session not being displayed on G2 |
-| Update succeeded but G2 UI unchanged | Install the Pilot `.ehpk` separately; desktop updates cannot replace it |
+| Update succeeded but G2 UI unchanged | Install the Terminal+ `.ehpk` separately; desktop updates cannot replace it |
 
 Linux logs: `journalctl --user -u even-pilot.service`. Windows startup diagnostics: `<installation>\.local\desktop-startup.log`. Do not clear runtime data to fix a routine reconnect: it contains keys, host identity, Watch and subscriptions. For a new operator/agent, use the [runbook](agent-runbook.md).
