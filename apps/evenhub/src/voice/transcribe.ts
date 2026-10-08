@@ -1,6 +1,7 @@
 import { transcriptStream } from "./transcript-stream.js";
 export type VoiceProvider = "whisper" | "elevenlabs";
 export interface VoiceConfig { provider: VoiceProvider; key: string; language: "" | "zh" | "en"; openaiModel?: "whisper-1" | "gpt-transcribe" }
+export const DEFAULT_OPENAI_MODEL = "gpt-transcribe";
 export const MAX_AUDIO_BYTES = 16_000 * 2 * 60;
 class SpeechError extends Error {}
 
@@ -24,7 +25,7 @@ export async function transcribe(pcm: Uint8Array, config: VoiceConfig, signal: A
   const file = pcmWav(pcm), body = new FormData();
   body.set("file", file, "reply.wav");
   const whisper = config.provider === "whisper";
-  const model = config.openaiModel || "whisper-1", streaming = whisper && model === "gpt-transcribe";
+  const model = config.openaiModel || DEFAULT_OPENAI_MODEL, streaming = whisper && model === "gpt-transcribe";
   if (whisper && !["whisper-1", "gpt-transcribe"].includes(model)) throw new Error("Choose a supported speech model in Voice settings.");
   body.set(whisper ? "model" : "model_id", whisper ? model : "scribe_v2");
   if (config.language) body.set(whisper ? streaming ? "languages[]" : "language" : "language_code", config.language);

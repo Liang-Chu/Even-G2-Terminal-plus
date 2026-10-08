@@ -50,6 +50,30 @@ function clear(settings: VoiceSettings, dialog: Element) {
   settings.open(); dialog.querySelector("[data-clear]").onclick!();
 }
 
+test("fresh voice settings save GPT Transcribe by default without supplying a speech key", async t => {
+  const f = fixture(t);
+  assert.deepEqual(f.settings.config(), { provider: "whisper", openaiModel: "gpt-transcribe", language: "", key: "" });
+  save(f.settings, f.dialog, ""); await nextTurn();
+  assert.equal(JSON.parse(f.values.get(storageKey)!).openaiModel, "gpt-transcribe");
+});
+
+for (const scenario of [
+  { name: "legacy missing model", provider: "whisper", model: undefined, expected: "gpt-transcribe", key: "openai-fixture" },
+  { name: "explicit Whisper choice", provider: "whisper", model: "whisper-1", expected: "whisper-1", key: "openai-fixture" },
+  { name: "ElevenLabs configuration", provider: "elevenlabs", model: undefined, expected: "gpt-transcribe", key: "scribe-fixture" },
+]) test(`voice defaults preserve keys/provider with ${scenario.name}`, async t => {
+  const legacy = JSON.stringify({ provider: scenario.provider, language: "zh", openaiModel: scenario.model,
+    keys: { whisper: "openai-fixture", elevenlabs: "scribe-fixture" } });
+  const f = fixture(t, legacy); let saved = "";
+  await f.settings.attachBridge({ getLocalStorage: async () => "", setLocalStorage: async (_key, value) => { saved = value; return true; } });
+  assert.deepEqual(f.settings.config(), { provider: scenario.provider, openaiModel: scenario.expected, language: "zh", key: scenario.key });
+  assert.equal(JSON.parse(saved).openaiModel, scenario.expected);
+  assert.deepEqual(JSON.parse(saved).keys, { whisper: "openai-fixture", elevenlabs: "scribe-fixture" });
+  f.settings.open();
+  assert.equal(f.dialog.querySelector("#voice-model").value, scenario.expected);
+  if (scenario.model === "whisper-1") assert.match(f.dialog.querySelector("[data-model]").textContent, /2027-02-26/);
+});
+
 test("saved voice configuration loads before its settings DOM is requested", async () => {
   // No document exists in Node: mounting the dialog during startup would fail.
   const settings = new VoiceSettings(() => {});

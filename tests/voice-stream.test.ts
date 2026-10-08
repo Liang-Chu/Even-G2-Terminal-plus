@@ -30,6 +30,21 @@ test("OpenAI streaming displays partial text before done and uses model-specific
   s.event({ type: "transcript.text.done", text: "第一句。" }); assert.equal(await pending, "第一句。");
 });
 
+test("an omitted OpenAI model defaults to streamed GPT Transcribe without a key or endpoint change", async () => {
+  const s = stream();
+  s.event({ type: "transcript.text.done", text: "默认模型" }); s.close();
+  const { openaiModel: _model, ...defaults } = config;
+  const text = await transcribe(pcm(), defaults, new AbortController().signal, async (url, init) => {
+    assert.equal(url, "https://api.openai.com/v1/audio/transcriptions");
+    const data = init?.body as FormData;
+    assert.equal(data.get("model"), "gpt-transcribe"); assert.equal(data.get("stream"), "true");
+    assert.equal(data.get("languages[]"), "zh"); assert.equal(data.has("language"), false);
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer synthetic-key");
+    return s.response;
+  });
+  assert.equal(text, "默认模型");
+});
+
 test("truncated, malformed and oversized streams fail without leaking provider payload or accepting partial text", async () => {
   for (const data of [
     'data: {"type":"transcript.text.delta","delta":"Unfinished"}\n\n',

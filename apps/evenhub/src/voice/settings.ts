@@ -1,5 +1,5 @@
 import type { EvenAppBridge } from "@evenrealities/even_hub_sdk";
-import type { VoiceConfig, VoiceProvider } from "./transcribe.js";
+import { DEFAULT_OPENAI_MODEL, type VoiceConfig, type VoiceProvider } from "./transcribe.js";
 
 const STORAGE = "even-pilot.voice.v1";
 type StorageBridge = Pick<EvenAppBridge, "getLocalStorage" | "setLocalStorage">;
@@ -14,14 +14,14 @@ function savedVoice(raw: string | null): SavedVoice | undefined {
     const updatedAt = value.version === 1 ? value.updatedAt : 0;
     if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) return;
     return { version: 1, updatedAt, provider: value.provider, language: ["zh", "en"].includes(value.language) ? value.language : "",
-      openaiModel: value.openaiModel === "gpt-transcribe" ? "gpt-transcribe" : "whisper-1",
+      openaiModel: value.openaiModel === "whisper-1" ? "whisper-1" : DEFAULT_OPENAI_MODEL,
       keys: { whisper: typeof value.keys?.whisper === "string" ? value.keys.whisper.slice(0, 4096) : "",
         elevenlabs: typeof value.keys?.elevenlabs === "string" ? value.keys.elevenlabs.slice(0, 4096) : "" } };
   } catch { /* Invalid settings must not prevent connecting to a terminal. */ }
 }
 export class VoiceSettings {
   private provider: VoiceProvider = "whisper";
-  private openaiModel: VoiceConfig["openaiModel"] = "whisper-1";
+  private openaiModel: VoiceConfig["openaiModel"] = DEFAULT_OPENAI_MODEL;
   private language: VoiceConfig["language"] = "";
   private keys = { whisper: "", elevenlabs: "" };
   private revision = 0;
@@ -40,7 +40,7 @@ export class VoiceSettings {
     this.dialog.innerHTML = `<form><div class="dialog-heading"><h2>Voice input</h2><button type="button" data-close class="subtle" aria-label="Close voice settings">✕</button></div>
       <p>Select New prompt to edit. Tap to start/stop recording, hold to delete. Double tap opens Send &amp; exit / Exit only, with Send &amp; exit selected. Confirm to return to the session; an empty draft sends nothing.</p>
       <label for="voice-provider">Speech service</label><select id="voice-provider"><option value="whisper">OpenAI</option><option value="elevenlabs">ElevenLabs Scribe</option></select>
-      <div data-openai-model><label for="voice-model">Transcription model</label><select id="voice-model"><option value="whisper-1">Whisper · complete result</option><option value="gpt-transcribe">GPT Transcribe · stream text sooner</option></select></div>
+      <div data-openai-model><label for="voice-model">Transcription model</label><select id="voice-model"><option value="gpt-transcribe">GPT Transcribe · recommended</option><option value="whisper-1">Whisper · legacy</option></select></div>
       <p class="caption" data-model></p><label for="voice-key">API key</label><input id="voice-key" type="password" autocomplete="off" spellcheck="false" maxlength="4096" placeholder="Paste your speech service key">
       <label for="voice-language">Language</label><select id="voice-language"><option value="">Auto · 中文 / English</option><option value="zh">中文</option><option value="en">English</option></select>
       <p class="caption">Your key and voice settings are saved on this phone and restored when you reopen the app. Clear all keys removes them. Audio goes directly to your selected service; your PC receives only the text you send.</p>
@@ -88,7 +88,7 @@ export class VoiceSettings {
     const openai = this.select("voice-provider").value === "whisper";
     this.dialog.querySelector<HTMLElement>("[data-openai-model]")!.hidden = !openai;
     this.dialog.querySelector("[data-model]")!.textContent = openai
-      ? `${this.select("voice-model").value} · api.openai.com · same OpenAI key; account model access required`
+      ? `${this.select("voice-model").value} · api.openai.com · same OpenAI key; account model access required${this.select("voice-model").value === "whisper-1" ? ". Whisper retires 2027-02-26; select GPT Transcribe before then." : ""}`
       : "scribe_v2 · api.elevenlabs.io";
   }
   private snapshot(): SavedVoice {
@@ -116,7 +116,7 @@ export class VoiceSettings {
     this.saving = true;
     this.revision++;
     this.provider = this.select("voice-provider").value as VoiceProvider;
-    this.openaiModel = this.select("voice-model").value === "gpt-transcribe" ? "gpt-transcribe" : "whisper-1";
+    this.openaiModel = this.select("voice-model").value === "whisper-1" ? "whisper-1" : DEFAULT_OPENAI_MODEL;
     this.language = this.select("voice-language").value as VoiceConfig["language"];
     this.keys[this.provider] = this.input("voice-key").value.trim();
     this.changed();

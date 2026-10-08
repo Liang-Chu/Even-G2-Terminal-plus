@@ -1,3 +1,7 @@
+# Unreleased
+
+- New and model-less OpenAI voice configurations default to **GPT Transcribe**, with streamed text. Existing explicit Whisper choices, providers and API keys remain saved. Voice settings show Whisper's 2027-02-26 retirement date when selected. Published 1.1.11 already supports switching to GPT Transcribe manually.
+
 # Terminal+ 1.1.11
 
 Unifies the Windows/Linux companion and phone/G2 app under **Terminal+**.

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { pcmWav, transcribe, MAX_AUDIO_BYTES, type VoiceConfig } from "../apps/evenhub/src/voice/transcribe.js";
 import { VoiceController, type VoiceTarget, type VoiceView } from "../apps/evenhub/src/voice/controller.js";
 
-const config: VoiceConfig = { provider: "whisper", key: "fake-key-only-for-tests", language: "zh" };
+const config: VoiceConfig = { provider: "whisper", openaiModel: "whisper-1", key: "fake-key-only-for-tests", language: "zh" };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 test("phone speech requests contain valid WAV and provider-specific credentials, with no bridge or query-key hop", async () => {
   const pcm = new Uint8Array(16000); pcm[0] = 12;
