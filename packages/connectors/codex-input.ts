@@ -51,8 +51,10 @@ export function codexInputRecord(row: unknown, turnId?: string, baseline = false
       if (args.length > MAX_TEXT) return;
       try { args = JSON.parse(args); } catch { return; }
     }
+    const label = (value: unknown) => typeof value === "string" && value.length <= MAX_TEXT && !!value.trim();
     if (!object(args) || !Array.isArray(args.questions) || args.questions.length < 1 || args.questions.length > MAX_QUESTIONS ||
-      args.questions.some(question => !object(question) || typeof question.question !== "string" || !question.question.trim())) return;
+      args.questions.some(question => !object(question) ||
+        !(label(question.question) || name === "request_user_input_async" && label(question.title)))) return;
     const ids = args.questions.every(question => validQuestionId(question.id))
       ? args.questions.map(question => questionId(question.id)) : undefined;
     return { type: "request", request: { id: payload.call_id, name, count: args.questions.length, answered: [], createdAt: at,

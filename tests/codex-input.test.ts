@@ -13,6 +13,8 @@ const row = (payload: unknown, type = "response_item", time = at) => ({ timestam
 const call = (id = "call_question", name = "request_user_input_async", count = 2, time = at) => row({ type: "function_call", call_id: id, name,
   arguments: JSON.stringify({ questions: Array.from({ length: count }, (_, index) => ({ id: `question_${index}`, question: "PRIVATE QUESTION", options: [] })) }) }, undefined, time);
 const output = (id: string, value: unknown) => row({ type: "function_call_output", call_id: id, output: JSON.stringify(value) });
+const nativeAsync = (id: string, titles: unknown[] = ["PRIVATE NATIVE TITLE", "PRIVATE SECOND TITLE"]) => row({ type: "function_call", call_id: id,
+  name: "request_user_input_async", arguments: JSON.stringify({ questions: titles.map(title => ({ title, options: ["PRIVATE OPTION"] })) }) });
 const replyText = (id: string, indices: number[], name = "request_user_input_async") => `<send_user_message_question_reply>\n${JSON.stringify(indices.map(index => ({
   questionItemId: JSON.stringify([name, id, index]), question: "PRIVATE QUESTION", answer: "PRIVATE ANSWER",
 })))}\n</send_user_message_question_reply>`;
@@ -33,6 +35,21 @@ test("async accepted output stays pending; exact partial replies and duplicate c
   assert.deepEqual(tracker.pending(), []);
   assert.equal(tracker.consume(codexInputRecord(call())), false, "replayed request cannot reopen a completed call");
   assert.doesNotMatch(JSON.stringify(tracker.snapshot()), /PRIVATE|question_0|question_1/, "only hashed question IDs and lifecycle metadata persist");
+});
+
+test("current Desktop async title-only records track exact questions without storing titles or accepting title-only synchronous calls", () => {
+  const tracker = new CodexInputTracker();
+  assert.equal(tracker.consume(codexInputRecord(nativeAsync("native_title"), "turn_native")), true);
+  assert.equal(tracker.consume(codexInputRecord(output("native_title", { accepted: true }))), false);
+  assert.equal(tracker.pending().length, 1); assert.equal(tracker.snapshot().requests[0].count, 2);
+  tracker.consume(codexInputRecord(reply("native_title", [1], undefined, true)));
+  assert.deepEqual(tracker.snapshot().requests[0].answered, [1]);
+  assert.doesNotMatch(JSON.stringify(tracker.snapshot()), /PRIVATE|"title"\s*:|"options"\s*:/);
+  tracker.consume(codexInputRecord(reply("native_title", [0]))); assert.deepEqual(tracker.pending(), []);
+  const sync = row({ type: "function_call", call_id: "sync_title", name: "request_user_input",
+    arguments: JSON.stringify({ questions: [{ title: "PRIVATE NATIVE TITLE" }] }) });
+  assert.equal(codexInputRecord(sync), undefined);
+  for (const title of ["", "   ", 1, null, "x".repeat(64_001)]) assert.equal(codexInputRecord(nativeAsync("malformed", [title])), undefined);
 });
 
 test("unknown, wrong-tool, out-of-range and quoted reply envelopes cannot answer a known call", () => {
@@ -121,6 +138,18 @@ test("ordinary Desktop questions remain alongside working status and counts unti
   await s.append(reply("call_question", [0])); await s.append(reply("call_question", [0], undefined, true)); await f.observer.poll();
   assert.equal(f.latest(s.id).attention?.length, 1); assert.equal(f.events.filter(event => event.completion).length, 0);
   await s.append(reply("call_question", [1], undefined, true)); await f.observer.poll();
+  assert.deepEqual(f.latest(s.id).attention, []); assert.equal(f.latest(s.id).main.status, "running");
+});
+
+test("current title-only Desktop async request reaches observed attention and resolves only on its exact native reply", async t => {
+  const f = await fixture(t), s = await f.session(); await s.lifecycle("task_started", "turn_native");
+  await s.append(nativeAsync("desktop_title", ["PRIVATE NATIVE TITLE"]));
+  await s.append(output("desktop_title", { accepted: true })); await f.observer.poll(true);
+  assert.equal(f.latest(s.id).main.status, "running"); assert.equal(sessionAgentCount(f.latest(s.id), true), "1");
+  assert.deepEqual(f.latest(s.id).attention, [{ id: "desktop_title", kind: "question", createdAt: at }]);
+  assert.doesNotMatch(await readFile(f.attentionPath, "utf8"), /PRIVATE|"title"\s*:|"options"\s*:/);
+  await s.append(reply("another_call", [0])); await f.observer.poll(); assert.equal(f.latest(s.id).attention?.length, 1);
+  await s.append(reply("desktop_title", [0], undefined, true)); await f.observer.poll();
   assert.deepEqual(f.latest(s.id).attention, []); assert.equal(f.latest(s.id).main.status, "running");
 });
 

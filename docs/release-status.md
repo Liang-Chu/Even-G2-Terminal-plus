@@ -6,7 +6,7 @@ Verified questions and approvals get a separate input-needed notification. Suppo
 
 | Check | Result |
 | --- | --- |
-| Windows source | 573 tests: 564 passed, 9 platform skips, no failures. Typecheck, production build and all three C# desktop suites passed |
+| Windows source | 575 tests: 566 passed, 9 platform skips, no failures. Typecheck, production build and all three C# desktop suites passed |
 | Notification regressions | Exact request identity, partial replies, restart baselines, queued/in-flight cancellation, 30-second freshness, direct/relay routing, all watched sessions and completion-only HTTP/SSE passed |
 | Codex observation | Explicit question/reply records, private metadata, Unicode question IDs, long-log aborts and proved current-turn child ownership passed. Ambiguous copied histories are ignored |
 | Linux restart regression | Recognized lifecycle 503 is retried within five seconds; startup readiness, shutdown/socket transitions, authentication failures and unrelated/malformed responses passed |
