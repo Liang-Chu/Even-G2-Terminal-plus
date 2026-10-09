@@ -1,4 +1,13 @@
-# Terminal+ 1.1.15 — Hub release
+# Terminal+ 1.1.16 — Hub release candidate
+
+- Shares computer connections with the matching Windows/Linux companions. Pair one known computer on a new phone/browser to load the shared list; add another computer once from any paired viewer.
+- Migrates identity-verified connections from existing phone/browser storage. Unverified offline entries stay local until verified; removing a connection synchronizes without changing Watch or stopping terminals.
+- While open, the phone/browser exchanges lists with reachable paired companions. Sources still need direct Tailscale/LAN access; paired computers share connection keys, not voice, Firebase or model credentials.
+- Keeps the 1.1.15 reconnect policy, compact Status/Devices filters, native G2 controls and app ID `local.terminalplus.app`. Older clients still connect but do not share their local lists.
+
+Install `terminal-plus-1.1.16.ehpk` separately through Even Hub and update companions to 1.1.16. For an existing phone list, open the updated Hub app once to seed reachable companions. This source candidate is not a publication or physical phone/G2 acceptance claim; see [release status](release-status.md).
+
+# Terminal+ 1.1.15 — Hub release history
 
 - Phone and browser connect each computer immediately, then allow up to five automatic retries per startup/manual reconnect cycle, each 30 seconds after failure. Successes do not reset used retries; returning to the foreground does not reset or accelerate them. After exhaustion, use that computer's **Reconnect** under phone **Connection** / browser **Computers**, or start the app afresh. **Key rejected** (HTTP 401) stops retries; edit its credential. Watch is retained.
 - Adds compact pixel-style **Status → All / Watched / Running** and **Devices** dropdowns. Select several computers; **All devices** or clearing the last selection shows every computer.

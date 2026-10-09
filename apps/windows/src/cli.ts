@@ -17,6 +17,7 @@ import { NotificationRelay } from "./notification-relay.js";
 import { UpdateService } from "./updates.js";
 import { installationRoot } from "./config.js";
 import { readFileSync } from "node:fs";
+import { ComputerDirectory } from "./computers.js";
 
 const { values } = parseArgs({
   options: {
@@ -115,6 +116,9 @@ try {
     ],
     staticDir: fileURLToPath(new URL("../../evenhub/dist", import.meta.url)),
   };
+  serverOptions.computers = new ComputerDirectory(resolve(dataDirectory(), "computers.json"), async () => ({
+    ...await serverOptions.hostInfo!(), url: serverOptions.pairOrigin, token,
+  }));
   const bridge = createBridgeServer(runtime, journal, serverOptions);
   closeBridge = bridge.close;
   await new Promise<void>((resolve, reject) => {

@@ -8,7 +8,7 @@ Windows 安装器用户：再次运行新版 **Setup-x64.exe**，点击 **Instal
 
 以下手动步骤仅用于便携版或源码目录：
 
-1. 保留整个 `.local` 目录。它包含本机 key、Watch 设置和推送订阅；不要把它放进分发包。
+1. 保留整个 `.local` 目录。它包含本机 key、Watch、推送订阅，以及带有其他电脑 connection key 的私密 `computers.json`；不要把它放进分发包。
 2. 右键托盘选择 **Quit Terminal+**。这只退出托盘，不会停后台或原生终端。
 3. 在旧安装目录打开 PowerShell，停止该安装的原生监控后台。默认配置可执行以下命令；使用自定义数据目录、token 或端口时相应调整。停止期间不记录新的任务完成通知。
 
@@ -59,11 +59,11 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 对刚生成的目录运行 `node tests/release-smoke.mjs "<发布目录>"` 和 `node tests/installer-smoke.mjs "<发布目录>"`。前者检查便携包；后者验证真正的安装 EXE、无系统 Node/npm 的启动、Windows 卸载注册、重装保留 key、升级保留工作进程、卸载保护以及保留数据。均使用隔离目录，不读取实际 CLI 历史或运行付费模型任务。
 
 
-代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本、`apps/evenhub/app.json` 和发布文档。Windows/Linux 与 Hub 本次统一为 **1.1.15**。`npm run pack:evenhub` 生成 `terminal-plus-<版本>.ehpk`；Hub 保持 `package_id` 为 `local.terminalplus.app`，名称和 ID 均不含 reviewer 禁止的 `even`。从 `local.evenpilot.app` 迁移时，门户可能要求新建条目／重新安装，旧应用保存的手机连接和语音 key 不保证迁移，必要时重新填写。
+代码目录：`apps/windows` 为托盘/API/CLI 扩展；`apps/linux` 为 Linux 安装、服务和终端适配；`apps/evenhub` 为手机和 G2；`packages` 为状态和连接器。SDK、字体许可见 [THIRD_PARTY_NOTICES](../apps/evenhub/THIRD_PARTY_NOTICES.md)。版本修改需同步 package.json、lockfile、Tray.cs、Installer.cs、安装器 manifest、连接器握手版本、`apps/evenhub/app.json` 和发布文档。Windows/Linux 与 Hub 本次统一为 **1.1.16**。`npm run pack:evenhub` 生成 `terminal-plus-<版本>.ehpk`；Hub 保持 `package_id` 为 `local.terminalplus.app`，名称和 ID 均不含 reviewer 禁止的 `even`。从 `local.evenpilot.app` 迁移时，门户可能要求新建条目／重新安装，旧应用保存的手机连接和语音 key 不保证迁移，必要时重新填写。
 
 ## 发布文件与私有文件
 
-验证通过后，将电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明整理到 `release/1.1.15/`，Hub 的 `terminal-plus-1.1.15.ehpk` 和校验和整理到 `release/hub-1.1.15/`。安装器和便携包包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。生成这些文件不等于已经发布；实际验证和发布情况见[发布状态](release-status.md)。
+验证通过后，将电脑端 EXE/ZIP、Linux RUN/TAR.GZ、校验和和发布说明整理到 `release/1.1.16/`，Hub 的 `terminal-plus-1.1.16.ehpk` 和校验和整理到 `release/hub-1.1.16/`。安装器和便携包包含用户文档；源码、测试和构建脚本随仓库发布，详细本机测试日志和文件清单留在 `outputs/`。生成这些文件不等于已经发布；实际验证和发布情况见[发布状态](release-status.md)。
 
 `.gitignore` 排除生成包、依赖、编译产物、日志、`.local`、环境文件、服务账号 JSON 和私钥。它不保护 Git 已跟踪的文件，也不是脱敏工具；首次发布前检查待提交清单，保留 `package-lock.json`、源代码、测试、图标/字体及许可。不要直接打包整个开发文件夹。
 
@@ -86,6 +86,8 @@ Linux 在原生 Linux x64/arm64 上构建：`npm ci --ignore-scripts`、`npm run
 编辑页的空草稿双击直接返回；有文字、已录音或等待转写时打开原生双选项确认，默认 Send & exit，另一个为 Exit only。确认时停止录音并保留草稿，点选后才发送或丢弃；确认页双击返回编辑。会话菜单的应用项依次为 Terminate task、Sessions；系统项由固件插入，SDK 无法固定整个菜单的行号。会话双击调用系统退出确认。
 
 手机默认打开 Sessions，按设备分组；折叠分组不创建行，展开先显示 8 条。Conversation 与 G2 是独立页面；手机隐藏对话时跳过 transcript DOM 重建，G2 继续更新。会话操作使用 FleetClient，Unwatch 不停止任务。重复打开同一 Pi 会话时，以实际活动时间选择上报来源，不按心跳来回切换。眼镜列表排除离线会话，但保留 Watch。
+
+1.1.16 的共享设备列表由可见的手机／浏览器通过控制认证 `/api/computers` 交换，电脑端原子保存私密 `computers.json`；后台不彼此抓取列表。新查看端连接一台已知电脑后获取列表，本地旧记录验证身份后迁移，未验证的离线记录留在本地。移除用不带 key 的记录同步，不改变 Watch 或终端状态。Windows 的 loopback 仅用于本机连接，共享地址为可达的 Tailscale／LAN origin。各来源会话仍直接访问，不代理历史／任务；Glance／relay key 无权读写设备列表，语音／Firebase／模型凭据不参与同步。
 
 ## 监控与持久化边界
 

@@ -4,11 +4,11 @@ Watch Pi, Codex and Claude Code sessions running on Windows/Linux from a browser
 
 See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
 
-**Terminal+ 1.1.15** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.16** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows / Linux / Hub downloads](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
 
-The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.15**; see [release status](docs/release-status.md) for verification and publication details.
+The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.16**; see [release status](docs/release-status.md) for verification and publication details.
 
 ## Quick start
 
@@ -16,11 +16,11 @@ The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Comma
 
 Start with a working Pi, Codex or Claude Code installation. Install Terminal+ on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing model login stays in use; Terminal+ does not install the CLIs.
 
-- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.15-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
-- **Linux / SSH:** download `Terminal-plus-1.1.15-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
+- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.16-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
+- **Linux / SSH:** download `Terminal-plus-1.1.16-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
 
   ```sh
-  sh ./Terminal-plus-1.1.15-Setup-linux-x64.run
+  sh ./Terminal-plus-1.1.16-Setup-linux-x64.run
   ```
 
   Open a **new shell**, then run `terminal-plus` and `terminal-plus pair`. In the current shell, use `~/.local/bin/terminal-plus`. The installer includes its own Node runtime and backend dependencies.
@@ -64,21 +64,21 @@ For Codex/Claude remote input, use **+ New terminal** in the manager to create a
 ### 3. Connect the phone
 
 1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
-2. Install **Terminal+ 1.1.15** (`terminal-plus-1.1.15.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.15** Windows/Linux companion.
+2. Install **Terminal+ 1.1.16** (`terminal-plus-1.1.16.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.16** Windows/Linux companion.
 3. Get this computer's URL and key: Windows **Connect phone**; Linux `terminal-plus pair`.
 4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
-Use the reachable URL printed by **Connect phone** / `pair`, such as `http://COMPUTER_IP:4317`; `COMPUTER_IP` is the computer's Tailscale IP. Enter the key without `Bearer` and keep it private. The phone saves connections automatically; repeat for other computers. Keep the companion running and the computer awake. On Linux, `pair` prints information; `terminal-plus` starts monitoring.
+Use the reachable URL printed by **Connect phone** / `pair`, such as `http://COMPUTER_IP:4317`; `COMPUTER_IP` is the computer's Tailscale IP. Enter the key without `Bearer` and keep it private. Add other computers once from any connected viewer. The shared computer list then appears on your other paired browsers and phone; a new viewer needs only one known computer's URL/key to join. Keep the companions running and computers awake. On Linux, `pair` prints information; `terminal-plus` starts monitoring.
 
 Hub uses manual URL/key entry; the QR is for Glance. If connection fails, first open the Bridge URL in the phone browser. [Troubleshooting](docs/setup.md#troubleshooting)
 
 ### Browser portal on another device
 
 1. Open `http://COMPUTER_IP:4317/?desktop=1` in a browser, using a reachable computer running Terminal+.
-2. Open **Computers → Connect another computer**. Enter each target computer's own URL/key from **Connect phone** or `terminal-plus pair`; repeat for every computer you want to view.
+2. Open **Computers → Connect another computer**. Enter one known computer's URL/key from **Connect phone** or `terminal-plus pair`. Its shared computer list loads automatically; add a new computer here only if it has not already been paired. The local desktop shortcut connects its own computer automatically.
 3. In **Sessions**, choose **Status → All / Watched / Running** and use **Devices** to select one or several computers. **All devices**, or clearing the last selected computer, shows every computer.
 
-Connections stay in this browser for this portal address; phone connections do not transfer automatically. The browser must reach each saved computer over Tailscale or LAN. The local desktop shortcut connects its own computer automatically. **Connect phone**, **Updates** and desktop **Glance notifications** apply to the computer serving the page. [Portal details](docs/setup.md#browser-portal-from-another-device)
+While open, the phone/browser synchronizes the computer list with reachable paired companions, which store it privately, including connection keys. Pair only computers and viewers you trust to access every listed computer. Removing a computer synchronizes that removal without stopping its Watch or terminal. Offline computers receive changes when a viewer connects again. Sessions still load directly from their source: each browser/phone must reach those computers over Tailscale or LAN. **Connect phone**, **Updates** and desktop **Glance notifications** apply to the computer serving the page. [Portal details](docs/setup.md#browser-portal-from-another-device)
 
 Browser and phone connect each saved computer immediately, then allow up to five automatic retries per startup or manual reconnect cycle, each 30 seconds after failure. Successes do not reset the retry budget; returning to the app does not reset it or skip the wait. After retries run out, the computer stays **Offline** until a fresh app startup or its **Reconnect** under **Computers** (browser) / **Connection** (phone). **Key rejected** stops retries; use **Edit connection** to correct the key. Watch is retained.
 
@@ -128,7 +128,7 @@ Configure **Glance notifications** on the companion, then register the sender/ce
 
 ## Updates
 
-Update the Windows/Linux companion for the 1.1.15 browser portal, reconnect policy and filters. Install the matching Hub `.ehpk` separately to get the reconnect and filter changes on the phone. Existing Terminal+ Hub installations remain compatible with the companion. Connect each browser once with each computer's own URL/key; saved phone connections do not synchronize to browsers.
+Update the Windows/Linux companions and install **Hub 1.1.16** separately for shared computer connections. Open the updated phone app once if it already has your computer list; verified connections are published to reachable companions and become available to paired desktop browsers. Unverified offline entries stay in that viewer until they reconnect. A new browser/phone pairs one known computer to recover the shared list. Older clients can still connect, but do not synchronize their local lists.
 
 **Upgrading from Even-Pilot:** manually run the new Terminal+ installer once. Older updaters may fail after the repository rename. Existing installation/data/service roots and `EVEN_PILOT_*` settings remain for compatibility; your connection key, Watch and notification settings are retained. [Migration and update guide](docs/updates.md#migration-from-even-pilot)
 

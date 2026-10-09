@@ -42,7 +42,7 @@ export class AgentRpc extends EventEmitter {
   }
   close() { this.disconnect(); this.dispose(); }
   async initialize() {
-    await this.request("initialize", { clientInfo: { name: "terminal_plus", title: "Terminal+", version: "1.1.15" }, capabilities: { experimentalApi: true } });
+    await this.request("initialize", { clientInfo: { name: "terminal_plus", title: "Terminal+", version: "1.1.16" }, capabilities: { experimentalApi: true } });
     this.notify("initialized");
   }
 }

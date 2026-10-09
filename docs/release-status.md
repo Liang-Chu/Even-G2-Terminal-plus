@@ -1,4 +1,12 @@
-# Release status — Terminal+ 1.1.15
+# Release status — Terminal+ 1.1.16
+
+## Current 1.1.16 candidate
+
+Shared saved-computer lists are persisted privately on paired companions. A phone or browser needs one initial URL/key; visible viewers learn and propagate the list through reachable paired computers. Device IDs deduplicate aliases, while local desktop transport stays local. Keyless deletion records prevent stale caches and returning offline devices from restoring removed connections. Synchronization does not change Watch, native terminals, session routing or notification settings.
+
+Windows source verification passed: 534 tests, 525 passed, 9 platform skips and no failures; typecheck, production build and all three C# desktop suites passed. Shared-list regressions cover durable storage, concurrent edits/removals, stale caches, identity changes, address updates, credentials and retry-budget preservation. Native package verification and publication are in progress. Physical phone/G2 acceptance is not confirmed. The public release verified below remains 1.1.15 until a new publication is recorded.
+
+## Previous 1.1.15 publication and verification
 
 **Terminal+ 1.1.15** provides the Pi/Codex/Claude browser portal for Windows/Linux. Browser and phone connect each saved computer immediately, then allow up to five automatic retries per startup/manual reconnect cycle, each 30 seconds after failure. Successes and passive foregrounding do not reset the budget; foregrounding does not skip the wait. Exhausted computers stay Offline until targeted Reconnect or a fresh app startup. HTTP 401 stops retries with Key rejected. Compact Status and Devices dropdowns provide All/Watched/Running and multiple-computer filtering. Watch remains per source computer.
 

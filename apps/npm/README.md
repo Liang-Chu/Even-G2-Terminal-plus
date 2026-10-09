@@ -1,6 +1,6 @@
-# Terminal+ 1.1.15 for Linux
+# Terminal+ 1.1.16 for Linux
 
-This guide covers **Terminal+ 1.1.15**. See [release status](https://github.com/Liang-Chu/Even-G2-Terminal-plus/blob/main/docs/release-status.md) for verification and publication details.
+This guide covers **Terminal+ 1.1.16**. See [release status](https://github.com/Liang-Chu/Even-G2-Terminal-plus/blob/main/docs/release-status.md) for verification and publication details.
 
 Install the Linux companion to watch local Pi, Codex and Claude Code sessions through a browser, Even Hub on your phone and Even G2. Continue using your native terminal, with optional voice input and per-session completion notifications through Glance.
 
@@ -33,7 +33,7 @@ First installation deploys files without starting monitoring; `terminal-plus` st
 
 ## Connect and use
 
-Install the matching Even Hub package from [GitHub Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases). For internet access, keep the phone and computers connected to the same Tailscale network. Enter the URL and connection key printed by `terminal-plus pair` in the phone app's **Connection** settings.
+Install the matching Even Hub package from [GitHub Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases). For internet access, keep the phone and computers connected to the same Tailscale network. Enter one known computer's URL/key from `terminal-plus pair` or Windows **Connect phone** in the phone app's **Connection** settings. Its shared computer list loads automatically. Add a new computer once from any paired viewer; open viewers synchronize the list through reachable companions. Pair only computers/viewers you trust to access the whole list, including its connection keys. Sessions still load directly from their source.
 
 Use `terminal-plus sessions`, `watch SESSION`, `unwatch SESSION` and `settings` for session and notification management. Unwatch does not stop a terminal. Run `terminal-plus --help` for commands.
 
@@ -43,7 +43,7 @@ For optional voice input, save your own transcription API key in the phone's **V
 
 ## Update and remove
 
-The companion automatically installs verified stable GitHub updates by default. Use `terminal-plus update off` to disable, `update on` to enable, or `update` to install now. You do not need `npm update`; rerunning setup will not downgrade a newer companion. Install the matching Hub package separately for the phone's 1.1.15 bounded retries and Status/Devices filters.
+The companion automatically installs verified stable GitHub updates by default. Use `terminal-plus update off` to disable, `update on` to enable, or `update` to install now. You do not need `npm update`; rerunning setup will not downgrade a newer companion. Update all companions and install Hub 1.1.16 separately for shared connections. Open the updated phone/browser with your existing list once to publish verified entries; unverified offline entries stay local until verified. Older clients keep local-only lists. Voice, Firebase and model credentials are not shared.
 
 Close terminals that still use installation files, then remove the companion and its npm helper:
 

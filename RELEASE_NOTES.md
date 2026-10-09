@@ -1,3 +1,13 @@
+# Terminal+ 1.1.16
+
+- Shares saved computers across Windows/Linux browser portals and the phone. Pair one trusted computer on a new viewer to discover the shared list; existing verified phone/browser connections migrate automatically.
+- Stores connection information privately on paired companions. Open viewers synchronize changes with reachable computers; session access remains direct over Tailscale or LAN.
+- Uses persistent device IDs to avoid duplicate computers, while a Windows page keeps its local loopback connection. Shared entries use portable addresses.
+- Synchronizes removals without forgetting them when an older browser or offline computer returns. Removing access never changes Watch or stops native terminals.
+- Keeps the five-retry offline policy and avoids extra synchronization requests during streaming conversation updates. Voice, model-provider and Firebase credentials are not shared.
+
+Update companions and install `terminal-plus-1.1.16.ehpk` for phone synchronization. Older clients retain their own connection lists until updated. Physical phone/G2 acceptance is not confirmed; see [release status](docs/release-status.md) for verification and publication status.
+
 # Terminal+ 1.1.15
 
 - Opens the Windows/Linux browser portal to Pi, Codex and Claude sessions across saved computers. Visit `http://SERVING_HOST:4317/?desktop=1` and use **Computers → Connect another computer** with each target's URL/key. Each browser saves its own connections and reaches targets directly over Tailscale/LAN.

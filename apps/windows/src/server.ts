@@ -19,6 +19,7 @@ import type { InteractionAnswer } from "../../../packages/cockpit-state/interact
 import type { HostSource } from "../../../packages/cockpit-state/types.js";
 import type { NotificationRelay } from "./notification-relay.js";
 import { UpdateError, type UpdateService } from "./updates.js";
+import { ComputerDirectoryError, type ComputerDirectory } from "./computers.js";
 
 export interface ServerOptions {
   token: string;
@@ -33,6 +34,7 @@ export interface ServerOptions {
   isReady?: () => boolean;
   pairOrigin?: string;
   hostInfo?: () => Promise<HostSource>;
+  computers?: ComputerDirectory;
 }
 function matches(value: string, expected: string) {
   const a = Buffer.from(value),
@@ -195,6 +197,15 @@ export function createBridgeServer(
       }
       if (options.isReady && !options.isReady()) {
         json(res, 503, { error: "Bridge is starting or shutting down; retry shortly" }); return;
+      }
+      if (url.pathname === "/api/computers") {
+        if (!options.computers) { json(res, 503, { error: "Shared computer connections are unavailable; update this backend" }); return; }
+        if (req.method === "GET") { json(res, 200, await options.computers.snapshot()); return; }
+        if (req.method === "POST") {
+          let data: Record<string, unknown>;
+          try { data = await body(req); } catch { throw new ComputerDirectoryError("Invalid saved computer data"); }
+          json(res, 200, await options.computers.merge(data)); return;
+        }
       }
       if (options.updates) {
         if (req.method === "GET" && url.pathname === "/api/updates") { json(res, 200, options.updates.status()); return; }
@@ -411,7 +422,7 @@ export function createBridgeServer(
       json(res, 404, { error: "Not found" });
     } catch (error) {
       if (!res.headersSent)
-        json(res, error instanceof UpdateError ? error.status : error instanceof SessionError || error instanceof PushError ? error.statusCode : 400, {
+        json(res, error instanceof UpdateError ? error.status : error instanceof SessionError || error instanceof PushError || error instanceof ComputerDirectoryError ? error.statusCode : 400, {
           error: error instanceof Error ? error.message : "Request failed",
         });
       else res.end();

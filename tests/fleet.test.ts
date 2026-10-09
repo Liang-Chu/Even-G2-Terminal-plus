@@ -12,7 +12,7 @@ import { setTimeout as delay } from "node:timers/promises";
 const a = "http://100.64.0.1:4317", b = "http://100.64.0.2:4317", key = "a".repeat(32);
 function fixture(identity?: (connection: { url: string; token: string }) => Promise<unknown>,
   respond?: (connection: { url: string; token: string }, path: string, data?: any) => Promise<unknown> | undefined) {
-  const calls: { url: string; token: string; path: string; data?: any }[] = [];
+  const calls: { url: string; token: string; path: string; data?: any; timeout?: number }[] = [];
   const endpoints = new Map<string, { state: RuntimeState; online: (value: boolean, error?: string) => void; update: (value: RuntimeState) => void; viewed?: string; closed: boolean }>();
   const states: RuntimeState[] = [];
   const connectionMessages: (string | undefined)[] = [];
@@ -27,8 +27,8 @@ function fixture(identity?: (connection: { url: string; token: string }) => Prom
       disconnect: () => { endpoint.closed = true; endpoint.viewed = undefined; },
       reconnect: () => { endpoint.closed = false; online(true); update(endpoint.state); },
       setViewedSession: value => { endpoint.viewed = value; },
-      request: async (path, data) => {
-        calls.push({ url: connection.url, token: connection.token, path, data });
+      request: async (path, data, timeout) => {
+        calls.push({ url: connection.url, token: connection.token, path, data, ...(timeout === undefined ? {} : { timeout }) });
         const response = respond?.(connection, path, data);
         if (response) return response;
         if (path === "/api/host") return identity ? identity(connection) : { id: connection.url, name: connection.url === a ? "liam" : "nuc", nameSource: "tailscale" };
@@ -531,4 +531,45 @@ test("two authenticated HTTP bridges stream independently, isolate credentials a
   for (let n = 0; n < 100 && fleet.hosts()[0].online; n++) await delay(10);
   assert.equal(fleet.hosts()[0].online, false); assert.equal(fleet.hosts()[1].online, true);
   assert.equal(fleet.snapshot().monitoring?.watched, 2);
+});
+
+test("an explicit address edit replaces only the verified same computer while the default duplicate guard remains", async t => {
+  const alias = "https://laptop.synthetic.test";
+  const f = fixture(async connection => ({ id: connection.url === b ? "different-computer" : "same-computer", name: "fixture", nameSource: "hostname" }));
+  t.after(() => f.fleet.disconnect());
+  await f.fleet.add({ url: a, token: "old-key" }); await flushMetadata();
+  const original = f.endpoints.get(a)!;
+  await assert.rejects(f.fleet.add({ url: alias, token: "new-key" }), /already saved/);
+  assert.equal(original.closed, false); assert.equal(f.fleet.activeUrl(), a);
+  await assert.rejects(f.fleet.add({ url: b, token: "other-key" }, false, true, () => true, a), /different device/);
+  assert.equal(original.closed, false);
+  await f.fleet.add({ url: alias, token: "new-key" }, false, true, () => true, a);
+  assert.equal(original.closed, true); assert.equal(f.fleet.activeUrl(), alias);
+  assert.deepEqual(f.fleet.connections(), [{ url: alias, token: "new-key" }]);
+});
+
+test("failed or cancelled address verification leaves the original transport and selection running", async t => {
+  const alias = "https://laptop.synthetic.test";
+  let fail = false;
+  const f = fixture(async connection => {
+    if (connection.url === alias && fail) throw new Error("Bridge returned 500");
+    return { id: "same-computer", name: "fixture", nameSource: "hostname" };
+  });
+  t.after(() => f.fleet.disconnect());
+  await f.fleet.add({ url: a, token: "old-key" }); await flushMetadata();
+  const original = f.endpoints.get(a)!;
+  fail = true;
+  await assert.rejects(f.fleet.add({ url: alias, token: "new-key" }, false, true, () => true, a), /does not identify/);
+  assert.equal(original.closed, false); assert.equal(f.fleet.activeUrl(), a);
+  fail = false;
+  await assert.rejects(f.fleet.add({ url: alias, token: "new-key" }, false, true, () => false, a), /attempt was replaced/);
+  assert.equal(original.closed, false); assert.equal(f.fleet.activeUrl(), a);
+  assert.deepEqual(f.fleet.connections(), [{ url: a, token: "old-key" }]);
+});
+
+test("requestFrom forwards the requested metadata timeout without replacing the transport", async t => {
+  const f = fixture(); t.after(() => f.fleet.disconnect()); await f.add();
+  const original = f.endpoints.get(b)!;
+  await f.fleet.requestFrom(b, "/api/host", undefined, 5000);
+  assert.equal(f.calls.at(-1)!.timeout, 5000); assert.equal(f.endpoints.get(b), original); assert.equal(original.closed, false);
 });

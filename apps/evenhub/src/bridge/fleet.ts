@@ -32,9 +32,9 @@ export class FleetClient implements BridgeApi {
   activeConnection() { return this.active ? this.entries.get(this.active)?.connection : undefined; }
   hosts(): HostSource[] { return [...this.entries.values()].map(host => this.source(host)); }
   connections() { return [...this.entries.values()].map(host => host.connection); }
-  async requestFrom(url: string, path: string, data?: unknown) {
+  async requestFrom(url: string, path: string, data?: unknown, timeout?: number) {
     const host = this.requireOnline(this.entries.get(url));
-    const result = await host.client.request(path, data);
+    const result = await host.client.request(path, data, timeout);
     if (this.entries.get(url) !== host) throw new Error("Computer connection changed. Try again.");
     return result;
   }
@@ -118,7 +118,10 @@ export class FleetClient implements BridgeApi {
       if (wait !== undefined) this.scheduleMetadata(host, wait);
     }
   }
-  async add(connection: Connection, restoring = false, select = true, currentAttempt = () => true) {
+  async add(connection: Connection, restoring = false, select = true, currentAttempt = () => true, replaceUrl?: string) {
+    const replacement = replaceUrl && replaceUrl !== connection.url ? this.entries.get(replaceUrl) : undefined;
+    if (replaceUrl && replaceUrl !== connection.url && (!replacement || restoring))
+      throw new Error("The saved computer changed. Refresh its connection before editing the address.");
     const host = { connection, online: false, metadataDue: 0, status: { connectionState: "connecting", retryAttempt: 0 } } as Host;
     const current = () => this.entries.get(connection.url) === host;
     host.client = this.factory(connection, state => {
@@ -136,7 +139,8 @@ export class FleetClient implements BridgeApi {
       try {
         const info = await host.client.request("/api/host", undefined, 7000) as HostSource;
         if (typeof info?.id === "string" && typeof info.name === "string" && ["tailscale", "hostname"].includes(info.nameSource)) {
-          const duplicate = [...this.entries.values()].find(other => other.connection.url !== connection.url && other.info?.id === info.id);
+          const duplicate = [...this.entries.values()].find(other => other.connection.url !== connection.url &&
+            other.connection.url !== replaceUrl && other.info?.id === info.id);
           if (duplicate) throw new Error(`This computer is already saved at ${duplicate.connection.url}. Edit or remove that entry first.`);
           host.info = info; host.metadataDue = Date.now() + 60_000;
         }
@@ -144,11 +148,18 @@ export class FleetClient implements BridgeApi {
         if (error instanceof Error && (error.message.startsWith("This computer is already saved") || error.message.startsWith("Connection key rejected."))) throw error;
       }
     }
+    if (replacement && (!host.info || !replacement.info || host.info.id !== replacement.info.id))
+      throw new Error("The new address does not identify the saved computer. Use Connect another computer for a different device.");
     if (!currentAttempt()) throw new Error("Connection attempt was replaced");
+    if (replacement && this.entries.get(replaceUrl!) !== replacement)
+      throw new Error("The saved computer changed while its new address was being verified. Try again.");
     const previous = this.entries.get(connection.url);
     clearTimeout(previous?.metadataTimer); previous?.client.disconnect();
+    if (replacement) {
+      clearTimeout(replacement.metadataTimer); replacement.client.disconnect(); this.entries.delete(replaceUrl!);
+    }
     this.entries.set(connection.url, host);
-    if (!this.active || select) this.choose(connection.url);
+    if (!this.active || select || replacement?.connection.url === this.active) this.choose(connection.url);
     if (!this.suspended) host.client.connect();
     this.emit();
   }

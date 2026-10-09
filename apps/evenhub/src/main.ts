@@ -13,6 +13,8 @@ import {
 import { type Connection } from "./bridge/client.js";
 import { FleetClient } from "./bridge/fleet.js";
 import { ConnectionSettings } from "./bridge/settings.js";
+import { ComputerSync } from "./bridge/computers.js";
+import { ConnectionActions } from "./bridge/connection-actions.js";
 import { restoreViewerConnections } from "./bridge/restore.js";
 import { consumePairingUrl } from "./bridge/pairing.js";
 import { G2Display, type G2InputTrace } from "./g2/display.js";
@@ -47,7 +49,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <section class="details-card"><div class="panel-heading"><div><span class="section-number">03</span><h2>Runtime</h2></div></div><dl><div><dt>Activity</dt><dd id="tools">No active tools</dd></div><div><dt>Model</dt><dd id="model">—</dd></div><div><dt>Project</dt><dd id="cwd">—</dd></div><div><dt>Session</dt><dd id="session-id">—</dd></div></dl><div class="session-actions"><button id="manage-sessions" class="outline" disabled>Switch session ↗</button><button id="new-session" class="outline" disabled>＋ New</button></div><p id="monitor-summary" class="caption">Choose a session to open it. History is available separately.</p></section>
   </aside></div>
   <footer class="page-footer"><span>${appName.toUpperCase()} <span class="version">/ ${appVersion}</span></span><span>WINDOWS / LINUX / EVEN HUB</span></footer></main>
-  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Sessions from these computers appear together. Offline computers retry five times, 30 seconds apart; then choose Reconnect.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connect phone panel, or run terminal-plus pair on Linux.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on this device. Connecting only adds access to this computer's sessions.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
+  <dialog id="settings" class="computer-settings"><div class="dialog-heading"><h2>Connected computers</h2><button id="close-settings" type="button" class="subtle" aria-label="Close computers">✕</button></div><p id="computers-caption">Connect once; your paired computers share this list. Removing a connection keeps its Watch settings and terminals running. Offline computers retry five times, then choose Reconnect.</p><div id="connected-computers" class="connection-hosts" aria-label="Saved computers"></div><details id="connection-editor"><summary>Connect another computer</summary><form id="connection-form"><h3 id="connection-editor-title">Connect another computer</h3><p>Copy the URL and key from that computer's Connect phone panel, or run terminal-plus pair on Linux.</p><label for="bridge-url">Bridge URL</label><input id="bridge-url" type="url" required placeholder="Paste computer Bridge URL"><label for="bridge-token">Connection key</label><input id="bridge-token" type="password" required autocomplete="off" placeholder="Paste the connection key"><p class="caption">Saved on paired computers and shared with their viewers. Only add computers you trust.</p><div class="connection-editor-actions"><button class="primary" type="submit">Connect computer</button><button id="cancel-connection-edit" class="subtle" type="button">Cancel</button></div></form></details><div class="glance-details"><button id="notification-settings" type="button" class="outline full">Glance notifications</button></div></dialog>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -66,6 +68,7 @@ async function openNotificationSettings() {
 notificationSettingsButton.onclick = () => { void openNotificationSettings(); };
 const hostsList = $("connected-computers"), connectionEditor = $<HTMLDetailsElement>("connection-editor");
 let editingConnection = false;
+let editingConnectionUrl: string | undefined;
 if (desktopMode) {
   $("open-settings").textContent = "Connect phone";
   const computers = document.createElement("button"); computers.type = "button"; computers.className = "subtle"; computers.textContent = "Computers";
@@ -88,6 +91,9 @@ let online = false,
 let client: FleetClient | undefined;
 let config: Connection | undefined;
 const connectionSettings = new ConnectionSettings(() => localStorage, () => sessionStorage);
+const sharedComputers = new ComputerSync(() => client, connectionSettings, {
+  servingOrigin: desktopMode ? location.origin : undefined, onError: message => notice(message),
+});
 let audioBridge: EvenAppBridge | undefined;
 let voice: VoiceController | undefined;
 const voiceSettings = !desktopMode ? new VoiceSettings(() => voice?.cancel()) : undefined;
@@ -393,13 +399,14 @@ function openSettings() {
     .finally(() => { button.disabled = false; });
 }
 function clearConnectionEditor() {
-  editingConnection = false; connectionEditor.open = false;
+  editingConnection = false; editingConnectionUrl = undefined; connectionEditor.open = false;
   connectionEditor.querySelector("summary")!.textContent = "Connect another computer";
   $<HTMLInputElement>("bridge-url").value = ""; $<HTMLInputElement>("bridge-token").value = "";
   $("connection-editor-title").textContent = "Connect another computer";
   $("connection-form").querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent = "Connect computer";
 }
 let connectionAttempt = 0;
+const connectionActions = new ConnectionActions();
 async function restorePhoneConnection(bridge: EvenAppBridge) {
   const attempt = connectionAttempt;
   await connectionSettings.attachBridge(bridge);
@@ -413,6 +420,7 @@ function fleet() {
       state = nextState;
       config = candidate.activeConnection();
       render();
+      sharedComputers.notify();
     },
     (connected, error) => {
       if (client !== candidate) return;
@@ -433,15 +441,26 @@ function fleet() {
 }
 async function restoreConnections() {
   await restoreViewerConnections(fleet(), connectionSettings.all(), connectionSettings.current()?.url, desktopMode ? location.origin : undefined);
+  sharedComputers.notify();
 }
-async function connect(next: Connection) {
-  const attempt = ++connectionAttempt;
-  const target = fleet();
-  if (!target.connections().some(item => item.url === next.url) && target.connections().length >= 16) throw new Error("Remove a computer before adding another (maximum 16).");
-  await target.add(next, false, true, () => attempt === connectionAttempt);
-  if (attempt !== connectionAttempt) throw new Error("Connection attempt was replaced");
-  const saved = await connectionSettings.save(next);
-  if (!saved) notice("Connected, but this device could not save the computer. Try saving again.");
+async function connect(next: Connection, explicit = true, replacingUrl?: string) {
+  const requestedConnection = { ...next };
+  return connectionActions.run(async () => {
+    const next = requestedConnection;
+    const attempt = ++connectionAttempt;
+    const target = fleet();
+    if (!replacingUrl && !target.connections().some(item => item.url === next.url) && target.connections().length >= 16) throw new Error("Remove a computer before adding another (maximum 16).");
+    await target.add(next, false, true, () => attempt === connectionAttempt, replacingUrl);
+    if (attempt !== connectionAttempt) throw new Error("Connection attempt was replaced");
+    // Fence off old synchronization reads before native storage can delay this
+    // verified, deliberate connection change.
+    const synchronization = explicit ? sharedComputers.connected(next).catch(() => false) : undefined;
+    if (replacingUrl && replacingUrl !== next.url) await connectionSettings.remove(replacingUrl);
+    const saved = await connectionSettings.save(next);
+    if (!saved) notice("Connected, but this device could not save the computer. Try saving again.");
+    if (synchronization && !await synchronization) notice("Connected locally. The shared list will update when its computers are reachable.");
+    else sharedComputers.notify();
+  });
 }
 let hostsSignature = "";
 function renderHosts() {
@@ -461,7 +480,7 @@ function renderHosts() {
     const actions = document.createElement("div"); actions.className = "connection-host-actions";
     const edit = document.createElement("button"); edit.type = "button"; edit.className = "text-button"; edit.textContent = "Edit connection";
     edit.onclick = () => { const saved = client?.connections().find(item => item.url === host.url); if (!saved) return;
-      editingConnection = true; $("connection-error")?.remove();
+      editingConnection = true; editingConnectionUrl = saved.url; $("connection-error")?.remove();
       connectionEditor.querySelector("summary")!.textContent = "Edit connection";
       $<HTMLInputElement>("bridge-url").value = saved.url; $<HTMLInputElement>("bridge-token").value = saved.token;
       $("connection-editor-title").textContent = `Edit ${host.name}`;
@@ -475,6 +494,9 @@ function renderHosts() {
       else void openSessions("browse");
     };
     const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button"; remove.textContent = "Remove";
+    remove.title = "Remove from the shared computer list; keep Watch and terminals running";
+    remove.disabled = desktopMode && host.url === location.origin;
+    if (remove.disabled) remove.title = "This page stays connected to its own computer";
     remove.onclick = () => { void removeConnection(host.url!); };
     const reconnect = document.createElement("button"); reconnect.type = "button"; reconnect.className = "text-button"; reconnect.textContent = "Reconnect";
     reconnect.hidden = host.online || !["offline", "key-rejected"].includes(host.connectionState || "");
@@ -483,11 +505,16 @@ function renderHosts() {
   }
 }
 async function removeConnection(url: string) {
-  connectionAttempt++; voice?.cancel();
-  const cleared = await connectionSettings.remove(url);
-  client?.remove(url); config = client?.activeConnection();
-  clearConnectionEditor();
-  notice(cleared ? "Computer removed from this device. Its Watch settings and terminals are unchanged." : "Removed here, but saved storage could not be updated. Try again.");
+  return connectionActions.run(async () => {
+    connectionAttempt++; voice?.cancel();
+    let cleared: boolean;
+    try { cleared = await sharedComputers.remove(url); }
+    catch { notice("Could not save the shared connection change. Try again."); return; }
+    if (!cleared) { cleared = await connectionSettings.remove(url); client?.remove(url); }
+    config = client?.activeConnection();
+    clearConnectionEditor();
+    notice(cleared ? "Connection removed. Changes sync when connected; Watch and terminals are unchanged." : "Removed here, but saved storage could not be updated. Try again.");
+  });
 }
 $("open-settings").onclick = openSettings;
 $("close-settings").onclick = () => dialog.close();
@@ -525,7 +552,7 @@ $("connection-form").onsubmit = async (event) => {
       url: url.origin,
       token: $<HTMLInputElement>("bridge-token").value.trim(),
     };
-    await connect(next);
+    await connect(next, true, editingConnectionUrl);
     dialog.close();
   } catch (error) {
     $("connection-error")?.remove();
@@ -572,19 +599,20 @@ $("stop").onclick = () => {
 $("new-session").onclick = () => void openSessions("new");
 $("manage-sessions").onclick = () => void openSessions("browse");
 window.addEventListener("pagehide", event => {
+  sharedComputers.suspend();
   client?.disconnect();
   voice?.cancel();
-  if (!event.persisted) { clearInterval(statusClock); glasses.dispose(); desktopSessions?.close(); }
+  if (!event.persisted) { sharedComputers.close(); clearInterval(statusClock); glasses.dispose(); desktopSessions?.close(); }
 });
-window.addEventListener("pageshow", event => { if (event.persisted) { client?.resume(); glasses.resync(); } });
+window.addEventListener("pageshow", event => { if (event.persisted) { client?.resume(); sharedComputers.resume(); glasses.resync(); } });
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) voice?.cancel();
-  else { client?.resume(); glasses.resync(); }
+  if (document.hidden) { sharedComputers.suspend(); voice?.cancel(); }
+  else { client?.resume(); sharedComputers.resume(); glasses.resync(); }
 });
 render();
 if (hub) void openSessions("browse");
 const launchConnection = config;
 void (async () => {
   await restoreConnections();
-  if (pairedOnLaunch && launchConnection) await connect(launchConnection);
-})().catch(error => { notice(error.message); openSettings(); });
+  if (pairedOnLaunch && launchConnection) await connect(launchConnection, !(desktopMode && launchConnection.url === location.origin));
+})().catch(error => { notice(error.message); openSettings(); }).finally(() => { if (!document.hidden) sharedComputers.start(); });

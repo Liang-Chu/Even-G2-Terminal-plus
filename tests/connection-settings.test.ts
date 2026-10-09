@@ -87,3 +87,90 @@ test("the prior verified session-storage connection migrates to durable app stor
   assert.deepEqual(await settings.attachBridge(bridge), value);
   assert.equal(session.data.size, 0); assert.equal(local.data.size, 0);
 });
+
+test("shared computer records and transport aliases survive Hub recreation and batch connection updates", async () => {
+  const local = storage(), bridge = appStorage();
+  const settings = new ConnectionSettings(() => local, () => storage());
+  await settings.attachBridge(bridge); await settings.save(value);
+  const book = { version: 1 as const, entries: [{ id: "nuc", url: value.url, token: value.token,
+    stamp: { counter: 2, writer: "viewer-a" } }] };
+  await settings.saveComputerCache(book, [{ id: "nuc", url: value.url }]);
+  const own = { url: "http://127.0.0.1:4317", token: "synthetic-local-bridge-key-123456" };
+  await settings.replaceConnections([own, value], own.url);
+  await settings.select(value.url);
+  const restored = new ConnectionSettings(() => storage(), () => storage());
+  await restored.attachBridge(bridge);
+  assert.deepEqual(restored.computerBook(), book);
+  assert.deepEqual(restored.computerAliases(), [{ id: "nuc", url: value.url }]);
+  assert.deepEqual(restored.all(), [own, value]); assert.deepEqual(restored.current(), value);
+  assert.equal(local.data.size, 0, "native storage owns the durable cache");
+});
+
+test("shared deletion cache strips removed credentials and invalid cache retains valid bootstrap connections", async () => {
+  const local = storage(), settings = new ConnectionSettings(() => local, () => storage());
+  await settings.save(value);
+  await settings.saveComputerCache({ version: 1, entries: [{ id: "nuc", stamp: { counter: 3, writer: "viewer-a" }, deleted: true }] },
+    [{ id: "nuc", url: value.url }]);
+  await settings.replaceConnections([]);
+  assert.equal(local.getItem(key)!.includes(value.token), false, "forgotten key is not retained in the cache");
+  const raw = JSON.parse(local.getItem(key)!); raw.connection = value; raw.connections = [value];
+  raw.computerBook = { version: 1, entries: [{ id: "nuc", token: "bad" }] };
+  raw.computerAliases = [{ id: "nuc", url: "file:///private" }]; local.setItem(key, JSON.stringify(raw));
+  const reopened = new ConnectionSettings(() => local, () => storage());
+  assert.deepEqual(reopened.current(), value);
+  assert.deepEqual(reopened.computerBook(), { version: 1, entries: [] });
+  assert.deepEqual(reopened.computerAliases(), []);
+});
+
+test("native shared removals beat newer browser selection timestamps and late selection changes", async () => {
+  for (const lateSelection of [false, true]) {
+    const local = storage(), bridge = appStorage();
+    const live = { version: 1 as const, entries: [{ id: "nuc", url: value.url, token: value.token,
+      stamp: { counter: 1, writer: "browser" } }] };
+    const deleted = { version: 1 as const, entries: [{ id: "nuc", stamp: { counter: 9, writer: "phone" }, deleted: true as const }] };
+    local.setItem(key, JSON.stringify({ version: 1, updatedAt: 200, connection: value, connections: [value], computerBook: live }));
+    const remote = JSON.stringify({ version: 1, updatedAt: 100, connection: value, connections: [value], computerBook: deleted });
+    let finish!: (raw: string) => void;
+    bridge.getLocalStorage = () => new Promise(resolve => { finish = resolve; });
+    const settings = new ConnectionSettings(() => local, () => storage());
+    const attaching = settings.attachBridge(bridge);
+    if (lateSelection) await settings.select(value.url);
+    finish(remote); await attaching;
+    assert.deepEqual(settings.computerBook(), deleted);
+    assert.deepEqual(JSON.parse(bridge.local.getItem(key)!).computerBook, deleted);
+    assert.deepEqual(settings.current(), value, "metadata merge does not replace the user's selection");
+  }
+});
+
+test("unchanged in-memory shared records retry failed storage instead of claiming durability", async () => {
+  const data = storage(); let blocked = true;
+  const local = { ...data, setItem: (name: string, raw: string) => {
+    if (blocked) throw new Error("Storage denied"); data.setItem(name, raw);
+  } };
+  const settings = new ConnectionSettings(() => local, () => storage());
+  const book = { version: 1 as const, entries: [{ id: "nuc", stamp: { counter: 9, writer: "phone" }, deleted: true as const }] };
+  assert.equal(await settings.saveComputerCache(book, []), false);
+  assert.equal(await settings.saveComputerCache(book, []), false);
+  assert.equal(await settings.replaceConnections([]), false);
+  blocked = false;
+  assert.equal(await settings.saveComputerCache(book, []), true);
+  assert.equal(await settings.replaceConnections([]), true);
+  assert.deepEqual(JSON.parse(data.getItem(key)!).computerBook, book);
+});
+
+test("saving a stale shared cache after native restoration retains the newer deletion", async () => {
+  const local = storage(), bridge = appStorage();
+  const settings = new ConnectionSettings(() => local, () => storage());
+  await settings.save(value);
+  const live = { version: 1 as const, entries: [{ id: "nuc", url: value.url, token: value.token,
+    stamp: { counter: 1, writer: "browser" } }] };
+  const deleted = { version: 1 as const, entries: [{ id: "nuc", stamp: { counter: 99, writer: "phone" }, deleted: true as const }] };
+  await settings.saveComputerCache(live, [{ id: "nuc", url: value.url }]);
+  bridge.local.setItem(key, JSON.stringify({ version: 1, updatedAt: Date.now() + 1000,
+    connection: null, connections: [], computerBook: deleted }));
+  await settings.attachBridge(bridge);
+  await settings.saveComputerCache(live, [{ id: "nuc", url: value.url }]);
+  assert.deepEqual(settings.computerBook(), deleted);
+  assert.deepEqual(JSON.parse(bridge.local.getItem(key)!).computerBook, deleted);
+  assert.equal(bridge.local.getItem(key)!.includes(value.token), false);
+});
