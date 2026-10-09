@@ -13,6 +13,15 @@ export interface TranscriptEntry {
   toolId?: string;
   outcome?: "running" | "completed" | "failed";
 }
+/** Verified pending native input, without question text, choices or tool arguments. */
+export interface InputAttention {
+  id: string;
+  kind: "approval" | "question" | "terminal-input";
+  createdAt?: number;
+  expiresAt?: number;
+  /** Existing observer state is visible, but must not replay a historical alert. */
+  baseline?: true;
+}
 export interface RuntimeState {
   source?: HostSource;
   hosts?: HostSource[];
@@ -34,6 +43,7 @@ export interface RuntimeState {
   session: { id?: string; key?: string; name?: string; cwd: string; model?: string; tunnel?: Tunnel; resumedFrom?: string };
   capabilities?: { interrupt: boolean; prompt?: boolean };
   interactions?: import("./interactions.js").Interaction[];
+  attention?: InputAttention[];
   commandStatus?: string;
   currentAssistantText: string;
   assistantOpen: boolean;
@@ -47,6 +57,7 @@ export interface RuntimeState {
 }
 export type NormalizedPiEvent =
   | { type: "monitoring.updated" }
+  | { type: "monitoring.attention"; session: string; sessionId?: string; sessionKey: string; requests: InputAttention[] }
   | { type: "monitoring.settled"; session: string; sessionId?: string; sessionKey?: string; outcome: "completed" | "failed" | "interrupted" }
   | { type: "runtime.connected" }
   | { type: "runtime.exited"; expected: boolean; error?: string }

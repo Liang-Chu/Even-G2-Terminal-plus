@@ -2,7 +2,7 @@
 
 从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Terminal+ 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
 
-本文对应 **Terminal+ 1.1.16**；验证和发布情况见[发布状态](release-status.md)。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
+本文对应 **Terminal+ 1.1.17**；验证和可下载版本见[发布状态](release-status.md)。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
 
 ## 先分清四个部分
 
@@ -11,7 +11,7 @@
 | Windows EXE／Linux 电脑端（npm／`.run`） | 每台需要监控的电脑 | 读取本机 CLI 状态、保存 Watch、提供 4317 端口的 API 和管理页 |
 | Even Hub `.ehpk` | 手机的 Even Hub | 同时连接多台电脑，控制 G2 显示和输入 |
 | 原生 Pi／Codex／Claude | 原来的电脑、原来的系统用户 | 执行任务，保存完整输出及模型登录 |
-| Glance，可选 | 手机 | 接收已配置发送端的完成通知 |
+| Glance，可选 | 手机 | 接收已配置发送端的完成和需要输入通知 |
 
 Terminal+ 是监控和简单会话管理端。浏览器管理页和手机 Hub 都能汇总明确保存的电脑上的 Pi、Codex、Claude 会话；每台监控端只读取本机 CLI 记录。它不替你安装 CLI，也不需要重复填写 CLI 的模型 key。语音转写和通知发送是各自独立的可选配置。
 
@@ -19,7 +19,7 @@ Terminal+ 是监控和简单会话管理端。浏览器管理页和手机 Hub �
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.16-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.17-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Terminal+**、**Start with Windows**、更新和 **Quit Terminal+**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -116,7 +116,7 @@ terminal-plus new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. 在 Even Hub 单独安装 **Terminal+ 1.1.16**（`terminal-plus-1.1.16.ehpk`）。使用 **Terminal+ 1.1.16** 电脑端和 Even App 2.2.10+，再连好 G2。
+1. 在 Even Hub 单独安装 **Terminal+ 1.1.17**（`terminal-plus-1.1.17.ehpk`）。使用 **Terminal+ 1.1.17** 电脑端和 Even App 2.2.10+，再连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `terminal-plus pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -202,7 +202,7 @@ tmux attach -t 实际会话名
 
 语音是可选项：手机 **Voice** 选择 OpenAI／ElevenLabs，填自己的转写 key 并保存。新建或未指定模型的 OpenAI 配置默认使用 **GPT Transcribe**，流式显示文字；已有明确的 Whisper 选择、provider 和 key 保留。设置在当前设备保存；手机直接向所选服务上传音频，再把完整 prompt 发到目标电脑。[语音和数据流](voice.md)
 
-普通 Claude 会话能显示问题和选项，回答需要专门的连接器会话。支持的连接器提问最多等待五分钟接收远程回答，手机点 **Cancel** 会立即交回原终端。支持的多个问题在手机处理；未支持的格式或多选题保留在原终端。[提问支持范围](connectors.md#phone-commands-and-choices)
+当前会话确认需要输入时显示 **Needs input**。可远程回答的请求有 **Answer →**，直接打开问题／审批面板；仅能在原终端处理的请求显示 **Answer in original terminal**。G2 支持简短单题和选项，较长或多个受支持问题交给手机。普通 Claude 会话能显示问题和选项，回答需要专门的连接器会话。支持的连接器提问最多等待五分钟接收远程回答，手机点 **Cancel** 会立即交回原终端。未支持的格式或多选题保留在原终端。[提问支持范围](connectors.md#phone-commands-and-choices)
 
 ## 可选 Glance 通知
 
@@ -213,7 +213,7 @@ tmux attach -t 实际会话名
 | 每台独立发送 | 每个发送端都配置 | 每台各一个 watcher，各用自己的 URL/key |
 | 中心转发 | 只配置中心，其他电脑转发 | 只注册中心 watcher，使用中心 URL/key |
 
-通知按每个已 Watch 会话完成触发，眼镜当前显示的会话在有效查看租约内抑制，其他会话正常通知。只看手机／桌面预览不抑制；断线不算完成。PUSH 使用 FCM，Android 15 分钟轮询限制属于 POLL。
+每个已 Watch 会话完成或确认需要输入／审批时可触发通知。眼镜当前显示的会话在有效查看租约内抑制完成通知，**Needs input** 仍允许提醒。只看手机／桌面预览不抑制；断线或等待后台工作不等于完成或需要输入。独立发送和中心转发沿用已有 Glance 注册，不用为新类型重新注册。推送不附问题、审批或工具正文。PUSH 使用 FCM，Android 15 分钟轮询限制属于 POLL。[检测与回答限制](connectors.md#input-needed-notifications)
 
 ### 1. 配置发送端或中心
 
@@ -275,7 +275,9 @@ terminal-plus settings
 
 已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `terminal-plus update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `terminal-plus update`，再用 `terminal-plus update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-更新各台电脑端，并安装 **Hub 1.1.16**，即可共享连接。打开原来已保存电脑列表的更新后查看端：验证通过的记录会同步到可达的已配对电脑；未验证的离线记录先留在本地，确认设备身份后再同步。同步的移除记录不保留 key，旧缓存不会重新添加已移除的电脑。新浏览器／手机只需连接一台已知电脑获取列表。旧客户端仍兼容，但设备列表仅保存在本地。
+更新电脑端获取需要输入通知；单独安装 **Hub 1.1.17** 获取 **Answer →** 快捷入口和 G2 请求界面更新。已有 Pi 等当前任务空闲后 `/reload`；Codex／Claude 连接器终端等空闲再重开，加载内嵌的新代码，不必为更新中断任务。普通观察会话支持范围比连接器更有限。[检测限制](connectors.md#input-needed-notifications)
+
+共享连接继续可用：打开原来已保存电脑列表的更新后查看端，验证通过的记录会同步到可达的电脑；未验证的离线记录先留在本地，确认设备身份后再同步。同步的移除记录不保留 key，旧缓存不会重新添加已移除的电脑。新浏览器／手机只需连接一台已知电脑获取列表。旧客户端仍兼容，但设备列表仅保存在本地。
 
 **电脑更新不更新手机／G2 应用。**请在 Even Hub 单独安装 `.ehpk`。从 `local.evenpilot.app` 迁移到 `local.terminalplus.app` 时，可能需要新 Hub 条目／重新安装，手机连接和语音 key 不一定迁移；必要时重新填写一台已知电脑的 URL/key 和转写 key。语音 key 仍属于当前查看端，共享连接不复制语音、Firebase 或模型凭据。电脑端的 Watch 和 Glance 订阅保留在原数据目录；已有连接器等任务结束后重开加载新代码，Pi 可空闲时 `/reload`。[更新细节](updates.md)
 
@@ -297,7 +299,7 @@ npm 安装的版本完成上述卸载后，再执行 `npm uninstall -g terminal-
 | Codex／Claude 提示回原终端 | 当前是只读观察；需要远程输入才创建连接器 |
 | Linux 找不到命令 | 重开支持的 shell，或用 `~/.local/bin/terminal-plus`，检查 PATH 提示 |
 | Linux 打不开终端 | CLI 已安装登录、无头已装 tmux，从能找到 CLI 的 shell 重启后台 |
-| Glance 没推送 | Watch、正确发送端/中心、Firebase 权限、PUSH 保存注册、会话没有正显示在 G2 |
+| Glance 没有完成推送 | Watch、正确发送端/中心、Firebase 权限、PUSH 保存注册、会话没有正显示在 G2；需要输入提醒不受这项抑制 |
 | 电脑更新后 G2 没变 | 单独安装 Terminal+ 的 `.ehpk` |
 
 Linux 日志：`journalctl --user -u even-pilot.service`。Windows 启动诊断：`<安装目录>\.local\desktop-startup.log`。普通重连问题不用清运行数据，那里面有 key、主机身份、Watch 和订阅。交给没有历史记忆的操作者／agent 时，请从[运行手册](agent-runbook.md)开始。

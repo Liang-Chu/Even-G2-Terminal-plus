@@ -1,6 +1,6 @@
 {
   "name": "terminal-plus",
-  "version": "1.1.16",
+  "version": "1.1.17",
   "private": true,
   "type": "module",
   "description": "Monitor Pi, Codex and Claude sessions on Windows and Linux, with access through Even Hub and G2.",

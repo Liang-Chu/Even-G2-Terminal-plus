@@ -17,6 +17,7 @@ import { sessionAgentCount } from "../packages/cockpit-state/selectors.js";
 import { createBridgeServer } from "../apps/windows/src/server.js";
 import { savedEntries } from "./fixtures/saved-sessions.js";
 import { runSessionCommand } from "../apps/linux/src/session-cli.js";
+import { connectorKey } from "../packages/connectors/identity.js";
 
 function nativeSnapshot(host: NativeHost, key: string) {
   const runtime = host.getRuntime(key);
@@ -61,6 +62,36 @@ test("already-open native sessions are selected without a launch or fork; later 
   assert.equal(f.host.getRuntime(sessionKey(f.paths[0])).store.state.connected, true);
   assert.equal(f.host.store.state.monitoring?.watched, 0);
   await f.host.stop(); assert.equal(f.host.getRuntime(sessionKey(f.paths[0])).store.state.connected, true);
+});
+
+test("native attention covers every watched session, ignores menus and retains pending across transport loss", async t => {
+  const f = await fixture(t), a = f.make(0, true), b = f.make(1, true);
+  await f.host.resumeSession(a.store.state.session.key!);
+  b.store.publish({ ...b.store.state, main: { ...b.store.state.main, status: "waiting" }, interactions: [{ id: "ordinary-menu", kind: "menu",
+    title: "Model settings", questions: [], expiresAt: Date.now() + 60_000 }] }, { type: "monitoring.updated" }); b.publish();
+  assert.equal(f.journal.list().length, 0, "Menus and generic waiting are not requests for user attention");
+  b.store.publish({ ...b.store.state, attention: [{ id: "verified-b", kind: "question", createdAt: Date.now() }] }, { type: "monitoring.updated" }); b.publish();
+  assert.equal(f.journal.list().length, 1); assert.equal(f.journal.list()[0].sessionKey, b.store.state.session.key);
+  assert.equal(f.host.store.state.session.key, a.store.state.session.key, "Background attention does not select another session");
+  b.store.publish({ ...b.store.state, connected: false, attention: [] }, { type: "monitoring.updated" }); b.publish();
+  assert.equal(f.journal.list().length, 1, "Disconnect is not resolution");
+  await f.host.setMonitored(b.store.state.session.key!, false);
+  assert.equal(f.journal.list().at(-1)?.kind, "attention-resolved", "Explicit unwatch clears notification eligibility without terminating the CLI");
+  assert.equal(f.launched.length, 0);
+});
+
+test("connector-owned Claude choices are not duplicated by native hook observation of the same session", async t => {
+  const f = await fixture(t), window = f.make(0, true), id = randomUUID(), key = connectorKey("claude", id);
+  window.store.dispatch({ type: "session.updated", session: { key, id, tunnel: "claude" } });
+  for (const [index, kind] of (["approval", "question"] as const).entries()) {
+    window.store.publish({ ...window.store.state, interactions: [{ id: "channel-" + kind, kind, title: "Claude choice",
+      createdAt: Date.now(), questions: [{ id: "decision", text: "Private", options: [{ id: "allow", label: "Allow" }] }], expiresAt: Date.now() + 60_000 }] }, { type: "monitoring.updated" });
+    window.publish();
+    f.host.observeClaude({ state: { ...window.store.state, interactions: [], attention: [{ id: "ordinary-hook-copy-" + kind, kind, createdAt: Date.now() }] },
+      updatedAt: Date.now(), activity: true });
+    assert.equal(f.journal.list().filter(event => event.kind === "attention").length, index + 1);
+    assert.equal(f.host.getRuntime(key).store.state.interactions?.[0].id, "channel-" + kind);
+  }
 });
 
 test("closed sessions open the original file once and monitor it without copying; recent updates sort globally", async t => {
@@ -500,4 +531,35 @@ test("real extension callbacks update snapshots, redact hidden/tool data, and re
   snapshot = readLocalJson(snapshotPath);
   writeLocalJson(join(f.directory, `${instance}.command.json`), { id: "stop", instance, key: sessionKey(f.paths[0]), runId: snapshot.runId, type: "interrupt", expiresAt: Date.now() + 5000 });
   await delay(300); assert.equal(interrupted, true);
+});
+
+test("official Pi UI lifecycle reports active-run dialogs, keeps idle menus quiet and sends no dialog content", async t => {
+  const f = await fixture(t), handlers = new Map<string, (event: any, context: any) => void>(), prior = process.env.EVEN_PILOT_DATA_DIR;
+  process.env.EVEN_PILOT_DATA_DIR = f.root; let idle = true;
+  t.after(() => { handlers.get("session_shutdown")?.({}, undefined); if (prior === undefined) delete process.env.EVEN_PILOT_DATA_DIR; else process.env.EVEN_PILOT_DATA_DIR = prior; });
+  const ctx = { mode: "tui", cwd: f.root, isIdle: () => idle,
+    sessionManager: { getSessionFile: () => f.paths[0], getSessionId: () => "source-0", getSessionName: () => "Pi question",
+      getBranch: () => savedEntries(f.root) } };
+  monitor({ on: (name, handler) => handlers.set(name, handler), sendUserMessage: () => assert.fail("No model calls") });
+  handlers.get("session_start")!({}, ctx);
+  const snapshotPath = join(f.directory, `${process.pid}.json`);
+  const read = async () => { await delay(280); f.host.scan(); return readLocalJson(snapshotPath) as NativeSnapshot; };
+  handlers.get("ui_prompt_start")!({ kind: "select", title: "Private settings menu" }, ctx);
+  assert.equal((await read()).state.attention?.length, 0); assert.equal(f.journal.list().length, 0);
+  handlers.get("ui_prompt_end")!({ kind: "select" }, ctx);
+  idle = false; handlers.get("agent_start")!({ type: "agent_start" }, ctx);
+  handlers.get("ui_prompt_start")!({ kind: "custom", title: "Sensitive question and command" }, ctx);
+  let snapshot = await read(); assert.equal(snapshot.state.attention?.length, 1); assert.equal(snapshot.state.attention?.[0].kind, "terminal-input");
+  assert.doesNotMatch(JSON.stringify(snapshot.state.attention), /Sensitive|question and command/);
+  handlers.get("ui_prompt_start")!({ kind: "confirm", title: "Nested dialog" }, ctx);
+  snapshot = await read(); assert.equal(snapshot.state.attention?.length, 2);
+  handlers.get("ui_prompt_end")!({ kind: "confirm" }, ctx);
+  assert.equal((await read()).state.attention?.length, 1);
+  handlers.get("ui_prompt_end")!({ kind: "input" }, ctx);
+  assert.equal((await read()).state.attention?.length, 1, "Unknown end cannot cancel another dialog");
+  handlers.get("ui_prompt_end")!({ kind: "custom" }, ctx);
+  assert.equal((await read()).state.attention?.length, 0);
+  assert.equal(f.journal.list().filter(event => event.kind === "attention").length, 2);
+  assert.equal(f.journal.list().filter(event => event.kind === "attention-resolved").length, 2);
+  assert.equal(f.journal.list().filter(event => !event.kind || event.kind === "completion").length, 0);
 });

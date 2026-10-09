@@ -78,3 +78,32 @@ test("text-only broker questions have a selectable native input row", async t =>
   f.display.handleEvent({ listEvent: { containerID: CHOICE_CONTAINER_ID, currentSelectItemIndex: 0 } } as any);
   assert.equal(f.opened(), 1); assert.equal(await f.display.submitInteractionDraft("Text", "s"), true);
 });
+
+test("verified native-only questions keep readable history and direct input back to Terminal", t => {
+  let body = "", opens = 0, replies = 0;
+  const display = new G2Display((_, text) => { body = text; }, () => {}, undefined, {
+    input: { open: () => opens++, toggleRecording() {} }, respond: async () => { replies++; },
+  });
+  t.after(() => display.dispose());
+  const current = { ...initialState(), connected: true, session: { key: "s", cwd: "/synthetic", tunnel: "claude" as const },
+    main: { status: "running" as const }, attention: [{ id: "native-question", kind: "question" as const }],
+    transcript: [{ id: 1, role: "assistant" as const, text: "Which format? Summary or full?", at: 1 }] };
+  display.update(current, true);
+  assert.match(body, /Which format/); assert.match(body, /Answer in original terminal/);
+  display.toggle(); assert.equal(opens, 0); assert.equal(replies, 0);
+  display.scroll(1); display.toggle(); assert.match(body, /^Which format\?/);
+  display.handleEvent({ textEvent: { eventType: 3 } } as any);
+  display.update(current, false);
+  assert.doesNotMatch(body, /Answer in original terminal/);
+});
+
+test("a generic background wait never becomes a native-choice warning or input blocker", t => {
+  let body = "", opens = 0;
+  const display = new G2Display((_, text) => { body = text; }, () => {}, undefined, {
+    input: { open: () => opens++, toggleRecording() {} },
+  });
+  t.after(() => display.dispose());
+  display.update({ ...initialState(), connected: true, session: { key: "s", cwd: "/synthetic" }, main: { status: "waiting" } }, true);
+  assert.doesNotMatch(body, /Answer in original terminal/);
+  display.toggle(); assert.equal(opens, 1);
+});

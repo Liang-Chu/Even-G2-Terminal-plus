@@ -59,6 +59,47 @@ test("ordinary Claude sessions use official hooks, notify independently and rema
   assert.equal(runtime.store.state.transcript.at(-1)?.text, "Fixed login");
 });
 
+test("official Claude input hooks create minimal notices and matching lifecycle resolves them", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); await s.emit("PermissionRequest", { tool_name: "Bash", tool_use_id: "permission-tool",
+    tool_input: { command: "private command" }, permission_suggestions: ["private option"] }); await f.observer.poll();
+  let state = f.host.getRuntime(s.key).store.state;
+  assert.equal(state.attention?.length, 1); assert.equal(state.attention?.[0].kind, "approval");
+  assert.equal(f.journal.list().filter(event => event.kind === "attention").length, 1);
+  assert.doesNotMatch(JSON.stringify(state.attention), /private command|private option/);
+  await s.emit("PermissionRequest", { tool_name: "Bash", tool_use_id: "permission-tool" }); await f.observer.poll();
+  assert.equal(f.journal.list().filter(event => event.kind === "attention").length, 1);
+  await s.emit("PostToolUse", { tool_use_id: "permission-tool" }); await f.observer.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.attention?.length, 0);
+  await s.emit("PreToolUse", { tool_name: "AskUserQuestion", tool_use_id: "question-tool" }); await f.observer.poll();
+  state = f.host.getRuntime(s.key).store.state;
+  assert.equal(state.attention?.[0].kind, "question"); assert.equal(state.main.status, "waiting");
+  assert.deepEqual(state.capabilities, { prompt: false, interrupt: false });
+  f.setAlive(false); await f.observer.poll();
+  assert.equal(f.journal.list().filter(event => event.kind === "attention-resolved").length, 1, "Disconnect retains the outstanding question");
+  f.setAlive(true); await f.observer.poll();
+  await s.emit("PostToolUseFailure", { tool_use_id: "question-tool" }); await f.observer.poll();
+  assert.equal(f.journal.list().filter(event => event.kind === "attention-resolved").length, 2);
+  await s.emit("Stop", { background_tasks: [] }); await f.observer.poll();
+  assert.equal(f.journal.list().filter(event => !event.kind || event.kind === "completion").length, 1);
+});
+
+test("Claude pending input persists through restart without replay and child/generic waiting metadata stays quiet", async t => {
+  const f = await fixture(t), s = await f.session();
+  await s.emit("UserPromptSubmit"); await s.emit("PreToolUse", { tool_name: "AskUserQuestion", tool_use_id: "persist-question" }); await f.observer.poll();
+  await f.observer.stop(); f.advance();
+  const observations: ClaudeObservation[] = [], restarted = new ClaudeObserver(event => { observations.push(event); f.host.observeClaude(event); }, f.options);
+  t.after(() => restarted.stop()); await restarted.poll();
+  assert.equal(observations.at(-1)?.state.attention?.[0].baseline, true);
+  assert.equal(f.journal.list().filter(event => event.kind === "attention").length, 1);
+  await s.emit("PermissionRequest", { agent_id: "child", tool_use_id: "child-choice" }); await restarted.poll();
+  assert.equal(f.journal.list().filter(event => event.kind === "attention").length, 1);
+  await s.emit("PostToolUse", { tool_use_id: "persist-question" }); await restarted.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.attention?.length, 0);
+  await s.emit("PreToolUse", { tool_name: "Bash", tool_use_id: "ordinary-shell" }); await restarted.poll();
+  assert.equal(f.host.getRuntime(s.key).store.state.attention?.length, 0);
+});
+
 test("ordinary Claude refreshes readable question history without changing lifecycle or enabling control", async t => {
   const f = await fixture(t), s = await f.session();
   await s.emit("UserPromptSubmit", { prompt: "New prompt not committed yet" }); await f.observer.poll();

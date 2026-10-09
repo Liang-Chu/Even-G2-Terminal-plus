@@ -75,7 +75,8 @@ process.on("SIGTERM", onSignal);
 try {
   releaseLock = await acquireBackendLock(dataDirectory());
   runtime = new NativeHost({ cwd, sessions, directory: resolve(dataDirectory(), "native"),
-    catalog: new ConnectorCatalog({ data: dataDirectory(), pi: sessions }), codexObservation: {},
+    catalog: new ConnectorCatalog({ data: dataDirectory(), pi: sessions }),
+    codexObservation: { attentionPath: resolve(dataDirectory(), "codex-attention.json") },
     claudeObservation: { directory: resolve(dataDirectory(), "claude-events") },
     preferencesPath: resolve(dataDirectory(), "monitoring.json"), launch: openNativeTerminal, unregistered: hasUnregisteredTerminal });
   const localConfig = ensureLocalConfig();

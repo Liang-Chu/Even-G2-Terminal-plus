@@ -1,4 +1,15 @@
-# Terminal+ 1.1.16
+# Terminal+ 1.1.17
+
+- Adds separate input-needed/approval notifications for verified requests in watched sessions, alongside existing per-session completion alerts. Direct senders and central relays use existing Glance registrations; no re-registration is required.
+- Keeps completion suppression while a session is viewed on G2, but allows input-needed alerts. Pushes omit question text, choices and approval/tool contents.
+- Adds a selected-session **Needs input** notice with an **Answer →** shortcut to the phone's structured request panel. G2 supports short single questions/options; oversized or multiple supported forms use the phone.
+- Detects native Pi dialogs, recognized ordinary Codex question records and ordinary Claude hook requests without granting remote control. These require the original terminal. Ordinary Codex approvals and arbitrary CLI/shell prompts remain unsupported.
+- Fixes Linux settings restarts by retrying only the bridge’s short lifecycle 503 response, with a bounded wait. Authentication failures and unrelated services still fail immediately.
+- Preserves shared computer connections, Watch and native terminal processes. Pi extension updates load with idle `/reload`; embedded connector updates load after an idle terminal reopen.
+
+Use matching 1.1.17 companions and `terminal-plus-1.1.17.ehpk` for the new request UI. Source verification and physical phone/G2 limits are tracked in [release status](docs/release-status.md).
+
+# Terminal+ 1.1.16 — history
 
 - Shares saved computers across Windows/Linux browser portals and the phone. Pair one trusted computer on a new viewer to discover the shared list; existing verified phone/browser connections migrate automatically.
 - Stores connection information privately on paired companions. Open viewers synchronize changes with reachable computers; session access remains direct over Tailscale or LAN.

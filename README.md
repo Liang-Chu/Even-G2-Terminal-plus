@@ -2,13 +2,13 @@
 
 Watch Pi, Codex and Claude Code sessions running on Windows/Linux from a browser, Even Hub on your phone, or Even G2. Continue working in your native terminal; each computer runs a lightweight companion and the viewer combines sessions from saved computers.
 
-See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details and completion notifications through Glance.
+See the source computer, model, reported running-agent count and recent messages. Optional features include sentence-by-sentence voice input, agent task details, and completion or input-needed notifications through Glance.
 
-**Terminal+ 1.1.16** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.17** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows / Linux / Hub downloads](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [中文](README.zh-CN.md) · [Full setup](docs/setup.md)
 
-The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.16**; see [release status](docs/release-status.md) for verification and publication details.
+The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Commands and filenames use `terminal-plus` / `Terminal-plus` where `+` is unsuitable. This guide covers **1.1.17**; see [release status](docs/release-status.md) for verification and available downloads.
 
 ## Quick start
 
@@ -16,11 +16,11 @@ The Windows/Linux companion and phone/G2 app share the name **Terminal+**. Comma
 
 Start with a working Pi, Codex or Claude Code installation. Install Terminal+ on each computer you want to watch, as the **same OS user who runs the CLI**. Your existing model login stays in use; Terminal+ does not install the CLIs.
 
-- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.16-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
-- **Linux / SSH:** download `Terminal-plus-1.1.16-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
+- **Windows:** from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases), download `Terminal-plus-1.1.17-Setup-x64.exe`, then choose **Install**. The manager opens. Later, use the **Terminal+** shortcut or double-click the tray icon. System Node/npm is not required.
+- **Linux / SSH:** download `Terminal-plus-1.1.17-Setup-linux-x64.run`, then run as your normal user, without `sudo`:
 
   ```sh
-  sh ./Terminal-plus-1.1.16-Setup-linux-x64.run
+  sh ./Terminal-plus-1.1.17-Setup-linux-x64.run
   ```
 
   Open a **new shell**, then run `terminal-plus` and `terminal-plus pair`. In the current shell, use `~/.local/bin/terminal-plus`. The installer includes its own Node runtime and backend dependencies.
@@ -64,7 +64,7 @@ For Codex/Claude remote input, use **+ New terminal** in the manager to create a
 ### 3. Connect the phone
 
 1. For access over the internet, install [Tailscale](https://tailscale.com/download) on the phone and computers. Join the same tailnet and keep them connected. A reachable LAN also works.
-2. Install **Terminal+ 1.1.16** (`terminal-plus-1.1.16.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.16** Windows/Linux companion.
+2. Install **Terminal+ 1.1.17** (`terminal-plus-1.1.17.ehpk`) separately in Even Hub, then connect G2 in Even App. Use the **Terminal+ 1.1.17** Windows/Linux companion.
 3. Get this computer's URL and key: Windows **Connect phone**; Linux `terminal-plus pair`.
 4. In the phone app, open **Connection → Connect another computer**. Paste **Bridge URL** and **Connection key**, then choose **Connect computer**.
 
@@ -113,22 +113,24 @@ In an input-capable session, open **New prompt**. Tap to record/stop each senten
 
 Already using the official Pi subagent extension? Keep it. Otherwise, run Linux `terminal-plus enable-pi-subagents` or follow the [Windows PowerShell steps](docs/setup.md#optional-official-pi-subagents), then `/reload` while Pi is idle. This optional tool is separate from the basic monitor. [Installation and verification](docs/pi-extensions.md)
 
-### Glance completion notifications
+### Glance notifications
 
-Install [Glance](https://github.com/Liang-Chu/Glance) on Android for per-session completion push notifications. Choose one delivery mode:
+Install [Glance](https://github.com/Liang-Chu/Glance) on Android for per-session completion and **Needs input** push notifications. Choose one delivery mode:
 
 | Mode | Firebase credentials | Glance PUSH registration |
 | --- | --- | --- |
 | Independent senders | On each sending computer | One watcher per sender |
 | One central sender | On the center; other computers forward to it | One watcher for the center |
 
-Configure **Glance notifications** on the companion, then register the sender/center in Glance using its QR or URL/key. Saving a computer in Hub does not register Glance. The session currently viewed on G2 does not send automatic completion notifications.
+Configure **Glance notifications** on the companion, then register the sender/center in Glance using its QR or URL/key. Existing registrations work for both alert types; no re-registration is needed. Saving a computer in Hub does not register Glance. Viewing a session on G2 suppresses its completion alert, while a verified input/approval request can still notify. Alerts omit question, approval and tool contents; review them in the authenticated viewer or original terminal.
+
+For the selected session's supported structured request, **Answer →** on the phone opens its question/approval panel. G2 supports a short single question with options; larger or multiple forms go to the phone. A detected native-only dialog still requires its original terminal. [Supported requests and limits](docs/connectors.md#input-needed-notifications)
 
 [Companion and forwarding setup](docs/setup.md#optional-glance-notifications)
 
 ## Updates
 
-Update the Windows/Linux companions and install **Hub 1.1.16** separately for shared computer connections. Open the updated phone app once if it already has your computer list; verified connections are published to reachable companions and become available to paired desktop browsers. Unverified offline entries stay in that viewer until they reconnect. A new browser/phone pairs one known computer to recover the shared list. Older clients can still connect, but do not synchronize their local lists.
+Update the Windows/Linux companions and install **Hub 1.1.17** separately for shared computer connections. Open the updated phone app once if it already has your computer list; verified connections are published to reachable companions and become available to paired desktop browsers. Unverified offline entries stay in that viewer until they reconnect. A new browser/phone pairs one known computer to recover the shared list. Older clients can still connect, but do not synchronize their local lists.
 
 **Upgrading from Even-Pilot:** manually run the new Terminal+ installer once. Older updaters may fail after the repository rename. Existing installation/data/service roots and `EVEN_PILOT_*` settings remain for compatibility; your connection key, Watch and notification settings are retained. [Migration and update guide](docs/updates.md#migration-from-even-pilot)
 

@@ -2,7 +2,7 @@
 
 This guide starts from a computer with a working Pi, Codex or Claude Code login. No previous Terminal+ configuration is assumed. For the shortest path, see the [quickstart](../README.md); [中文版](setup.zh-CN.md).
 
-These instructions cover **Terminal+ 1.1.16**. See [release status](release-status.md) for verification and publication details. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
+These instructions cover **Terminal+ 1.1.17**. See [release status](release-status.md) for verification and available downloads. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
 
 ## What you install
 
@@ -11,7 +11,7 @@ These instructions cover **Terminal+ 1.1.16**. See [release status](release-stat
 | Windows EXE or Linux companion (npm / `.run`) | Each computer whose sessions you want to watch | Reads local CLI events/history, keeps Watch settings and serves an API/manager on TCP 4317 |
 | Even Hub `.ehpk` | Phone, through Even Hub | Connects to one or more companions and drives the G2 display/input |
 | Original Pi/Codex/Claude CLI | Its original computer and user account | Runs the actual task and retains full output and its own model login |
-| Glance, optional | Phone | Receives completion notifications from a configured sender |
+| Glance, optional | Phone | Receives completion and input-needed notifications from a configured sender |
 
 The companion is a watcher and lightweight session manager. Its browser portal and the phone Hub combine Pi, Codex and Claude sessions from explicitly saved computers. Each companion observes its own local CLI records. Installing it does not install the three CLIs or duplicate their model credentials. Voice and notification credentials are separate optional settings.
 
@@ -19,7 +19,7 @@ The companion is a watcher and lightweight session manager. Its browser portal a
 
 ### Windows
 
-1. Download `Terminal-plus-1.1.16-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
+1. Download `Terminal-plus-1.1.17-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Terminal+**, **Start with Windows**, update controls and **Quit Terminal+**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -125,7 +125,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install **Terminal+ 1.1.16** (`terminal-plus-1.1.16.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.16** companions and Even App 2.2.10+, then connect G2 to the phone.
+1. Install **Terminal+ 1.1.17** (`terminal-plus-1.1.17.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.17** companions and Even App 2.2.10+, then connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `terminal-plus pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -211,7 +211,7 @@ The list begins with **New prompt**, even when the session is read-only; in that
 
 Voice is optional: open phone **Voice**, select OpenAI or ElevenLabs, enter your own transcription key and save. New or model-less OpenAI settings default to **GPT Transcribe** with streamed text; existing explicit Whisper choices, provider and keys are retained. Settings persist on that device. The phone sends audio directly to the chosen transcription provider, then sends the finished prompt to the target companion. [Voice models, privacy and gestures](voice.md)
 
-Ordinary Claude questions can be read in history; answering requires an explicit connector session. Supported connector questions wait up to five minutes for the remote reply, and phone **Cancel** returns them to the native terminal immediately. Supported multiple questions use the phone; unsupported or multi-select forms stay native. [Question capabilities](connectors.md#phone-commands-and-choices)
+For the selected session, a verified input request shows **Needs input**. A remotely answerable request has **Answer →**, which opens its question/approval panel; native-only requests say **Answer in original terminal**. G2 supports a short single question/options; oversized or multiple supported forms use the phone. Ordinary Claude questions can be read in history; answering requires an explicit connector session. Supported connector questions wait up to five minutes for the remote reply, and phone **Cancel** returns them to the native terminal immediately. Unsupported or multi-select forms stay native. [Question capabilities](connectors.md#phone-commands-and-choices)
 
 ## Optional Glance notifications
 
@@ -222,7 +222,7 @@ Monitoring works before push is configured. A new companion does not ship Fireba
 | Independent | On every computer that sends | One watcher per sender, using each sender's URL/key |
 | Central | Only on the center; other computers forward to it | One watcher on the center, using the center's URL/key |
 
-Completion is per watched session. A session displayed on G2 is suppressed while its viewing lease is valid; other sessions still notify. Previewing on a phone/desktop does not suppress. Disconnecting is not completion. `PUSH` uses FCM; Android's 15-minute polling limit applies to `POLL`, not this push route.
+Notifications are per watched session on completion or a verified input/approval request. A session displayed on G2 suppresses completion while its viewing lease is valid; **Needs input** alerts remain allowed. Previewing on a phone/desktop does not suppress. Disconnecting or waiting for background work does not imply completion or input. Both independent and central senders use existing Glance registrations—no re-registration for the new alert type. Alerts omit question, approval and tool contents. `PUSH` uses FCM; Android's 15-minute polling limit applies to `POLL`. [Detection and answer limits](connectors.md#input-needed-notifications)
 
 ### Configure the sender
 
@@ -284,7 +284,9 @@ To return a source to independent delivery use `terminal-plus settings push dire
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `terminal-plus update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `terminal-plus update`, then `terminal-plus update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-Update all companions and install **Hub 1.1.16** for shared connections. Open the updated viewer that already has your computer list: verified records are copied to reachable paired companions. Unverified offline records stay local until their identity can be checked; synchronized removals keep no key and prevent old caches from restoring removed computers. New browsers/phones pair one known computer to obtain the list. Older clients remain compatible but keep local-only lists.
+Update companions for input-needed notifications and install **Hub 1.1.17** for its **Answer →** shortcut and updated G2 request UI. Existing Pi terminals need `/reload` only after their current task is idle. Reopen connector-backed Codex/Claude terminals while idle to load embedded connector changes; do not stop tasks for an update. Ordinary observer coverage is more limited than connector support. [Detection limits](connectors.md#input-needed-notifications)
+
+Shared connections remain available: open the updated viewer that already has your computer list to publish verified records to reachable companions. Unverified offline records stay local until their identity can be checked; synchronized removals keep no key and prevent old caches from restoring removed computers. New browsers/phones pair one known computer to obtain the list. Older clients remain compatible but keep local-only lists.
 
 **Companion updates do not install the phone/G2 app.** Install the `.ehpk` separately in Even Hub. Moving from `local.evenpilot.app` to `local.terminalplus.app` may require a new Hub listing/install; phone connections and voice keys may not transfer. Re-enter one known computer's URL/key and your transcription key if needed. Voice keys remain viewer-specific; shared computer connections do not copy voice, Firebase or model credentials. Companion Watch and Glance subscriptions remain in their existing data directory. Reopen connector-backed terminals after their task finishes to load new connector code; existing Pi can `/reload` while idle. [Update details](updates.md)
 

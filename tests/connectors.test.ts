@@ -61,6 +61,20 @@ test("mixed native sessions settle independently and keep Watch on disconnection
   assert.deepEqual((await host.listSessions()).sessions.map(s => s.tunnel).sort(), ["claude", "codex"]);
 });
 
+test("structured connector questions block completion until resumed work authoritatively settles", async t => {
+  const root = await fixture(t), id = randomUUID(), monitor = new ConnectorMonitor(root,
+    { id, key: connectorKey("codex", id), cwd: root, tunnel: "codex" }, { prompt: async () => assert.fail("No model calls") });
+  monitor.begin(); monitor.interactions.add("actual-choice", { kind: "question", title: "Question", questions: [
+    { id: "q", text: "Choose", options: [{ id: "yes", label: "Yes" }] },
+  ] }, async () => {});
+  const requestId = monitor.store.state.interactions![0].id; monitor.end();
+  assert.equal(monitor.snapshot.completions.length, 0, "A pending choice is not completion");
+  await monitor.interactions.respond({ requestId, answers: { q: "yes" } });
+  assert.equal(monitor.snapshot.completions.length, 0, "Answering alone is not authoritative completion");
+  monitor.begin(); monitor.end();
+  assert.equal(monitor.snapshot.completions.length, 1);
+});
+
 test("connector commands are claimed once, bound to a session, and never replayed", async t => {
   const root = await fixture(t), id = randomUUID(), prompts: string[] = [];
   const monitor = new ConnectorMonitor(root, { id, key: connectorKey("claude", id), cwd: root, tunnel: "claude" },

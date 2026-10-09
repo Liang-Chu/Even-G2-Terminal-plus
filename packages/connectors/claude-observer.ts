@@ -2,8 +2,9 @@ import { constants, lstatSync, readFileSync } from "node:fs";
 import { lstat, open, readdir, readFile, realpath, unlink } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
+import { createHash } from "node:crypto";
 import { CockpitStore } from "../cockpit-state/store.js";
-import type { RuntimeState } from "../cockpit-state/types.js";
+import type { InputAttention, RuntimeState } from "../cockpit-state/types.js";
 import { promptLabel } from "../cockpit-state/selectors.js";
 import { connectorKey } from "./identity.js";
 import { claudeHistory } from "./catalog.js";
@@ -23,6 +24,7 @@ interface SavedSession {
   turn?: string; turnAt?: number; mainBusy: boolean; pendingDone: boolean; outcome: Outcome;
   children: string[]; background: string[]; crons?: string[]; unknownChildren?: boolean; waiting?: boolean; warning?: string;
   childEvents?: { id: string; at: number; startAt?: number; stopTrusted?: boolean; ambiguous?: boolean }[];
+  attention?: (InputAttention & { toolId?: string })[];
   ended: boolean; lastAt: number; updatedAt: number;
 }
 interface Session extends SavedSession { store: CockpitStore; online: boolean; historyLoaded: boolean }
@@ -83,6 +85,10 @@ export class ClaudeObserver {
             !Array.isArray(row.background) || row.background.length > 256 ||
             (row.crons !== undefined && (!Array.isArray(row.crons) || row.crons.length > 256 || row.crons.some((value: unknown) => typeof value !== "string" || value.length > 128))) ||
             [...row.children, ...row.background].some(value => typeof value !== "string" || value.length > 128) ||
+            (row.attention !== undefined && (!Array.isArray(row.attention) || row.attention.length > 16 || row.attention.some((value: any) =>
+              !value || typeof value.id !== "string" || value.id.length > 200 || !["approval", "question"].includes(value.kind) ||
+              !Number.isFinite(value.createdAt) || value.createdAt < 0 || value.createdAt > this.now() + 60_000 ||
+              (value.toolId !== undefined && (typeof value.toolId !== "string" || value.toolId.length > 256))))) ||
             (row.childEvents !== undefined && (!Array.isArray(row.childEvents) || row.childEvents.length > 256 ||
               new Set(row.childEvents.map((event: any) => event?.id)).size !== row.childEvents.length || row.childEvents.some((event: any) =>
                 !event || typeof event.id !== "string" || !event.id || event.id.length > 128 || !Number.isFinite(event.at) || event.at < 0 ||
@@ -94,7 +100,9 @@ export class ClaudeObserver {
         const store = new CockpitStore(row.cwd);
         store.dispatch({ type: "session.updated", session: { key: connectorKey("claude", row.id), id: row.id,
           tunnel: "claude", cwd: row.cwd, model: row.model, name: row.name } });
-        this.sessions.set(row.id, { ...row, store, online: false, historyLoaded: false });
+        this.sessions.set(row.id, { ...row, attention: row.attention?.map((request: any) => ({ id: request.id, kind: request.kind,
+          createdAt: request.createdAt, toolId: request.toolId, baseline: true })),
+          store, online: false, historyLoaded: false });
       }
     } catch { /* An unreadable baseline never fabricates completed work. */ }
   }
@@ -205,7 +213,7 @@ export class ClaudeObserver {
     const state = session.store.state;
     session.store.publish({ ...state, connected: session.online && !session.ended,
       session: { ...state.session, name: session.name, model: session.model, cwd: session.cwd },
-      main: { ...state.main, status: running ? session.waiting ? "waiting" : "running" : completion?.outcome === "failed" ? "failed" : "idle",
+      main: { ...state.main, status: session.attention?.length ? "waiting" : running ? session.waiting ? "waiting" : "running" : completion?.outcome === "failed" ? "failed" : "idle",
         startedAt: session.turnAt, ...(completion ? { settledAt: this.now(), statusSince: this.now(), outcome: completion.outcome } : {}) },
       subagents: { active: session.children.filter(id => !session.childEvents?.some(event => event.id === id && event.stopTrusted === true)).length,
         mainDelegated: !session.mainBusy && session.children.length > 0,
@@ -215,11 +223,12 @@ export class ClaudeObserver {
         }) || undefined },
       capabilities: { prompt: false, interrupt: false },
       commandStatus: session.warning,
+      attention: session.attention?.map(({ toolId: _, ...request }) => request),
     }, { type: "monitoring.updated" });
     this.pending.push({ state: session.store.state, updatedAt: session.updatedAt, activity, completion });
   }
   private settle(session: Session, at: number): ClaudeObservation["completion"] {
-    if (!session.pendingDone || session.mainBusy || session.children.length || session.background.length || session.crons?.length || session.unknownChildren || !session.turn) return;
+    if (!session.pendingDone || session.mainBusy || session.children.length || session.background.length || session.crons?.length || session.unknownChildren || session.attention?.length || !session.turn) return;
     session.pendingDone = false;
     // Old queued Stop records establish a baseline, never replay notifications.
     return at >= this.started ? { turnId: session.turn, outcome: session.outcome } : undefined;
@@ -335,7 +344,7 @@ export class ClaudeObserver {
       session.mainBusy = false; session.pendingDone = false; session.children = []; session.background = [];
       session.childEvents = [];
       session.crons = [];
-      session.unknownChildren = false; session.waiting = false; session.warning = undefined;
+      session.unknownChildren = false; session.waiting = false; session.warning = undefined; session.attention = [];
       session.turn = undefined; session.turnAt = undefined; session.owner = raw.owner;
     }
     if (!session) {
@@ -365,7 +374,7 @@ export class ClaudeObserver {
       case "SessionStart": session.ended = false; break;
       case "UserPromptSubmit":
         session.ended = false; session.mainBusy = true; session.pendingDone = true; session.outcome = "completed";
-        session.waiting = false;
+        session.waiting = false; session.attention = [];
         session.turn = raw.eventId; session.turnAt = raw.at; activity = raw.at >= this.started;
         store.dispatch({ type: "agent.started" });
         if (typeof raw.prompt === "string" && raw.prompt.length <= 32_000) {
@@ -374,6 +383,9 @@ export class ClaudeObserver {
         }
         break;
       case "PreToolUse":
+        // PreToolUse proves permission for this tool has been granted. A
+        // different succeeding tool also proves a prior main dialog ended.
+        session.attention = (session.attention || []).filter(request => request.kind !== "approval" && request.toolId === raw.tool_use_id);
         session.ended = false;
         if (!session.pendingDone && !session.mainBusy) {
           session.turn = raw.eventId; session.turnAt = raw.at; session.pendingDone = true;
@@ -382,11 +394,14 @@ export class ClaudeObserver {
         }
         session.mainBusy = true; session.waiting = false;
         if (typeof raw.tool_use_id === "string") store.dispatch({ type: "tool.started", id: raw.tool_use_id, name: typeof raw.tool_name === "string" ? raw.tool_name.slice(0, 128) : "tool" });
+        if (raw.tool_name === "AskUserQuestion") this.inputNeeded(session, raw, "question");
         break;
       case "PostToolUse": case "PostToolUseFailure":
         if (typeof raw.tool_use_id === "string") store.dispatch({ type: "tool.finished", id: raw.tool_use_id, failed: raw.hook_event_name === "PostToolUseFailure" });
+        if (typeof raw.tool_use_id === "string") session.attention = (session.attention || []).filter(request => request.toolId !== raw.tool_use_id);
+        session.waiting = !!session.attention?.length;
         break;
-      case "PermissionRequest": session.waiting = true; break;
+      case "PermissionRequest": session.waiting = true; this.inputNeeded(session, raw, "approval"); break;
       case "SubagentStart":
         this.childEvent(session, raw, false);
         break;
@@ -400,6 +415,7 @@ export class ClaudeObserver {
         this.crons(session, raw.session_crons);
         session.waiting = false;
         if (raw.hook_event_name === "StopFailure" || raw.stopTrusted === true) {
+          session.attention = [];
           session.mainBusy = false;
           if (!session.unknownChildren) session.warning = undefined;
         }
@@ -428,6 +444,13 @@ export class ClaudeObserver {
     const completion = session.ended ? undefined : this.settle(session, raw.at);
     this.announce(session, activity, completion);
     return true;
+  }
+  private inputNeeded(session: Session, raw: any, kind: "approval" | "question") {
+    const toolId = typeof raw.tool_use_id === "string" && raw.tool_use_id.length <= 256 ? raw.tool_use_id : undefined;
+    const id = createHash("sha256").update(`${session.owner.pid}:${session.owner.started}:${kind}:${toolId || raw.eventId}`).digest("hex");
+    if ((session.attention || []).some(request => request.id === id)) return;
+    session.attention = [...(session.attention || []), { id, kind, toolId, createdAt: raw.at,
+      ...(raw.at < this.started ? { baseline: true as const } : {}) }].slice(-16);
   }
   private async scan() {
     const remove: string[] = [];

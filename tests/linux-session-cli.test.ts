@@ -23,6 +23,38 @@ test("read-only monitor health tolerates shutdown socket resets without hiding a
   await assert.rejects(monitorRunning(async () => { attempts++; throw failure("UND_ERR_SOCKET"); }, 1234), /fetch failed/);
   assert.equal(attempts, 3);
 });
+test("read-only monitor health waits for recognized lifecycle readiness and shutdown", async () => {
+  const lifecycle = () => Response.json({ error: "Bridge is starting or shutting down; retry shortly" }, { status: 503 });
+  let attempts = 0;
+  assert.equal(await monitorRunning(async () => ++attempts < 3 ? lifecycle() : Response.json({ nativeTerminals: true }), 1234), true);
+  assert.equal(attempts, 3);
+  attempts = 0;
+  assert.equal(await monitorRunning(async () => {
+    if (++attempts === 1) return lifecycle();
+    throw new Error("fetch failed", { cause: { code: attempts === 2 ? "UND_ERR_SOCKET" : "ECONNREFUSED" } });
+  }, 1234), false);
+  assert.equal(attempts, 3);
+});
+test("read-only lifecycle retries never hide authentication, unrelated services or persistent shutdown", async () => {
+  for (const [status, body] of [
+    [401, { error: "Bridge is starting or shutting down; retry shortly" }],
+    [403, { error: "Bridge is starting or shutting down; retry shortly" }],
+    [503, { error: "Service unavailable" }],
+    [503, { error: "Bridge is starting or shutting down; retry shortly", unrelated: true }],
+    [500, { error: "Bridge is starting or shutting down; retry shortly" }],
+  ] as const) {
+    let attempts = 0;
+    await assert.rejects(monitorRunning(async () => { attempts++; return Response.json(body, { status }); }, 1234), /another bridge/);
+    assert.equal(attempts, 1);
+  }
+  await assert.rejects(monitorRunning(async () => new Response("not JSON", { status: 503 }), 1234), /another bridge/);
+  let attempts = 0;
+  await assert.rejects(monitorRunning(async () => {
+    attempts++;
+    return Response.json({ error: "Bridge is starting or shutting down; retry shortly" }, { status: 503 });
+  }, 1234), /still starting or shutting down.*no process was stopped/);
+  assert(attempts > 1 && attempts <= 51);
+});
 const row = (key: string, name: string, updatedAt = 1000): SessionSummary => ({ key, id: key, name, updatedAt,
   cwd: "/work", messageCount: 1, runtimeStatus: "idle", owned: false, active: false, tunnel: "pi" });
 function fixture(sessions = [row(alpha, "First"), { ...row(beta, "Second", 2000), monitored: true }]) {

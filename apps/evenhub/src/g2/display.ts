@@ -16,6 +16,7 @@ import { MessageBrowser, activityDetails, nativeTextPrefix } from "./messages.js
 import { TapGestures } from "./tap-gestures.js";
 import { bridgeBatch, serialBridge } from "../bridge/serial.js";
 import { glassesInteraction, type Interaction, type InteractionAnswer } from "../../../../packages/cockpit-state/interactions.js";
+import { selectedInputNeeded } from "../interactions/attention.js";
 
 interface SessionControls {
   list: () => Promise<SessionSummary[]>;
@@ -314,7 +315,8 @@ export class G2Display {
     const urgent = online !== this.online || state.session.key !== previous?.session.key || state.connected !== previous?.connected ||
       state.main.status !== previous?.main.status || !previous || sessionAgentCount(state, online) !== sessionAgentCount(previous, this.online) ||
       state.source?.online !== previous?.source?.online || state.source?.connectionState !== previous?.source?.connectionState ||
-      state.interactions?.[0]?.id !== previous?.interactions?.[0]?.id;
+      state.interactions?.[0]?.id !== previous?.interactions?.[0]?.id ||
+      selectedInputNeeded(state)?.id !== (previous ? selectedInputNeeded(previous)?.id : undefined);
     const changed = state.session.key !== this.state?.session.key;
     if (changed) { this.taps.reset(); this.stopNotice = undefined; this.resetReading(); this.composer = undefined; this.draftConfirmation = undefined; this.interactionDraft = undefined; this.options.input?.cancel?.(); }
     this.state = state; this.online = online;
@@ -371,6 +373,9 @@ export class G2Display {
   }
   private openInput() {
     if (this.choiceHidden && this.state?.interactions?.length) { this.messages.selectInput(); this.choiceHidden = false; this.schedule(); return; }
+    if (this.online && this.state && selectedInputNeeded(this.state)?.mode === "terminal") {
+      this.schedule(); return;
+    }
     if (this.state?.capabilities?.prompt === false) {
       this.stopNotice = { key: this.state.session.key!, text: "Continue in the original terminal.", until: Date.now() + 5000 }; this.schedule(); return;
     }
@@ -832,6 +837,8 @@ export class G2Display {
     const rows = this.messageRows();
     const selected = this.messages.selectedRow(rows);
     const body = rows.map((row, index) => (selected === index ? "> " : "  ") + row.label).join("\n");
+    if (this.online && selectedInputNeeded(this.state!)?.mode === "terminal")
+      return [this.header(), title, body, "", "Answer in original terminal · Double: exit"];
     const hint = `${this.messages.changed ? "+new · " : ""}Tap: open · Double: exit`;
     const older = this.messages.history.limited ? " · Older: phone/PC" : "";
     return [this.header(), title, body, "", `${hint} · ${this.statusLabel()} ${this.status().replace(/^\S+ ?/, "")}${older}`];

@@ -2,7 +2,7 @@
 
 首次部署按[完整安装连接指南](setup.zh-CN.md)操作；没有历史记忆的操作者／agent 从[运行手册](agent-runbook.md)开始。本页保留 Linux 命令和服务的详细参考。
 
-Terminal+ 1.1.16 包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。历史版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；1.1.16 的验证和发布情况见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
+Terminal+ 1.1.17 包面向 **x86_64 / glibc Linux**，内置官方 Node 24 运行时和生产依赖。历史版本 1.1.0 的实测基准为 **Ubuntu 26.04 LTS、x86_64、无图形桌面、tmux 3.6**；1.1.17 的验证和发布情况见[发布状态](release-status.md)。安装不依赖 apt/rpm、不需要 sudo，不安装全局 Node、不修改 CLI 登录；为支持的用户 shell 添加可安全移除的 PATH 配置。
 
 发行版仍需能运行官方 Node Linux 二进制；Alpine/musl 不适用此预编译包。ARM64 构建脚本可在对应 Linux 主机运行，但当前未进行 ARM64 实机验收。GNOME、KDE、XFCE、Kitty、xterm 的启动参数有回归测试；NUC 没有图形桌面，不能代替这些桌面的实机验收。
 
@@ -141,11 +141,11 @@ sudo loginctl enable-linger "$(id -un)"
 
 ## 5. 浏览器、手机、Even Hub 和 Glance
 
-两端登录 Tailscale 后，在 Linux 执行 `~/.local/bin/terminal-plus pair`，手机 Hub **Connection → Connect another computer** 填入输出的 Bridge URL 和 connection key，点击 **Connect computer**。填入的地址和 key 必须属于同一台电脑。1.1.16 手机／浏览器连接一台已知电脑即可获取共享列表；其他电脑只需在任一已配对查看端添加一次。查看端打开时通过可达电脑同步列表和 connection key，只配对信任的设备。离线电脑等查看端再次连接时获取变化；移除连接不取消 Watch、不关闭终端。添加设备不会自动配置通知。默认 TCP 4317；`EVEN_PILOT_PORT` 可修改端口，随后重启监控。
+两端登录 Tailscale 后，在 Linux 执行 `~/.local/bin/terminal-plus pair`，手机 Hub **Connection → Connect another computer** 填入输出的 Bridge URL 和 connection key，点击 **Connect computer**。填入的地址和 key 必须属于同一台电脑。1.1.17 手机／浏览器连接一台已知电脑即可获取共享列表；其他电脑只需在任一已配对查看端添加一次。查看端打开时通过可达电脑同步列表和 connection key，只配对信任的设备。离线电脑等查看端再次连接时获取变化；移除连接不取消 Watch、不关闭终端。添加设备不会自动配置通知。默认 TCP 4317；`EVEN_PILOT_PORT` 可修改端口，随后重启监控。
 
 运行 `terminal-plus open` 获取管理入口：有桌面环境时自动打开已授权的本地管理页；无头时复制它打印的完整私有链接到浏览器。这个启动入口自动连接自己的后台，不需要另填 URL/key。地址优先选择本机 Tailscale IPv4，不写死任何用户的 IP。
 
-从另一台设备也可打开 `http://Linux电脑IP:4317/?desktop=1`，在 **Computers → Connect another computer** 填入一台已知电脑的 URL/key，自动获取共享列表。浏览器仍直接访问每台来源电脑，需逐台保证 Tailscale／LAN 可达，不由服务器代理会话。各电脑端及 Hub 更新到 1.1.16 后，原有手机列表的已验证连接会同步；未验证的离线记录先留在原查看端，旧客户端仍使用各自的本地列表。**Sessions** 汇总 Pi、Codex、Claude，支持设备筛选、已 Watch／运行数量和最近更新排序；**History** 只读，不启动 CLI 或改变 Watch。**Select** 复用活动会话，**Open terminal** 明确打开来源电脑的保存会话。输入／控制能力保持原有范围。**Connect phone**、**Updates**、桌面 **Glance notifications** 仍对应提供页面的电脑。[浏览器管理页步骤](setup.zh-CN.md#从另一台设备打开浏览器管理页)
+从另一台设备也可打开 `http://Linux电脑IP:4317/?desktop=1`，在 **Computers → Connect another computer** 填入一台已知电脑的 URL/key，自动获取共享列表。浏览器仍直接访问每台来源电脑，需逐台保证 Tailscale／LAN 可达，不由服务器代理会话。各电脑端及 Hub 更新到 1.1.17 后，原有手机列表的已验证连接会同步；未验证的离线记录先留在原查看端，旧客户端仍使用各自的本地列表。**Sessions** 汇总 Pi、Codex、Claude，支持设备筛选、已 Watch／运行数量和最近更新排序；**History** 只读，不启动 CLI 或改变 Watch。**Select** 复用活动会话，**Open terminal** 明确打开来源电脑的保存会话。输入／控制能力保持原有范围。**Connect phone**、**Updates**、桌面 **Glance notifications** 仍对应提供页面的电脑。[浏览器管理页步骤](setup.zh-CN.md#从另一台设备打开浏览器管理页)
 
 可选语音在手机 **Voice** 配置自己的转写 API key。新建或未指定模型的 OpenAI 配置默认使用 **GPT Transcribe**，流式显示文字；已有明确的 Whisper 选择、provider 和 key 保留。[语音配置](voice.md)
 

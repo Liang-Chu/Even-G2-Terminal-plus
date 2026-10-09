@@ -89,6 +89,7 @@ export function createBridgeServer(
       }, 50);
   });
   const unnotify = notifications.subscribe((event) => {
+    if (event.kind === "attention" || event.kind === "attention-resolved") return;
     for (const res of streams) send(res, "completion", event, event.id);
   });
   const heartbeat = setInterval(() => {
@@ -304,7 +305,7 @@ export function createBridgeServer(
         const after = Number(url.searchParams.get("after") || "0");
         if (!Number.isSafeInteger(after) || after < 0)
           throw new Error("after must be a non-negative integer");
-        json(res, 200, { events: notifications.list(after) });
+        json(res, 200, { events: notifications.list(after).filter(event => event.kind !== "attention" && event.kind !== "attention-resolved") });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/events") {
@@ -321,7 +322,7 @@ export function createBridgeServer(
         );
         for (const event of notifications.list(
           Number.isSafeInteger(cursor) ? cursor : 0,
-        ))
+        ).filter(event => event.kind !== "attention" && event.kind !== "attention-resolved"))
           send(res, "completion", event, event.id);
         res.on("close", () => streams.delete(res));
         return;

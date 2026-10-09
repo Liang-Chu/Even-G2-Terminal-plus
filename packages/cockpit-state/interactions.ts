@@ -7,6 +7,7 @@ export interface InteractionQuestion {
 }
 export interface Interaction {
   id: string;
+  createdAt?: number;
   title: string;
   detail?: string;
   kind: "approval" | "question" | "menu";

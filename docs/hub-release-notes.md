@@ -1,4 +1,13 @@
-# Terminal+ 1.1.16 — Hub release candidate
+# Terminal+ 1.1.17 — Hub update
+
+- Shows **Needs input** for the selected session. **Answer →** opens supported structured questions/approvals on the phone; native-only requests say **Answer in original terminal**.
+- Keeps short single-question/options on the native G2 list; oversized or multiple supported forms move to the phone. Unsupported formats stay in the native terminal.
+- Works with companion input/approval notifications through existing direct or relay Glance watchers. No re-registration is required; G2 viewing suppresses completion, while input-needed alerts remain allowed.
+- Detection-only coverage includes Pi native dialogs, recognized ordinary Codex question records and Claude hooks. Ordinary Codex approvals and arbitrary shell/CLI prompts are not supported.
+
+Install `terminal-plus-1.1.17.ehpk` separately and update companions. Existing Pi needs `/reload` while idle; reopen connector terminals while idle to load embedded changes, without interrupting user tasks. Physical phone/G2 acceptance is not established. See [release status](release-status.md).
+
+# Terminal+ 1.1.16 — Hub release candidate history
 
 - Shares computer connections with the matching Windows/Linux companions. Pair one known computer on a new phone/browser to load the shared list; add another computer once from any paired viewer.
 - Migrates identity-verified connections from existing phone/browser storage. Unverified offline entries stay local until verified; removing a connection synchronizes without changing Watch or stopping terminals.

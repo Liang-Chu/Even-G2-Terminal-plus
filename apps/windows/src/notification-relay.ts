@@ -2,17 +2,40 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { HostSource } from "../../../packages/cockpit-state/types.js";
-import { type Completion, NotificationJournal } from "./notifications.js";
+import { type NotificationEvent, NotificationJournal, ATTENTION_FRESHNESS_MS } from "./notifications.js";
 import { PushError } from "./push.js";
 
 interface Target { id: string; name: string; url: string; key: string }
 interface Peer { id: string; name: string; hash: string }
-interface Pending { event: Completion; attempts: number; nextAt: number }
+interface Pending { event: NotificationEvent; attempts: number; nextAt: number }
 interface Data { version: 1; target?: Target; peers: Peer[]; cursor: number; pending: Pending[]; lastResult?: string }
 const digest = (key: string) => createHash("sha256").update(key).digest("hex");
 const idPattern = /^[a-f0-9-]{36}$/;
 const lifetime = 10 * 60_000;
 const label = (value: unknown) => typeof value === "string" && value.trim() && value.length <= 128 && !/[\r\n\x00]/.test(value);
+function relayEvent(value: any): NotificationEvent {
+  if (!value || !Number.isSafeInteger(value.id) || value.id < 1 || !Number.isFinite(value.at) || value.at < 0 ||
+    typeof value.session !== "string" || !value.session.trim() || value.session.length > 2048 ||
+    (value.sessionId !== undefined && (typeof value.sessionId !== "string" || value.sessionId.length > 256)) ||
+    (value.sessionKey !== undefined && (typeof value.sessionKey !== "string" || !/^[a-f0-9]{32}$/.test(value.sessionKey))) ||
+    (value.viewedOnG2 !== undefined && typeof value.viewedOnG2 !== "boolean") ||
+    (value.forwardTo !== undefined && (typeof value.forwardTo !== "string" || !idPattern.test(value.forwardTo))) || value.relayedFrom)
+    throw new PushError("Invalid relayed notification");
+  const base = { id: value.id, at: value.at, session: value.session, sessionId: value.sessionId,
+    sessionKey: value.sessionKey, viewedOnG2: value.viewedOnG2, forwardTo: value.forwardTo };
+  if (value.kind === "attention" || value.kind === "attention-resolved") {
+    if (typeof value.attentionId !== "string" || !/^[a-f0-9]{64}$/.test(value.attentionId))
+      throw new PushError("Invalid relayed notification");
+    if (value.kind === "attention-resolved") return { ...base, kind: value.kind, attentionId: value.attentionId };
+    if (!["approval", "question", "terminal-input"].includes(value.reason) ||
+      (value.expiresAt !== undefined && (!Number.isFinite(value.expiresAt) || value.expiresAt < 0)))
+      throw new PushError("Invalid relayed notification");
+    return { ...base, kind: value.kind, attentionId: value.attentionId, reason: value.reason, expiresAt: value.expiresAt };
+  }
+  if ((value.kind !== undefined && value.kind !== "completion") || !["completed", "failed", "interrupted"].includes(value.outcome))
+    throw new PushError("Invalid relayed notification");
+  return { ...base, outcome: value.outcome };
+}
 function origin(value: unknown) {
   if (typeof value !== "string") throw new PushError("Choose a relay computer URL");
   let url: URL; try { url = new URL(value); } catch { throw new PushError("Invalid relay computer URL"); }
@@ -27,6 +50,7 @@ export class NotificationRelay {
   private timer?: ReturnType<typeof setTimeout>;
   private processing?: Promise<void>;
   private flight?: AbortController;
+  private flightAttentionId?: string;
   private closed = false;
   private configuring = false;
   private storageFailed = false;
@@ -45,7 +69,10 @@ export class NotificationRelay {
           this.data.pending.length > 500 || !Number.isSafeInteger(this.data.cursor) || this.data.cursor < 0) throw new Error();
         if (this.data.target) this.validateTarget(this.data.target);
         for (const peer of this.data.peers) if (!idPattern.test(peer.id) || !label(peer.name) || !/^[a-f0-9]{64}$/.test(peer.hash)) throw new Error();
-        for (const item of this.data.pending) if (!Number.isSafeInteger(item.event?.id) || !Number.isFinite(item.nextAt) || !Number.isSafeInteger(item.attempts)) throw new Error();
+        for (const item of this.data.pending) {
+          item.event = relayEvent(item.event);
+          if (!Number.isFinite(item.nextAt) || !Number.isSafeInteger(item.attempts) || item.attempts < 0) throw new Error();
+        }
       } catch { throw new Error("Invalid notification routing storage; restore notification-routing.json from backup"); }
     }
     this.journal.forwardingTarget = () => this.data.target?.id;
@@ -99,13 +126,14 @@ export class NotificationRelay {
   }
   probe(key: string) { this.authenticate(key); return { id: this.options.identity.id, ready: true }; }
   receive(key: string, data: Record<string, unknown>) {
-    const peer = this.authenticate(key), event = data.event as Completion;
-    if (!event || !Number.isSafeInteger(event.id) || event.id < 1 || !Number.isFinite(event.at) || event.at > this.now() + 60_000 ||
-      typeof event.session !== "string" || !event.session.trim() || event.session.length > 2048 ||
-      (event.sessionId !== undefined && (typeof event.sessionId !== "string" || event.sessionId.length > 256)) ||
-      !["completed", "failed", "interrupted"].includes(event.outcome) || event.relayedFrom || event.forwardTo !== this.options.identity.id)
-      throw new PushError("Invalid relayed completion");
-    if (event.viewedOnG2 || this.now() - event.at >= lifetime) return { accepted: false, skipped: true };
+    const peer = this.authenticate(key), event = relayEvent(data.event);
+    if (event.at > this.now() + 60_000 || event.forwardTo !== this.options.identity.id)
+      throw new PushError("Invalid relayed notification");
+    if (event.viewedOnG2 || this.now() - event.at >= (event.kind === "attention" ? ATTENTION_FRESHNESS_MS : lifetime) ||
+      (event.kind === "attention" && event.expiresAt !== undefined && event.expiresAt <= this.now())) return { accepted: false, skipped: true };
+    // A tolerated source clock skew must not turn a 30-second delivery window
+    // into a longer-lived notice on the center.
+    if (event.kind === "attention") event.expiresAt = Math.min(event.expiresAt ?? Infinity, event.at + ATTENTION_FRESHNESS_MS, this.now() + ATTENTION_FRESHNESS_MS);
     return { accepted: true, inserted: this.journal.receiveRelay(peer.id, peer.name, event) };
   }
   async configure(data: Record<string, unknown>) {
@@ -128,13 +156,18 @@ export class NotificationRelay {
   }
   private capture() {
     for (const event of this.journal.list(this.data.cursor)) {
-      if (event.forwardTo === this.data.target?.id && event.forwardTo && !event.viewedOnG2 && !event.relayedFrom && this.now() - event.at < lifetime) {
+      if (event.forwardTo === this.data.target?.id && event.forwardTo && !event.viewedOnG2 && !event.relayedFrom && this.fresh(event)) {
         if (this.data.pending.length >= 500) break;
-        this.data.pending.push({ event, attempts: 0, nextAt: this.now() });
+        this.data.pending.push({ event: relayEvent(event), attempts: 0, nextAt: this.now() });
       }
       this.data.cursor = event.id;
     }
+    if (this.flightAttentionId && !this.journal.attentionPending(this.flightAttentionId, this.now())) this.flight?.abort();
     this.persist(); this.schedule();
+  }
+  private fresh(event: NotificationEvent) {
+    return this.now() - event.at < (event.kind === "attention" ? ATTENTION_FRESHNESS_MS : lifetime) &&
+      (event.kind !== "attention" || this.journal.attentionPending(event.attentionId, this.now()));
   }
   private send(target: Target, path: string, body: unknown, signal?: AbortSignal) {
     return (this.options.fetch || fetch)(target.url + path, { method: "POST", redirect: "error", credentials: "omit",
@@ -155,9 +188,9 @@ export class NotificationRelay {
     if (!target || this.closed || this.storageFailed) return;
     while (this.data.pending.length && !this.closed && revision === this.revision) {
       const item = this.data.pending[0];
-      if (this.now() - item.event.at >= lifetime) { this.data.pending.shift(); this.data.lastResult = "Expired after 10 minutes offline"; this.persist(); continue; }
+      if (!this.fresh(item.event)) { this.data.pending.shift(); this.data.lastResult = "Expired or resolved"; this.persist(); continue; }
       if (item.nextAt > this.now()) break;
-      this.flight = new AbortController(); item.attempts++;
+      this.flight = new AbortController(); this.flightAttentionId = item.event.kind === "attention" ? item.event.attentionId : undefined; item.attempts++;
       try {
         const response = await this.send(target, "/api/glance/relay/event", { event: item.event }, this.flight.signal);
         if (revision !== this.revision || this.closed) return;
@@ -168,10 +201,11 @@ export class NotificationRelay {
         this.data.pending.shift(); this.data.lastResult = result.skipped ? "Expired or suppressed" : "Accepted by center";
       } catch {
         if (revision !== this.revision || this.closed) return;
+        if (!this.fresh(item.event)) { this.data.pending.shift(); this.persist(); continue; }
         item.nextAt = this.now() + Math.min(30_000, 1000 * 2 ** Math.min(item.attempts - 1, 5));
         this.data.lastResult = "Waiting for center; retrying";
         this.persist(); break;
-      } finally { this.flight = undefined; }
+      } finally { this.flight = undefined; this.flightAttentionId = undefined; }
       this.persist();
     }
     if (!this.closed && revision === this.revision) this.capture();

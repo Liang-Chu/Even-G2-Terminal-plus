@@ -11,7 +11,7 @@ export class InteractionBroker {
     if (!request.questions.length || request.questions.length > 12 || new Set(request.questions.map(q => q.id)).size !== request.questions.length
       || request.questions.some(q => !q.id || q.options.length > 200 || new Set(q.options.map(o => o.id)).size !== q.options.length))
       throw new Error("Unsupported choice form; answer in Terminal");
-    const item = { request: { ...request, id: randomUUID(), expiresAt: request.expiresAt || Date.now() + 10 * 60_000 }, reply };
+    const item = { request: { ...request, id: randomUUID(), createdAt: Date.now(), expiresAt: request.expiresAt || Date.now() + 10 * 60_000 }, reply };
     // Bound snapshots without silently truncating the decision the user approves.
     if (JSON.stringify(item.request).length > 24_000) throw new Error("Choice is too large; answer in Terminal");
     this.pending.set(source, item); this.emit();

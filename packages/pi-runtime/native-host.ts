@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { CockpitStore } from "../cockpit-state/store.js";
-import { initialState, type Tunnel } from "../cockpit-state/types.js";
+import { initialState, type InputAttention, type RuntimeState, type Tunnel } from "../cockpit-state/types.js";
 import { SessionError, SessionRepository, sessionKey, validateCwd, type SessionRepositoryOptions, type SessionCatalog } from "./sessions.js";
 import { processAlive, readLocalJson, writeLocalJson, uuidPattern, type NativeSnapshot } from "./native-protocol.js";
 import { connectorKey, isTunnel } from "../connectors/identity.js";
@@ -18,7 +18,7 @@ interface Options {
   launch: (path: string, cwd: string, tunnel?: Tunnel, fresh?: boolean, name?: string) => Promise<void>;
   unregistered?: (knownPids: number[], tunnel?: Tunnel) => Promise<boolean>;
   alive?: (pid: number) => boolean;
-  codexObservation?: { root?: string };
+  codexObservation?: { root?: string; attentionPath?: string };
   claudeObservation?: { directory: string; root?: string };
 }
 interface Watch { key: string; monitored: boolean; name?: string; cwd?: string; model?: string; tunnel?: Tunnel }
@@ -95,6 +95,7 @@ export class NativeHost {
   private wasRunning = 0;
   private desktopOpenId?: string;
   private preferencesDirty = false;
+  private attentionSignatures = new Map<string, string>();
   constructor(private options: Options) {
     this.directory = options.directory; this.store = new CockpitStore(options.cwd);
     this.repository = options.catalog || new SessionRepository(options.sessions);
@@ -295,6 +296,7 @@ export class NativeHost {
   }
   private publish() {
     const runtimes = this.allRuntimes();
+    for (const [key, runtime] of runtimes) this.publishAttention(key, runtime.store.state);
     const entries = [...runtimes].map(([key, runtime]) => ({ key, name: sessionLabel(runtime.store.state),
       cwd: runtime.store.state.session.cwd, model: runtime.store.state.session.model, tunnel: runtime.store.state.session.tunnel || "pi",
       status: runtime.store.state.connected ? runtime.store.state.main.status : "offline" as const,
@@ -309,6 +311,27 @@ export class NativeHost {
     const fallback = initialState(this.options.cwd), watch = this.selected ? this.watches.get(this.selected) : undefined;
     if (watch) fallback.session = { key: watch.key, name: watch.name, cwd: watch.cwd || this.options.cwd, model: watch.model, tunnel: watch.tunnel || "pi" };
     this.store.publish({ ...(current || fallback), nativeTerminals: true, monitoring: { running, watched: entries.filter(item => item.monitored).length, since: this.since, sessions: entries } }, { type: "monitoring.updated" });
+  }
+  private publishAttention(key: string, state: RuntimeState) {
+    // Losing transport is not a resolved question. Reconcile only a verified
+    // online snapshot; the journal retains its durable identity over reconnect.
+    if (!state.connected && this.watches.get(key)?.monitored) return;
+    const broker = (state.interactions || []).filter(item => item.kind !== "menu" && item.expiresAt > Date.now());
+    const requests: InputAttention[] = this.watches.get(key)?.monitored ? [
+      ...broker.map(item => ({ id: item.id, kind: item.kind as "approval" | "question", createdAt: item.createdAt, expiresAt: item.expiresAt })),
+      ...(state.attention || []),
+    ].filter(item => typeof item.id === "string" && item.id.length > 0 && item.id.length <= 300 &&
+      ["approval", "question", "terminal-input"].includes(item.kind) &&
+      (item.createdAt === undefined || (Number.isFinite(item.createdAt) && item.createdAt <= Date.now() + 60_000)) &&
+      (item.expiresAt === undefined || (Number.isFinite(item.expiresAt) && item.expiresAt > Date.now())))
+      .slice(0, 16).map(item => ({ ...item,
+        id: createHash("sha256").update(key + ":" + item.kind + ":" + item.id).digest("hex"),
+      })) : [];
+    const signature = JSON.stringify(requests);
+    if (this.attentionSignatures.get(key) === signature) return;
+    this.attentionSignatures.set(key, signature);
+    this.store.publish(this.store.state, { type: "monitoring.attention", sessionKey: key,
+      sessionId: state.session.id, session: sessionLabel(state), requests });
   }
   getRuntime(key: string) {
     const runtime = this.sessions.get(key) || this.observed.get(key);

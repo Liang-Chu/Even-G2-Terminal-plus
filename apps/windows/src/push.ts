@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { Completion, NotificationJournal } from "./notifications.js";
+import type { Completion, AttentionNotification, NotificationEvent, NotificationJournal } from "./notifications.js";
 import { FcmFailure, validateFirebaseProjectId, type FcmPayload, type PushPriority, type PushSender } from "./fcm.js";
 
 export class PushError extends Error {
@@ -28,9 +28,10 @@ function fitLabel(value: string, limit: number) {
   return prefix + "…";
 }
 /** Compose our own automatic content within each watcher's budget; explicit push inputs remain strict. */
-function completionContent(event: Completion, subscription: PushSubscription): PushContent {
-  const status = event.outcome === "completed" ? "Job complete" : event.outcome === "failed" ? "Job failed" : "Job interrupted";
-  const short = event.outcome === "completed" ? "Done" : event.outcome === "failed" ? "Failed" : "Stopped";
+function completionContent(event: Completion | AttentionNotification, subscription: PushSubscription): PushContent {
+  const status = event.kind === "attention" ? event.reason === "approval" ? "Needs approval" : "Needs input" :
+    event.outcome === "completed" ? "Job complete" : event.outcome === "failed" ? "Job failed" : "Job interrupted";
+  const short = event.kind === "attention" ? "Input" : event.outcome === "completed" ? "Done" : event.outcome === "failed" ? "Failed" : "Stopped";
   const title = subscription.titleMaxLength >= 9 ? "Terminal+" : subscription.titleMaxLength >= 2 ? "TP" : "+";
   if (subscription.maxLength < status.length) return { title, text: short.slice(0, subscription.maxLength) };
   const budget = Math.min(512, subscription.maxLength - status.length - 3);
@@ -47,6 +48,7 @@ export interface PushJob extends PushContent {
   id: string;
   subscriptionId: string;
   eventId?: number;
+  attentionId?: string;
   createdAt: number;
   expiresAt: number;
   nextAttemptAt: number;
@@ -134,6 +136,7 @@ export class GlancePush {
             this.data.subscriptions.some(s => this.data.retired.includes(s.id))) throw new Error();
         for (const job of this.data.jobs) {
           identifier(job.id, "job id"); identifier(job.subscriptionId, "subscription_id");
+          if (job.attentionId !== undefined) identifier(job.attentionId, "attention id");
           if (!["queued", "sending", "accepted", "failed", "expired", "cancelled", "uncertain"].includes(job.status) ||
               !Number.isFinite(job.expiresAt) || !Number.isFinite(job.nextAttemptAt) || !Number.isInteger(job.attempts) || job.attempts < 0) throw new Error();
           if (job.status === "sending") { job.status = "uncertain"; job.code = "PROCESS_RESTARTED_DURING_SEND"; }
@@ -192,15 +195,25 @@ export class GlancePush {
     this.persist();
   }
   private recoverCompletions() {
+    // Reconcile against the durable identity ledger even if a resolution has
+    // already fallen outside the journal's small event replay tail.
+    let changed = false;
+    for (const job of this.data.jobs) if (job.attentionId && pending(job) && !this.journal.attentionPending(job.attentionId, this.now())) {
+      job.status = "cancelled"; job.code = "INPUT_RESOLVED";
+      this.flights.get(job.id)?.abort(); changed = true;
+    }
+    if (changed) this.persist();
     // Always oldest first: a new completion cannot leapfrog an event waiting for queue capacity.
     for (const event of this.journal.list()) this.onCompletion(event);
   }
-  private onCompletion(event: Completion) {
+  private onCompletion(event: NotificationEvent) {
     try {
       let changed = false;
       for (const subscription of this.data.subscriptions) {
         if (event.id <= subscription.lastCompletionId) continue;
-        if (event.viewedOnG2 || event.forwardTo || subscription.disabled || this.now() >= event.at + this.ttl * 1000) {
+        if (event.kind === "attention-resolved" || event.viewedOnG2 || event.forwardTo || subscription.disabled ||
+          this.now() >= event.at + (event.kind === "attention" ? Math.min(30, this.ttl) : this.ttl) * 1000 ||
+          (event.kind === "attention" && !this.journal.attentionPending(event.attentionId, this.now()))) {
           subscription.lastCompletionId = event.id; changed = true; continue;
         }
         // Keep the cursor behind unqueued events so capacity recovery can retry them.
@@ -212,10 +225,13 @@ export class GlancePush {
       if (changed) { this.persist(); this.schedule(); }
     } catch { this.options.diagnostic?.("Push queue could not be saved; inspect local push status."); }
   }
-  private enqueue(subscriptionId: string, content: PushContent, ttl: number, priority: PushPriority, event?: Completion) {
+  private enqueue(subscriptionId: string, content: PushContent, ttl: number, priority: PushPriority, event?: Completion | AttentionNotification) {
     if (this.data.jobs.filter(pending).length >= 500) throw new PushError("Push queue is full", 503);
     const job: PushJob = { id: randomUUID(), subscriptionId, ...content, priority,
-      eventId: event?.id, createdAt: event?.at ?? this.now(), expiresAt: (event?.at ?? this.now()) + ttl * 1000,
+      eventId: event?.id, attentionId: event?.kind === "attention" ? event.attentionId : undefined,
+      createdAt: event?.at ?? this.now(), expiresAt: event?.kind === "attention"
+        ? Math.min(event.at + Math.min(ttl, 30) * 1000, event.expiresAt ?? Infinity)
+        : (event?.at ?? this.now()) + ttl * 1000,
       nextAttemptAt: this.now(), attempts: 0, status: "queued" };
     this.data.jobs.push(job);
     return job;
@@ -265,6 +281,9 @@ export class GlancePush {
     if (!this.closed) this.recoverCompletions();
   }
   private async attempt(job: PushJob) {
+    if (job.attentionId && !this.journal.attentionPending(job.attentionId, this.now())) {
+      job.status = "cancelled"; job.code = "INPUT_RESOLVED"; this.persist(); return;
+    }
     const subscription = this.data.subscriptions.find(s => s.id === job.subscriptionId);
     if (!subscription || subscription.disabled) { job.status = "cancelled"; job.code = "DESTINATION_DISABLED"; this.persist(); return; }
     const remaining = Math.floor((job.expiresAt - this.now()) / 1000);

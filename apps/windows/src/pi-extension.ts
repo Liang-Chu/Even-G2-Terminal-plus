@@ -30,6 +30,8 @@ export default function monitor(pi: PiApi) {
   const subagents = new PiSubagentTracker();
   let inferredName: string | undefined;
   let polling = false;
+  let dialogSequence = 0;
+  const dialogs: { id: string; kind: string; createdAt: number; quiet?: true }[] = [];
   const interactions = new InteractionBroker(requests => {
     if (store) { store.publish({ ...store.state, interactions: requests }, { type: "monitoring.updated" }); dirty = true; }
   });
@@ -89,6 +91,7 @@ export default function monitor(pi: PiApi) {
   }
   pi.on("session_start", (_event, context) => {
     interactions.clear();
+    dialogs.length = 0;
     clearInterval(timer); ctx = undefined; snapshot = undefined; subagents.reset(); inferredName = undefined;
     if (context.mode !== "tui") return;
     ctx = context; store = new CockpitStore(ctx.cwd);
@@ -140,11 +143,25 @@ export default function monitor(pi: PiApi) {
     store.dispatch({ type: "session.updated", session: { model: model ? `${model.provider}/${model.id}` : undefined } });
     dirty = true;
   });
-  pi.on("ui_prompt_start", () => {
-    if (snapshot) commandStatus("Pi is waiting for a terminal dialog. Complete this custom dialog in Terminal.");
+  pi.on("ui_prompt_start", (event, context) => {
+    if (!snapshot || !["select", "confirm", "input", "editor", "custom"].includes(event?.kind)) return;
+    if (dialogs.length >= 16) return;
+    const dialog = { id: snapshot.instance + ":dialog:" + ++dialogSequence, kind: event.kind, createdAt: Date.now(),
+      ...(context.isIdle() ? { quiet: true as const } : {}) };
+    dialogs.push(dialog);
+    store.publish({ ...store.state, attention: dialogs.filter(item => !item.quiet).map(item => ({ id: item.id,
+      kind: "terminal-input" as const, createdAt: item.createdAt })) }, { type: "monitoring.updated" });
+    dirty = true;
+    if (!dialog.quiet) commandStatus("Pi needs input in the original Terminal.");
   });
-  pi.on("ui_prompt_end", () => {
-    if (snapshot && store.state.commandStatus?.startsWith("Pi is waiting for a terminal dialog")) commandStatus("");
+  pi.on("ui_prompt_end", (event) => {
+    if (!snapshot) return;
+    const index = dialogs.map(item => item.kind).lastIndexOf(event?.kind);
+    if (index >= 0) dialogs.splice(index, 1);
+    store.publish({ ...store.state, attention: dialogs.filter(item => !item.quiet).map(item => ({ id: item.id,
+      kind: "terminal-input" as const, createdAt: item.createdAt })) }, { type: "monitoring.updated" });
+    dirty = true;
+    if (!dialogs.some(item => !item.quiet) && store.state.commandStatus === "Pi needs input in the original Terminal.") commandStatus("");
   });
   pi.on("session_shutdown", () => {
     interactions.clear();

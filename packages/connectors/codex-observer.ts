@@ -7,6 +7,8 @@ import { promptLabel } from "../cockpit-state/selectors.js";
 import { connectorKey } from "./identity.js";
 import { canonicalPath } from "../pi-runtime/sessions.js";
 import { boundedAgentTask, MAX_AGENT_TASKS, type AgentTask } from "../cockpit-state/agent-tasks.js";
+import { CodexInputTracker, codexInputRecord, type CodexInputRecord, type CodexInputSnapshot } from "./codex-input.js";
+import { readLocalJson, writeLocalJson } from "../pi-runtime/native-protocol.js";
 
 type Outcome = "completed" | "interrupted";
 interface ConversationMessage { role: "user" | "assistant"; text: string; userItem?: string }
@@ -21,10 +23,11 @@ interface Rollout {
   path: string; offset: number; partial: Buffer; dropping: boolean; initialized: boolean;
   store: CockpitStore; id?: string; parent?: string; turn?: string; busy: boolean;
   updatedAt: number; available: boolean; changed: boolean; activity: boolean;
-  pending: { turnId: string; outcome: Outcome; at: number }[];
+  pending: { turnId: string; outcome: Outcome; at: number; inputBlocked?: boolean }[];
   completed: Set<string>; announced: boolean; children: number;
   modifiedAt: number;
   userEvents: boolean; userItems: Set<string>; derivedName?: string;
+  input: CodexInputTracker;
 }
 const CHUNK = 1024 * 1024;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
@@ -48,11 +51,23 @@ export class CodexObserver {
   private stopped = false;
   private names = new Map<string, string>();
   private indexModified = 0;
+  private attentionSnapshots = new Map<string, CodexInputSnapshot>();
+  private attentionDirty = false;
+  private attentionPath?: string;
   readonly root: string;
   constructor(private receive: (observation: CodexObservation) => void,
-    options: { root?: string; now?: number } = {}) {
+    options: { root?: string; now?: number; attentionPath?: string } = {}) {
     this.root = resolve(options.root || join(process.env.CODEX_HOME || join(homedir(), ".codex"), "sessions"));
     this.started = options.now ?? Date.now();
+    this.attentionPath = options.attentionPath;
+    if (this.attentionPath) try {
+      const saved = readLocalJson(this.attentionPath);
+      if (saved?.version === 1 && Array.isArray(saved.sessions) && saved.sessions.length <= 64)
+        for (const session of saved.sessions) if (typeof session?.id === "string" && uuid.test(session.id)) {
+          const snapshot = new CodexInputTracker(session.input).snapshot();
+          if (snapshot.requests.length) this.attentionSnapshots.set(session.id, snapshot);
+        }
+    } catch { /* A private metadata cache is optional; rollout records remain authoritative. */ }
   }
   async start() {
     await this.poll(true);
@@ -78,7 +93,7 @@ export class CodexObserver {
           this.files.set(path, { path, offset: 0, partial: Buffer.alloc(0), dropping: false, initialized: false,
             store: new CockpitStore(""), busy: false, updatedAt: 0, available: true, changed: false,
             activity: false, pending: [], completed: new Set(), announced: false, children: 0, modifiedAt: info.mtimeMs,
-            userEvents: false, userItems: new Set() });
+            userEvents: false, userItems: new Set(), input: new CodexInputTracker() });
         }
       }
     };
@@ -125,9 +140,29 @@ export class CodexObserver {
       if ([...this.files.values()].some(file => !file.available && !file.id)) return;
     }
     if (this.stopped) return;
+    this.saveAttention();
     const byId = new Map([...this.files.values()].filter(f => f.id).map(f => [f.id!, f]));
     const childCounts = new Map<string, number>();
     const childTasks = new Map<string, AgentTask[]>();
+    const childAttention = new Map<string, NonNullable<RuntimeState["attention"]>>();
+    for (const child of byId.values()) if (child.parent && child.turn) {
+      const ancestors: Rollout[] = []; const visited = new Set<string>(); let parent = child.parent;
+      while (parent && !visited.has(parent)) {
+        visited.add(parent); const owner = byId.get(parent); if (!owner) break;
+        ancestors.push(owner); parent = owner.parent!;
+      }
+      // Subagent files contain copied parent history. Only a question belonging
+      // to the child's own current explicit turn can represent child input.
+      if (ancestors.some(owner => owner.turn === child.turn || owner.completed.has(child.turn!))) continue;
+      for (const request of child.input.pending(child.turn)) {
+        if (ancestors.some(owner => owner.input.has(request.id))) continue;
+        for (const owner of ancestors) {
+          const requests = childAttention.get(owner.id!) || [];
+          if (requests.length < 128) requests.push({ ...request, id: `${child.id}:${request.id}` });
+          childAttention.set(owner.id!, requests);
+        }
+      }
+    }
     for (const child of byId.values()) if (child.busy) {
       let parent = child.parent; const visited = new Set<string>();
       while (parent && !visited.has(parent)) {
@@ -141,7 +176,7 @@ export class CodexObserver {
       }
     }
     for (const file of byId.values()) {
-      if (!file.busy && !file.pending.length && !childCounts.get(file.id!) && file.modifiedAt < Date.now() - 86_400_000) {
+      if (!file.busy && !file.pending.length && !file.input.pending().length && !childCounts.get(file.id!) && file.modifiedAt < Date.now() - 86_400_000) {
         this.files.delete(file.path);
         if (!file.parent && file.announced) this.receive({ state: file.store.state, updatedAt: file.updatedAt, activity: false, retired: true });
         continue;
@@ -153,21 +188,25 @@ export class CodexObserver {
       if (name && name !== file.store.state.session.name) { file.store.state.session.name = name; file.changed = true; }
       const changed = file.changed || children !== file.children ||
         JSON.stringify(tasks) !== JSON.stringify(file.store.state.subagents?.tasks || []) ||
-        tasksTruncated !== !!file.store.state.subagents?.tasksTruncated;
+        tasksTruncated !== !!file.store.state.subagents?.tasksTruncated ||
+        JSON.stringify([...file.input.pending(), ...childAttention.get(file.id!) || []]) !== JSON.stringify(file.store.state.attention || []);
       file.children = children;
       if (!changed) continue;
       file.changed = false;
       // Initial history is a baseline. Do not turn every saved conversation into an open window.
-      if (!file.announced && !file.activity && !file.busy && !file.pending.length) continue;
+      const attention = [...file.input.pending(), ...childAttention.get(file.id!) || []];
+      if (!file.announced && !file.activity && !file.busy && !file.pending.length && !attention.length) continue;
       file.announced = true;
       const state = file.store.state;
-      const status = file.busy || children ? "running" : "idle";
+      const status = file.busy || children ? "running" : attention.length ? "waiting" : "idle";
       if (children) file.pending = file.pending.slice(-1);
-      const completions = !file.busy && !children && file.available ? file.pending : [];
+      if (attention.length) for (const completion of file.pending) completion.inputBlocked = true;
+      const completions = !file.busy && !children && !attention.length && file.available ? file.pending : [];
       const completion = completions.at(-1);
       file.store.publish({ ...state, connected: file.available,
         main: { ...state.main, status, ...(completion ? { settledAt: completion.at, statusSince: completion.at, outcome: completion.outcome } : {}) },
         subagents: { active: children, mainDelegated: !file.busy, tasks, ...(tasksTruncated ? { tasksTruncated: true } : {}) }, capabilities: { prompt: false, interrupt: false },
+        attention,
       }, { type: "monitoring.updated" });
       for (const [index, done] of (completions.length ? completions : [undefined]).entries()) {
         this.receive({ state: file.store.state, updatedAt: file.updatedAt, activity: index === 0 && file.activity,
@@ -239,6 +278,7 @@ export class CodexObserver {
     let suffix = boundary || Buffer.alloc(0), cursor = end, foundModel = false, foundLifecycle = false;
     const messages: ConversationMessage[] = [];
     const userItems = new Set<string>();
+    const input: (CodexInputRecord | { type: "lifecycle"; status: string; turnId: string })[] = [];
     let budget = 60_000;
     while (!this.stopped && cursor > 0 && (!foundLifecycle || !foundModel)) {
       const size = Math.min(CHUNK, cursor); cursor -= size;
@@ -252,8 +292,17 @@ export class CodexObserver {
       for (let n = lines.length - 1; n >= 0; n--) {
         const line = lines[n];
         const conversation = line.includes('"response_item"') && /"role"\s*:\s*"(?:user|assistant)"/.test(line);
-        if (Buffer.byteLength(line) > CHUNK || (!line.includes('"turn_context"') && !line.includes('"event_msg"') && !conversation)) continue;
+        const inputCandidate = line.includes('"response_item"') && (line.includes('"function_call"') || line.includes('"function_call_output"') || line.includes('"send_user_message_question_reply"'));
+        if (Buffer.byteLength(line) > CHUNK || (!line.includes('"turn_context"') && !line.includes('"event_msg"') && !conversation && !inputCandidate)) continue;
         let row: any; try { row = JSON.parse(line); } catch { continue; }
+        if (input.length < 512) {
+          const record = codexInputRecord(row, undefined, Date.parse(row.timestamp) < this.started);
+          if (record) input.push(record);
+          else if (row.type === "event_msg" && ["task_started", "task_complete", "turn_aborted"].includes(row.payload?.type) &&
+            typeof row.payload.turn_id === "string" && /^[a-zA-Z0-9_-]{1,256}$/.test(row.payload.turn_id) &&
+            Number.isFinite(Date.parse(row.timestamp)) && Date.parse(row.timestamp) >= 0 && Date.parse(row.timestamp) <= Date.now() + 60_000)
+            input.push({ type: "lifecycle", status: row.payload.type, turnId: row.payload.turn_id });
+        }
         // Reuse records encountered while finding lifecycle/model; never extend
         // the reverse scan solely for history or replay historical completions.
         const userEvents = file.userEvents;
@@ -277,6 +326,40 @@ export class CodexObserver {
       suffix = first >= 0 && first <= CHUNK ? Buffer.from(data.subarray(0, first)) : Buffer.alloc(0);
     }
     for (const message of messages.reverse()) if (message.role !== "user" || !file.userEvents || message.userItem) this.appendMessage(file, message);
+    let inputTurn: string | undefined;
+    for (const record of input.reverse()) {
+      if (record.type === "lifecycle") {
+        if (record.status === "task_started") inputTurn = record.turnId;
+        else {
+          if (record.status === "turn_aborted" && file.input.cancelTurn(record.turnId)) this.inputChanged(file);
+          if (inputTurn === record.turnId) inputTurn = undefined;
+        }
+        continue;
+      }
+      // Bind only when this bounded scan actually contains the preceding start;
+      // the most recent lifecycle alone does not prove an older question's turn.
+      const bound = record.type === "request" && inputTurn ? { ...record, request: { ...record.request, turnId: inputTurn } } : record;
+      if (file.input.consume(bound)) this.inputChanged(file);
+    }
+  }
+  private inputChanged(file: Rollout) {
+    file.changed = true;
+    if (!file.id) return;
+    this.attentionSnapshots.delete(file.id);
+    this.attentionSnapshots.set(file.id, file.input.snapshot()); this.attentionDirty = true;
+  }
+  private saveAttention() {
+    if (!this.attentionPath || !this.attentionDirty) return;
+    let budget = 256;
+    const sessions = [...this.attentionSnapshots].reverse().slice(0, 64).flatMap(([id, input]) => {
+      if (budget <= 0) return [];
+      const pending = input.requests.filter(request => request.answered.length < request.count);
+      const settled = input.requests.filter(request => request.answered.length === request.count);
+      const requests = [...pending, ...settled.reverse()].slice(0, budget); budget -= requests.length;
+      return requests.length ? [{ id, input: { version: 1, requests } }] : [];
+    });
+    try { writeLocalJson(this.attentionPath, { version: 1, sessions }); this.attentionDirty = false; }
+    catch { /* Retry metadata persistence without changing native sessions or notification state. */ }
   }
   private message(file: Rollout, row: any): ConversationMessage | undefined {
     const p = row?.payload, at = Date.parse(row?.timestamp);
@@ -330,6 +413,8 @@ export class CodexObserver {
       const parent = p.parent_thread_id || p.source?.subagent?.thread_spawn?.parent_thread_id;
       if (!parent && !["cli", "vscode", "appServer"].includes(p.source)) return;
       file.id = p.id; file.parent = typeof parent === "string" ? parent : undefined;
+      file.input = new CodexInputTracker(this.attentionSnapshots.get(p.id));
+      if (file.input.pending().length) file.changed = true;
       file.store.state.session = { id: p.id, key: connectorKey("codex", p.id), tunnel: "codex", cwd: p.cwd };
       return;
     }
@@ -338,19 +423,25 @@ export class CodexObserver {
     if (!Number.isFinite(at) || at > Date.now() + 60_000) return;
     const live = at >= this.started;
     file.updatedAt = Math.max(file.updatedAt, at);
+    if (file.input.consume(codexInputRecord(row, file.turn, !live))) this.inputChanged(file);
     if (row.type === "turn_context" && typeof p.model === "string") {
       file.store.state.session.model = p.model.slice(0, 128); file.changed = true;
     } else if (row.type === "event_msg" && p.type === "task_started" && typeof p.turn_id === "string") {
       if (file.completed.has(p.turn_id) || file.turn === p.turn_id) return;
+      // A question answer that starts fresh work must not release an older
+      // question-blocked completion once that new work eventually settles.
+      file.pending = file.pending.filter(completion => !completion.inputBlocked);
       file.turn = p.turn_id; file.busy = true; file.activity ||= live; file.changed = true;
       file.store.state.main = { status: "running", startedAt: at, statusSince: at };
     } else if (row.type === "event_msg" && ["task_complete", "turn_aborted"].includes(p.type) && typeof p.turn_id === "string") {
       if (file.completed.has(p.turn_id) || (file.turn && file.turn !== p.turn_id)) return;
+      if (p.type === "turn_aborted" && file.input.cancelTurn(p.turn_id)) this.inputChanged(file);
       file.completed.add(p.turn_id);
       if (file.completed.size > 256) file.completed.delete(file.completed.values().next().value!);
       file.busy = false; file.changed = true;
       if (live) {
-        file.pending.push({ turnId: p.turn_id, outcome: p.type === "turn_aborted" ? "interrupted" : "completed", at });
+        file.pending.push({ turnId: p.turn_id, outcome: p.type === "turn_aborted" ? "interrupted" : "completed", at,
+          ...(file.input.pending().length ? { inputBlocked: true } : {}) });
         file.pending = file.pending.slice(-32);
       }
       file.store.state.main = { ...file.store.state.main, status: "idle", settledAt: at, statusSince: at };

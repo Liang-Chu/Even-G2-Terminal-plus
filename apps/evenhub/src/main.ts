@@ -22,6 +22,7 @@ import type { SessionsPanel, SessionSummary } from "./sessions/panel.js";
 import { VoiceSettings } from "./voice/settings.js";
 import { VoiceController, type VoiceView } from "./voice/controller.js";
 import { InteractionPanel } from "./interactions/panel.js";
+import { InputNeededNotice, selectedInputNeeded } from "./interactions/attention.js";
 import type { InteractionAnswer } from "../../../packages/cockpit-state/interactions.js";
 import { AudioInputSource, type EvenAppBridge } from "@evenrealities/even_hub_sdk";
 import { HubShell } from "./hub-shell.js";
@@ -116,6 +117,13 @@ async function respondToInteraction(key: string, answer: InteractionAnswer) {
 }
 const interactions = new InteractionPanel(respondToInteraction);
 $("prompt-form").before(interactions.element);
+const inputNeeded = new InputNeededNotice(key => {
+  if (state.session.key !== key || !online) return;
+  if (hub) hub.show("conversation");
+  else if (portalConversation) portalConversation.open = true;
+  render(); interactions.element.scrollIntoView({ block: "nearest" });
+});
+$("notice").after(inputNeeded.element);
 if (!config) config = connectionSettings.current();
 const g2Canvas = document.createElement("canvas"); g2Canvas.width = 576; g2Canvas.height = 288;
 g2Canvas.className = "g2-canvas"; g2Canvas.setAttribute("aria-label", "G2 display preview");
@@ -269,6 +277,7 @@ let transcriptSignature = "";
 let transcriptSession = "";
 function render() {
   interactions.update(state, online);
+  inputNeeded.update(state, online);
   voice?.sync();
   const busy =
     state.main.status === "running" || state.main.status === "waiting";
@@ -299,7 +308,7 @@ function render() {
   $("monitor-summary").textContent = state.monitoring
     ? `${state.monitoring.watched} monitored · ${state.monitoring.running} running. Prompts automatically add a session; cancel monitoring in the session list.`
     : "Choose a session to open it. History is available separately.";
-  $("composer-hint").textContent = state.commandStatus || (state.capabilities?.prompt === false ? "Monitoring this session. Continue in its original terminal." : !ready
+  $("composer-hint").textContent = (ready && selectedInputNeeded(state)?.mode === "terminal" ? "Answer in original terminal." : undefined) || state.commandStatus || (state.capabilities?.prompt === false ? "Monitoring this session. Continue in its original terminal." : !ready
     ? online ? "Choose a session to begin" : "Connect your desktop bridge to begin"
     : busy
       ? state.capabilities?.interrupt === false ? "Agent is working. Use Ctrl+C in its terminal to stop." : "Agent is working. You can stop this run."

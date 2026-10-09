@@ -1,10 +1,34 @@
-# Release status — Terminal+ 1.1.16
+# Release status — Terminal+ 1.1.17
 
-## Current 1.1.16 candidate
+## 1.1.17 source verification — 2026-10-09
+
+Verified questions and approvals get a separate input-needed notification. Supported connector requests retain the existing phone/G2 answer controls; observed native-only dialogs point back to the original terminal. Generic waiting, background tools and network loss are not input requests.
+
+| Check | Result |
+| --- | --- |
+| Windows source | 573 tests: 564 passed, 9 platform skips, no failures. Typecheck, production build and all three C# desktop suites passed |
+| Notification regressions | Exact request identity, partial replies, restart baselines, queued/in-flight cancellation, 30-second freshness, direct/relay routing, all watched sessions and completion-only HTTP/SSE passed |
+| Codex observation | Explicit question/reply records, private metadata, Unicode question IDs, long-log aborts and proved current-turn child ownership passed. Ambiguous copied histories are ignored |
+| Linux restart regression | Recognized lifecycle 503 is retried within five seconds; startup readiness, shutdown/socket transitions, authentication failures and unrelated/malformed responses passed |
+| Independent audit | No confirmed blocker or credential/question-content leak found in the changed detection, persistence and delivery paths |
+| Packages/publication | Check the [release downloads and notes](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) for packaged acceptance and publication. Source tests alone do not establish installed or physical-device behavior |
+| Physical phone/G2 | Not confirmed. Ordinary native dialogs remain terminal-only; unsupported forms do not gain remote controls |
+
+## Previous 1.1.16 publication and verification — 2026-10-09
 
 Shared saved-computer lists are persisted privately on paired companions. A phone or browser needs one initial URL/key; visible viewers learn and propagate the list through reachable paired computers. Device IDs deduplicate aliases, while local desktop transport stays local. Keyless deletion records prevent stale caches and returning offline devices from restoring removed connections. Synchronization does not change Watch, native terminals, session routing or notification settings.
 
-Windows source verification passed: 534 tests, 525 passed, 9 platform skips and no failures; typecheck, production build and all three C# desktop suites passed. Shared-list regressions cover durable storage, concurrent edits/removals, stale caches, identity changes, address updates, credentials and retry-budget preservation. Native package verification and publication are in progress. Physical phone/G2 acceptance is not confirmed. The public release verified below remains 1.1.15 until a new publication is recorded.
+| Check | Result |
+| --- | --- |
+| Windows source | 534 tests: 525 passed, 9 platform skips and no failures. Typecheck, production build and all three C# desktop suites passed |
+| Shared-list regressions | Durable storage, concurrent removals/edits, stale and late native caches, identity changes, address edits, failed storage and retry-budget preservation passed |
+| Browser acceptance | Two independent browser origins and two isolated HTTP bridges verified discovery from one seed, shared deletion and stale-viewer reconciliation. Synthetic keys/history; no real prompt, Watch change or push |
+| Windows packages | Final ZIP and installer/reinstall/update smoke checks passed, including key retention and independent native-worker survival |
+| Linux packages | All 264 frozen source files and 638 payload files were verified. 142 fresh shared-list/API/frontend tests passed; 42 unchanged Linux/platform tests were retained from the byte-identical candidate. Final native fresh install, systemd upgrade, failed-health rollback and local npm fresh/custom-root checks passed |
+| Actual companions | Windows and NUC run 1.1.16 with configuration, keys and Watch retained. NUC's two independent Codex processes and Claude process retained their start identities. One other NUC Codex PID ended with the old backend; its timing suggests a monitor-owned catalog helper, but its earlier command line was not captured. Windows' live process baseline was captured after upgrade; native-process preservation there is established by the isolated installer test. A fresh viewer paired only to Windows discovered 14 Windows and 13 NUC sessions, including a running NUC session |
+| GitHub | Stable Latest [v1.1.16](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases/tag/v1.1.16) published with 14 size/digest-verified assets |
+| npm | Public `terminal-plus@1.1.16` and `latest` verified with matching SHA-512 integrity. Unauthenticated Linux public-registry installation passed 39 assertions: fresh installation, repeated setup, scripts enabled/disabled, global command, key retention and isolated cleanup |
+| Hub/hardware | Official package checks passed; `.ehpk` is 125,662 bytes. Physical phone/G2 acceptance is not confirmed |
 
 ## Previous 1.1.15 publication and verification
 

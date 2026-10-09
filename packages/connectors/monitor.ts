@@ -65,7 +65,8 @@ export class ConnectorMonitor {
     this.store.publish({ ...this.store.state, subagents: { active: this.subagents.size, mainDelegated: !this.mainBusy } }, { type: "monitoring.updated" });
   }
   private settle() {
-    if (this.mainBusy || this.subagents.size || this.backgroundWork.size || this.scheduledWork.size || !this.completionPending) return;
+    if (this.mainBusy || this.subagents.size || this.backgroundWork.size || this.scheduledWork.size || !this.completionPending ||
+      this.store.state.attention?.length || this.store.state.interactions?.some(request => request.kind !== "menu" && request.expiresAt > Date.now())) return;
     this.completionPending = false;
     this.interactions.clear();
     this.store.state.main = { ...this.store.state.main, outcome: this.outcome,
