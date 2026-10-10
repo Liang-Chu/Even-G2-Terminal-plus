@@ -1,6 +1,12 @@
-# Release status — Terminal+ 1.1.17
+# Release status — Terminal+
 
-## 1.1.17 source verification — 2026-10-09
+## 1.1.18 source verification — 2026-10-10
+
+Windows upgrades, reinstalls and rollback preserve deleted desktop/Start menu shortcuts while refreshing links that still exist; first installation creates them and owned legacy links migrate normally. G2 no longer forces fields marked sensitive onto the phone: supported questions reuse its existing native options list and sentence-by-sentence editor. Users choose where to answer. Question identity, expiry/disconnection and duplicate-reply checks remain; size, multiple-question, full-detail approval and native read-only limits are unchanged.
+
+Windows source verification passed 576 tests: 567 passed, 9 platform skips and no failures; typecheck, production build and all three final C# desktop suites passed. Independent checks covered shortcut deletion, rollback, legacy migration, nested-install ownership and 48 G2/voice/connector regressions. Exact Linux, package, public installation and deployment results are recorded with the [release downloads and notes](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases); source checks alone do not establish installed or physical-device behavior. Physical phone/G2 acceptance remains unverified.
+
+## Previous 1.1.17 publication and verification — 2026-10-09
 
 Verified questions and approvals get a separate input-needed notification. Supported connector requests retain the existing phone/G2 answer controls; observed native-only dialogs point back to the original terminal. Generic waiting, background tools and network loss are not input requests.
 
@@ -11,7 +17,12 @@ Verified questions and approvals get a separate input-needed notification. Suppo
 | Codex observation | Explicit question/reply records, private metadata, Unicode question IDs, long-log aborts and proved current-turn child ownership passed. Ambiguous copied histories are ignored |
 | Linux restart regression | Recognized lifecycle 503 is retried within five seconds; startup readiness, shutdown/socket transitions, authentication failures and unrelated/malformed responses passed |
 | Independent audit | No confirmed blocker or credential/question-content leak found in the changed detection, persistence and delivery paths |
-| Packages/publication | Check the [release downloads and notes](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) for packaged acceptance and publication. Source tests alone do not establish installed or physical-device behavior |
+| Linux source | 575 tests: 572 passed, 3 platform skips, no failures; typecheck and production build passed |
+| Windows packages | Final ZIP and offline install/reinstall/same-version build-upgrade checks passed. All 644 payload hashes verified. Failed-health rollback was verified on an earlier candidate with identical Windows installer sources; the final Codex-input parser change was covered by source and final installation tests, not a repeated final rollback |
+| Linux packages | All 269 frozen source and 639 payload files verified. Exact final native fresh install, systemd 1.1.16 → 1.1.17 upgrade, failed-health rollback and local npm fresh/custom-root checks passed; 84 local installation assertions |
+| Actual companions | Windows runs final build `09cabf28ed92`; NUC runs `ebc1e633edfe`. Both retained host identity, pairing configuration and Watch. Final Windows upgrade retained four independent native process identities; NUC retained three, plus Firebase configuration, notification routing and its existing Glance registration |
+| GitHub | Stable Latest [v1.1.17](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases/tag/v1.1.17) published with 14 size/digest-verified assets; public installer metadata and Hub download hashes matched |
+| npm | Public `terminal-plus@1.1.17` and `latest` verified with matching SHA-512 integrity. Unauthenticated public-registry Linux installation passed 39 isolated assertions; live service and native tasks were unchanged |
 | Physical phone/G2 | Not confirmed. Ordinary native dialogs remain terminal-only; unsupported forms do not gain remote controls |
 
 ## Previous 1.1.16 publication and verification — 2026-10-09
@@ -34,7 +45,7 @@ Shared saved-computer lists are persisted privately on paired companions. A phon
 
 **Terminal+ 1.1.15** provides the Pi/Codex/Claude browser portal for Windows/Linux. Browser and phone connect each saved computer immediately, then allow up to five automatic retries per startup/manual reconnect cycle, each 30 seconds after failure. Successes and passive foregrounding do not reset the budget; foregrounding does not skip the wait. Exhausted computers stay Offline until targeted Reconnect or a fresh app startup. HTTP 401 stops retries with Key rejected. Compact Status and Devices dropdowns provide All/Watched/Running and multiple-computer filtering. Watch remains per source computer.
 
-## Current 1.1.15 verification — 2026-10-08
+## Previous 1.1.15 verification — 2026-10-08
 
 | Check | Result |
 | --- | --- |
@@ -48,7 +59,7 @@ Shared saved-computer lists are persisted privately on paired companions. A phon
 
 These package results were recorded after the artifacts were built. Live Windows/NUC installations were not upgraded in this verification; the NUC service remained active with its original process identity.
 
-Earlier checks below apply only to their named versions, not to the current 1.1.15 changes.
+Earlier checks below apply only to their named versions, not to later changes.
 
 ## Previous 1.1.14 candidate verification — 2026-10-08
 
@@ -168,6 +179,6 @@ Runtime packaging checks allowed production files and bundled dependencies, inve
 - **Platforms:** release installers target Windows 10/11 x64 and Linux x64/glibc. Windows binaries are unsigned. ARM64, Alpine/musl and Linux graphical desktops have not been physically validated.
 - **Notifications:** configure a direct sender or one forwarding center and register Glance separately. No Firebase, connection or speech credentials are shipped. The session actually displayed on G2 suppresses its own completion notification while the viewing lease is valid.
 
-Updating a companion retains its pairing and settings and leaves native CLI sessions running. Existing Terminal+ Hub installations work with the 1.1.13 companion fix; install a new `.ehpk` separately only when updating Hub. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
+Updating a companion retains its pairing and settings and leaves native CLI sessions running. Install a new `.ehpk` separately when updating Hub; the 1.1.18 G2 question change remains compatible with companion 1.1.17. Watch, Unwatch, network loss and monitoring shutdown do not terminate native terminals.
 
 See [setup](../README.md), [release notes](../RELEASE_NOTES.md), [connector limits](connectors.md) and [Glance setup](glance-push.md).

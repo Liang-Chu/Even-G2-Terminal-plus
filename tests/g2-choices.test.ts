@@ -79,6 +79,18 @@ test("text-only broker questions have a selectable native input row", async t =>
   assert.equal(f.opened(), 1); assert.equal(await f.display.submitInteractionDraft("Text", "s"), true);
 });
 
+test("a sensitive field uses the same G2 question editor without mandatory phone fallback", async t => {
+  const f = fixture(t), request = choice();
+  request.questions[0].secret = true;
+  request.questions[0].options = [];
+  f.update(request); await f.display.init(f.bridge as any); await delay(140);
+  assert.deepEqual(f.pages.at(-1).listObject[0].itemContainer.itemName, ["Other / enter answer"]);
+  f.display.handleEvent({ listEvent: { containerID: CHOICE_CONTAINER_ID, currentSelectItemIndex: 0 } } as any);
+  assert.equal(f.opened(), 1); assert.equal(f.display.hasInteractionDraft(), true);
+  assert.equal(await f.display.submitInteractionDraft("Synthetic answer", "s"), true);
+  assert.deepEqual(f.answers, [{ requestId: "question", answers: { format: "Synthetic answer" } }]);
+});
+
 test("verified native-only questions keep readable history and direct input back to Terminal", t => {
   let body = "", opens = 0, replies = 0;
   const display = new G2Display((_, text) => { body = text; }, () => {}, undefined, {

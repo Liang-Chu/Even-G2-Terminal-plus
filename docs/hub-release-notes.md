@@ -1,3 +1,10 @@
+# Terminal+ 1.1.18 — Hub update
+
+- Removes automatic phone-only fallback for fields marked sensitive. Short supported questions use the existing G2 option list or sentence-by-sentence editor; users choose whether to answer on G2 or the phone.
+- Retains question-bound replies and existing size, multi-question, full-detail approval and native read-only limits.
+
+Install `terminal-plus-1.1.18.ehpk` separately through Even Hub. The unified 1.1.18 release also fixes shortcut retention on Windows; companion 1.1.17 remains compatible with this Hub question UI. Packaging/publication status is recorded in [release status](release-status.md); physical G2 acceptance remains unverified.
+
 # Terminal+ 1.1.17 — Hub update
 
 - Shows **Needs input** for the selected session. **Answer →** opens supported structured questions/approvals on the phone; native-only requests say **Answer in original terminal**.

@@ -11,8 +11,8 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("Terminal+")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.17.0")]
-[assembly: System.Reflection.AssemblyVersion("1.1.17.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.18.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.18.0")]
 
 // Native tray UI. The bridge and its Pi sessions have an independent lifetime.
 class PilotTray : ApplicationContext {

@@ -1,3 +1,11 @@
+# Terminal+ 1.1.18
+
+- Windows updates, reinstalls and rollback now preserve deleted desktop and Start menu shortcuts. First installation creates shortcuts, existing links point to the selected version, and owned legacy links migrate normally.
+- Sensitive fields no longer force phone-only answering. Supported short questions reuse the existing G2 choices and sentence-by-sentence input; users can choose G2 or the phone.
+- Keeps question-bound replies, size/multiple-question/full-detail approval limits, native read-only sessions, Watch choices, pairing and notification routing.
+
+Install the matching Windows/Linux companion and `terminal-plus-1.1.18.ehpk`. The Hub package is uploaded separately through Even Hub; companion updates do not replace it. See [release status](docs/release-status.md) for package validation and physical-device limits.
+
 # Terminal+ 1.1.17
 
 - Adds separate input-needed/approval notifications for verified requests in watched sessions, alongside existing per-session completion alerts. Direct senders and central relays use existing Glance registrations; no re-registration is required.

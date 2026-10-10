@@ -2,7 +2,7 @@
 
 This guide starts from a computer with a working Pi, Codex or Claude Code login. No previous Terminal+ configuration is assumed. For the shortest path, see the [quickstart](../README.md); [中文版](setup.zh-CN.md).
 
-These instructions cover **Terminal+ 1.1.17**. See [release status](release-status.md) for verification and available downloads. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
+These instructions cover **Terminal+ 1.1.18**. See [release status](release-status.md) for verification and available downloads. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
 
 ## What you install
 
@@ -19,12 +19,14 @@ The companion is a watcher and lightweight session manager. Its browser portal a
 
 ### Windows
 
-1. Download `Terminal-plus-1.1.17-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
+1. Download `Terminal-plus-1.1.18-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Terminal+**, **Start with Windows**, update controls and **Quit Terminal+**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
 
 The ZIP is an optional portable alternative: extract the whole archive to a dedicated directory and run `Terminal-plus.exe`. Do not run only the EXE copied out of its companion files. Windows binaries are unsigned.
+
+First installation creates desktop and Start menu shortcuts. Updates, reinstalls and rollback preserve deleted shortcuts and refresh those still present.
 
 ### Linux (headless or desktop)
 
@@ -125,7 +127,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install **Terminal+ 1.1.17** (`terminal-plus-1.1.17.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.17** companions and Even App 2.2.10+, then connect G2 to the phone.
+1. Install **Terminal+ 1.1.18** (`terminal-plus-1.1.18.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.18** companions and Even App 2.2.10+, then connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `terminal-plus pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -205,7 +207,7 @@ Phone **Sessions** finds/manages sessions; **Conversation** shows messages, fold
 | Empty input | Double tap returns without sending |
 | Nonempty/recorded/pending input | Double tap opens **Send & exit** (default) / **Exit only**; tap confirms; double tap on confirmation returns to editing |
 | Conversation menu | **Terminate task** requests supported cancellation; **Sessions** switches among reachable watched sessions |
-| Supported question | Swipe through native options; tap to choose; **Other / enter answer** opens the input editor |
+| Supported question | Swipe through native options; tap to choose; **Other / enter answer** opens the existing input editor, including for fields marked sensitive |
 
 The list begins with **New prompt**, even when the session is read-only; in that case input tells you to continue in the original terminal. While working, a native active-agent row appears directly underneath. Tap it to open a snapshot of the main requested task and reported sub-agent tasks/tools; connectors without those details show them as unavailable. Double tap returns to the list. The latest ten messages follow; earlier history stays on phone/computer. Counts and message updates defer during browsing to preserve native focus. The header shows source computer, selected-session count, tunnel, model and title.
 
@@ -284,7 +286,7 @@ To return a source to independent delivery use `terminal-plus settings push dire
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `terminal-plus update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `terminal-plus update`, then `terminal-plus update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-Update companions for input-needed notifications and install **Hub 1.1.17** for its **Answer →** shortcut and updated G2 request UI. Existing Pi terminals need `/reload` only after their current task is idle. Reopen connector-backed Codex/Claude terminals while idle to load embedded connector changes; do not stop tasks for an update. Ordinary observer coverage is more limited than connector support. [Detection limits](connectors.md#input-needed-notifications)
+Update companions for input-needed notifications and install **Hub 1.1.18** for its **Answer →** shortcut and updated G2 request UI. Existing Pi terminals need `/reload` only after their current task is idle. Reopen connector-backed Codex/Claude terminals while idle to load embedded connector changes; do not stop tasks for an update. Ordinary observer coverage is more limited than connector support. [Detection limits](connectors.md#input-needed-notifications)
 
 Shared connections remain available: open the updated viewer that already has your computer list to publish verified records to reachable companions. Unverified offline records stay local until their identity can be checked; synchronized removals keep no key and prevent old caches from restoring removed computers. New browsers/phones pair one known computer to obtain the list. Older clients remain compatible but keep local-only lists.
 

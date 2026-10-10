@@ -13,8 +13,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Terminal+ Setup")]
-[assembly: AssemblyFileVersion("1.1.17.0")]
-[assembly: AssemblyVersion("1.1.17.0")]
+[assembly: AssemblyFileVersion("1.1.18.0")]
+[assembly: AssemblyVersion("1.1.18.0")]
 
 class ReleaseFile { public string path { get; set; } public string sha256 { get; set; } public long bytes { get; set; } }
 class ReleasePayload { public string version { get; set; } public string buildId { get; set; } public ReleaseFile[] files { get; set; } }
@@ -34,7 +34,7 @@ class PilotInstaller : Form {
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen; BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         using (var image = Assembly.GetExecutingAssembly().GetManifestResourceStream("Terminal-plus.ico")) Icon = new Icon(image);
-        Controls.Add(new Label { Text = "Terminal+ 1.1.17", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
+        Controls.Add(new Label { Text = "Terminal+ 1.1.18", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) });
         Controls.Add(new Label { Text = removing ? "Remove the app. Connection settings will be retained.\nClose connected native terminals before uninstalling."
             : "Desktop monitor for Pi, Codex and Claude.\nRuntime included. No Node.js installation or setup commands.", AutoSize = true, Location = new Point(24, 65) });
         location.Text = root; location.Location = new Point(24, 124); location.Size = new Size(388, 28); location.ReadOnly = true; Controls.Add(location);
@@ -150,7 +150,7 @@ class PilotInstaller : Form {
                 }));
                 if (File.Exists(recordPath)) File.Replace(pendingRecord, recordPath, recordPath + ".bak");
                 else File.Move(pendingRecord, recordPath);
-                InstallerSupport.Register(root, target, release.version, !noShortcuts);
+                InstallerSupport.Register(root, target, release.version, !noShortcuts, previous.current == null);
                 if (backgroundUpdate) {
                     Process.Start(new ProcessStartInfo(Path.Combine(target, "Terminal-plus.exe"), "--autostart --installer-start") { WorkingDirectory = target, UseShellExecute = false, CreateNoWindow = true });
                     InstallerSupport.WaitForVersion(root, release.version);
@@ -167,7 +167,7 @@ class PilotInstaller : Form {
                     }
                     if (oldRecord != null) {
                         File.WriteAllText(Path.Combine(root, "install.json"), oldRecord);
-                        InstallerSupport.Register(root, Path.GetDirectoryName(previousExe), previous.version, !noShortcuts);
+                        InstallerSupport.Register(root, Path.GetDirectoryName(previousExe), previous.version, !noShortcuts, false);
                     } else if (File.Exists(Path.Combine(root, "install.json"))) File.Delete(Path.Combine(root, "install.json"));
                     using (var prepare = Process.Start(new ProcessStartInfo(previousExe, "--prepare") { WorkingDirectory = Path.GetDirectoryName(previousExe), UseShellExecute = false, CreateNoWindow = true })) prepare.WaitForExit(20000);
                     Process.Start(new ProcessStartInfo(previousExe, "--autostart --installer-start") { WorkingDirectory = Path.GetDirectoryName(previousExe), UseShellExecute = false, CreateNoWindow = true });

@@ -2,7 +2,7 @@
 
 从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Terminal+ 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
 
-本文对应 **Terminal+ 1.1.17**；验证和可下载版本见[发布状态](release-status.md)。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
+本文对应 **Terminal+ 1.1.18**；验证和可下载版本见[发布状态](release-status.md)。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
 
 ## 先分清四个部分
 
@@ -19,12 +19,14 @@ Terminal+ 是监控和简单会话管理端。浏览器管理页和手机 Hub �
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.17-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.18-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Terminal+**、**Start with Windows**、更新和 **Quit Terminal+**。Quit 只退出托盘，保留独立后台和原生终端。
 
 默认安装目录是 `%LOCALAPPDATA%\Programs\Even-Pilot`；检测到便携安装时，安装器可能在原目录升级。ZIP 是可选便携版，需完整解压到专用文件夹再运行 `Terminal-plus.exe`，不能只复制一个 EXE。Windows 二进制尚未签名。
+
+首次安装创建桌面和开始菜单快捷方式；升级、重装和回滚保留已删除的快捷方式，只刷新仍存在的入口。
 
 ### Linux（无头或桌面）
 
@@ -116,7 +118,7 @@ terminal-plus new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. 在 Even Hub 单独安装 **Terminal+ 1.1.17**（`terminal-plus-1.1.17.ehpk`）。使用 **Terminal+ 1.1.17** 电脑端和 Even App 2.2.10+，再连好 G2。
+1. 在 Even Hub 单独安装 **Terminal+ 1.1.18**（`terminal-plus-1.1.18.ehpk`）。使用 **Terminal+ 1.1.18** 电脑端和 Even App 2.2.10+，再连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `terminal-plus pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -196,7 +198,7 @@ tmux attach -t 实际会话名
 | 空输入 | 双击直接返回，不发送 |
 | 有文字／录音／等待转写 | 双击确认：**Send & exit** 默认、**Exit only** 仅退出；点确认，确认页双击回编辑 |
 | 会话菜单 | **Terminate task** 请求支持的取消；**Sessions** 切换可达的已 Watch 会话 |
-| 支持的提问 | 原生列表滑动选择，单击选项；**Other / enter answer** 打开输入界面 |
+| 支持的提问 | 原生列表滑动选择，单击选项；**Other / enter answer** 复用已有输入界面，标记为敏感的字段也可在此回答 |
 
 列表顶部统一 **New prompt**，只读会话会提示回原终端输入。工作时下一行显示当前会话的活跃 agent 数，点开查看主任务和连接器实际报告的子 agent 任务／工具快照；缺少详情时明确提示不可用。双击返回列表。再后面最多十条最新消息。浏览期间数量／消息延后更新，保留原生光标；更早历史在手机或电脑。顶部状态包含设备、当前会话数量、Tunnel、模型和标题。
 
@@ -275,7 +277,7 @@ terminal-plus settings
 
 已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `terminal-plus update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `terminal-plus update`，再用 `terminal-plus update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-更新电脑端获取需要输入通知；单独安装 **Hub 1.1.17** 获取 **Answer →** 快捷入口和 G2 请求界面更新。已有 Pi 等当前任务空闲后 `/reload`；Codex／Claude 连接器终端等空闲再重开，加载内嵌的新代码，不必为更新中断任务。普通观察会话支持范围比连接器更有限。[检测限制](connectors.md#input-needed-notifications)
+更新电脑端获取需要输入通知；单独安装 **Hub 1.1.18** 获取 **Answer →** 快捷入口和 G2 请求界面更新。已有 Pi 等当前任务空闲后 `/reload`；Codex／Claude 连接器终端等空闲再重开，加载内嵌的新代码，不必为更新中断任务。普通观察会话支持范围比连接器更有限。[检测限制](connectors.md#input-needed-notifications)
 
 共享连接继续可用：打开原来已保存电脑列表的更新后查看端，验证通过的记录会同步到可达的电脑；未验证的离线记录先留在本地，确认设备身份后再同步。同步的移除记录不保留 key，旧缓存不会重新添加已移除的电脑。新浏览器／手机只需连接一台已知电脑获取列表。旧客户端仍兼容，但设备列表仅保存在本地。
 

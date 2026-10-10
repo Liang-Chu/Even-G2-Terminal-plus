@@ -4,11 +4,11 @@
 
 查看来源设备、模型、上报的运行 agent 数和最近消息。可选功能包括逐句语音输入、agent 任务详情，以及通过 Glance 发送完成或需要输入通知。
 
-**Terminal+ 1.1.17** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
+**Terminal+ 1.1.18** · Windows 10/11 x64 · Linux x64/glibc · Even App 2.2.10+
 
 [Windows／Linux／Hub 下载](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) · [Linux npm](https://www.npmjs.com/package/terminal-plus) · [English](README.md) · [完整配置](docs/setup.zh-CN.md)
 
-Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令和文件名在不适合使用 `+` 时使用 `terminal-plus`／`Terminal-plus`。本文对应 **1.1.17**；验证和可下载版本见[发布状态](docs/release-status.md)。
+Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令和文件名在不适合使用 `+` 时使用 `terminal-plus`／`Terminal-plus`。本文对应 **1.1.18**；验证和可下载版本见[发布状态](docs/release-status.md)。
 
 ## 先跑通
 
@@ -16,11 +16,11 @@ Windows/Linux 电脑端和手机／G2 应用统一名为 **Terminal+**。命令�
 
 先确保 Pi、Codex 或 Claude Code 已安装并能正常使用。每台需要监控的电脑安装一次 Terminal+，必须与 CLI 使用**同一个系统用户**。继续使用已有模型登录；Terminal+ 不安装 CLI 本体。
 
-- **Windows：**在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.17-Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用 **Terminal+** 快捷方式或双击托盘图标。不需要系统 Node/npm。
-- **Linux／SSH：**下载 `Terminal-plus-1.1.17-Setup-linux-x64.run`，在普通用户下执行，不用 `sudo`：
+- **Windows：**在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.18-Setup-x64.exe`，运行并点击 **Install**。管理页自动打开；以后使用 **Terminal+** 快捷方式或双击托盘图标。不需要系统 Node/npm。
+- **Linux／SSH：**下载 `Terminal-plus-1.1.18-Setup-linux-x64.run`，在普通用户下执行，不用 `sudo`：
 
   ```sh
-  sh ./Terminal-plus-1.1.17-Setup-linux-x64.run
+  sh ./Terminal-plus-1.1.18-Setup-linux-x64.run
   ```
 
   **新开 shell** 后执行 `terminal-plus` 和 `terminal-plus pair`。当前终端先用 `~/.local/bin/terminal-plus`。安装器包含自己的 Node 运行时和后端依赖。
@@ -64,7 +64,7 @@ Codex／Claude 要远程输入，需在管理页 **+ New terminal** 创建连接
 ### 3. 连接手机
 
 1. 通过互联网访问电脑时，手机和电脑都安装 [Tailscale](https://tailscale.com/download)，加入同一个 tailnet 并保持连接。能互通的局域网也可以。
-2. 在 Even Hub 单独安装 **Terminal+ 1.1.17**（`terminal-plus-1.1.17.ehpk`），再在 Even App 连好 G2。使用 **Terminal+ 1.1.17** Windows/Linux 电脑端。
+2. 在 Even Hub 单独安装 **Terminal+ 1.1.18**（`terminal-plus-1.1.18.ehpk`），再在 Even App 连好 G2。使用 **Terminal+ 1.1.18** Windows/Linux 电脑端。
 3. 获取该电脑的 URL/key：Windows 点击 **Connect phone**；Linux 运行 `terminal-plus pair`。
 4. 手机应用打开 **Connection → Connect another computer**，填入 **Bridge URL** 和 **Connection key**，点击 **Connect computer**。
 
@@ -124,17 +124,19 @@ Android 安装 [Glance](https://github.com/Liang-Chu/Glance)，接收每个会�
 
 在电脑端 **Glance notifications** 设置发送方式，再用发送端／中心的二维码或 URL/key 在 Glance 注册。已有注册支持两种通知，不用重新注册；Hub 保存电脑连接不会自动注册 Glance。G2 正在查看的会话抑制完成通知，但已确认的输入／审批请求仍可通知。推送不附问题、审批或工具正文，完整内容在已认证查看端或原终端查看。
 
-当前会话有可远程回答的结构化请求时，手机 **Answer →** 直接打开问题／审批面板。G2 支持简短单题和选项，较长或多题表单交给手机；仅检测到的原生对话框仍回原终端处理。[支持范围](docs/connectors.md#input-needed-notifications)
+当前会话有可远程回答的结构化请求时，手机 **Answer →** 直接打开问题／审批面板。G2 的简短单题复用已有选项列表和语音编辑，包括标记为敏感的字段，由用户决定在哪回答；较长或多题表单交给手机，仅检测到的原生对话框仍回原终端处理。[支持范围](docs/connectors.md#input-needed-notifications)
 
 [电脑端和转发配置](docs/setup.zh-CN.md#可选-glance-通知)
 
 ## 更新
 
-更新 Windows/Linux 电脑端，并单独安装 **Hub 1.1.17**，即可共享设备连接。若电脑列表已保存在手机，打开更新后的手机应用一次：验证通过的连接会同步到可达电脑，已配对的桌面浏览器随后自动获取；未验证的离线记录先留在原查看端，重连验证后再同步。新浏览器／手机只需连接一台已知电脑。旧客户端仍可连接，但不参与设备列表同步。
+更新 Windows/Linux 电脑端，并单独安装 **Hub 1.1.18**，即可共享设备连接。若电脑列表已保存在手机，打开更新后的手机应用一次：验证通过的连接会同步到可达电脑，已配对的桌面浏览器随后自动获取；未验证的离线记录先留在原查看端，重连验证后再同步。新浏览器／手机只需连接一台已知电脑。旧客户端仍可连接，但不参与设备列表同步。
 
 **从 Even-Pilot 升级：**先手工运行一次新版 Terminal+ 安装器。仓库更名后，旧更新器可能无法完成更新。为保留 connection key、Watch 和通知设置，安装／数据／服务目录及 `EVEN_PILOT_*` 配置继续兼容原名称。[迁移和更新指南](docs/updates.md#migration-from-even-pilot)
 
 完成这次升级后，电脑端默认自动安装验证通过的稳定更新。可在该电脑取消 **Automatic updates**，或运行 Linux `terminal-plus update off`；`on` 恢复。立即更新用 Windows 托盘／管理页，或 Linux `terminal-plus update`。
+
+Windows 1.1.18 在升级、重装和回滚时保留你删除桌面／开始菜单快捷方式的选择，首次安装仍会创建。
 
 **手机／G2 应用单独更新**：在 Even Hub 安装它的 `.ehpk`。从旧 Hub app ID 迁移时可能需要重新安装；必要时重新填写手机保存的电脑连接和语音 key。电脑端更新保留 Watch，原生终端继续运行。[更新指南](docs/updates.md)
 

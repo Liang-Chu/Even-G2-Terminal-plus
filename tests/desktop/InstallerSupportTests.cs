@@ -86,21 +86,91 @@ class InstallerSupportTests {
         string parent = Path.Combine(root, "shortcuts"); Directory.CreateDirectory(parent);
         string oldLink = Path.Combine(parent, "Even-Pilot.lnk"), newLink = Path.Combine(parent, "Terminal+.lnk");
         InstallerSupport.Shortcut(oldLink, legacy, payload);
-        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        InstallerSupport.RegisterShortcuts(root, payload, parent, false);
         Assert(!File.Exists(oldLink) && InstallerSupport.OwnShortcut(newLink, root), "Owned legacy shortcut becomes one Terminal+ shortcut");
-        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        InstallerSupport.RegisterShortcuts(root, payload, parent, false);
         Assert(Directory.GetFiles(parent, "*.lnk").Length == 1, "Repeating an upgrade does not duplicate shortcuts");
         string unrelated = Path.Combine(root, "other-app.exe"); File.WriteAllText(unrelated, "fixture");
         InstallerSupport.Shortcut(oldLink, unrelated, root);
-        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        InstallerSupport.RegisterShortcuts(root, payload, parent, false);
         Assert(File.Exists(oldLink) && !InstallerSupport.OwnShortcut(oldLink, root), "A legacy-named shortcut for another app is retained");
         InstallerSupport.RemoveOwnedShortcut(oldLink, root);
         Assert(File.Exists(oldLink), "Uninstall cannot remove another app's legacy-named shortcut");
         InstallerSupport.RemoveOwnedShortcut(newLink, root);
         Assert(!File.Exists(newLink), "Uninstall recognizes the renamed app's shortcut");
         InstallerSupport.Shortcut(newLink, unrelated, root);
-        InstallerSupport.RegisterShortcuts(root, payload, parent);
+        InstallerSupport.RegisterShortcuts(root, payload, parent, false);
         Assert(!InstallerSupport.OwnShortcut(newLink, root), "Upgrade does not overwrite a Terminal+ shortcut owned by another app");
+    }
+    static string ShortcutTarget(string path) {
+        var shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+        try {
+            dynamic link = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { path });
+            try { return (string)link.TargetPath; }
+            finally { Marshal.FinalReleaseComObject(link); }
+        } finally { Marshal.FinalReleaseComObject(shell); }
+    }
+    static void ShortcutPreferences(string root, string originalPayload) {
+        string desktop = Path.Combine(root, "shortcut-preferences", "desktop"), programs = Path.Combine(root, "shortcut-preferences", "programs");
+        Directory.CreateDirectory(desktop); Directory.CreateDirectory(programs);
+        string desktopLink = Path.Combine(desktop, "Terminal+.lnk"), programsLink = Path.Combine(programs, "Terminal+.lnk");
+        string updatedPayload = Path.Combine(root, "versions", "2.0.0-abcdef123456"), updatedExe = Path.Combine(updatedPayload, "Terminal-plus.exe");
+        Directory.CreateDirectory(updatedPayload); File.WriteAllText(updatedExe, "fixture");
+        InstallerSupport.RegisterShortcuts(root, originalPayload, desktop, true);
+        InstallerSupport.RegisterShortcuts(root, originalPayload, programs, true);
+        Assert(InstallerSupport.OwnShortcut(desktopLink, root) && InstallerSupport.OwnShortcut(programsLink, root), "First install creates desktop and Start menu shortcuts");
+
+        File.Delete(desktopLink);
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, false);
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, programs, false);
+        Assert(!File.Exists(desktopLink), "Upgrade respects a deleted desktop shortcut");
+        Assert(String.Equals(ShortcutTarget(programsLink), updatedExe, StringComparison.OrdinalIgnoreCase), "Upgrade redirects an existing Start menu shortcut to the new payload");
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, false);
+        Assert(!File.Exists(desktopLink), "Reinstall does not recreate a deleted desktop shortcut");
+        InstallerSupport.RegisterShortcuts(root, originalPayload, desktop, false);
+        InstallerSupport.RegisterShortcuts(root, originalPayload, programs, false);
+        Assert(!File.Exists(desktopLink), "Rollback also preserves a deleted desktop shortcut");
+        Assert(String.Equals(ShortcutTarget(programsLink), DesktopPaths.ApplicationExecutable(originalPayload), StringComparison.OrdinalIgnoreCase), "Rollback redirects the remaining shortcut to the restored payload");
+
+        File.Delete(programsLink);
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, programs, false);
+        Assert(!File.Exists(programsLink), "Deleted Start menu shortcuts are also preserved on upgrade");
+        string legacyLink = Path.Combine(desktop, "Even-Pilot.lnk");
+        InstallerSupport.Shortcut(legacyLink, Path.Combine(originalPayload, "Even-Pilot.exe"), originalPayload);
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, false);
+        Assert(!File.Exists(legacyLink) && String.Equals(ShortcutTarget(desktopLink), updatedExe, StringComparison.OrdinalIgnoreCase), "An existing owned legacy link migrates even when missing-link creation is disabled");
+
+        File.Delete(desktopLink);
+        string otherExe = Path.Combine(root + "-another", "Terminal-plus.exe");
+        InstallerSupport.Shortcut(desktopLink, otherExe, Path.GetDirectoryName(otherExe));
+        InstallerSupport.Shortcut(legacyLink, Path.Combine(originalPayload, "Even-Pilot.exe"), originalPayload);
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, true);
+        Assert(String.Equals(ShortcutTarget(desktopLink), otherExe, StringComparison.OrdinalIgnoreCase) && File.Exists(legacyLink), "Even initial registration cannot overwrite another installation's current link or remove the blocked legacy migration");
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, false);
+        Assert(String.Equals(ShortcutTarget(desktopLink), otherExe, StringComparison.OrdinalIgnoreCase), "An upgrade cannot claim another installation's same-named shortcut");
+        File.Delete(desktopLink); File.Delete(legacyLink);
+        string otherLegacyExe = Path.Combine(root + "-another", "Even-Pilot.exe");
+        InstallerSupport.Shortcut(legacyLink, otherLegacyExe, Path.GetDirectoryName(otherLegacyExe));
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, false);
+        Assert(!File.Exists(desktopLink) && String.Equals(ShortcutTarget(legacyLink), otherLegacyExe, StringComparison.OrdinalIgnoreCase), "An unrelated legacy link is neither migrated nor used to recreate a deleted shortcut");
+
+        string nestedRoot = Path.Combine(root, "shortcut-nested-installation"), nestedExe = Path.Combine(nestedRoot, "Terminal-plus.exe");
+        Directory.CreateDirectory(nestedRoot); File.WriteAllText(nestedExe, "fixture");
+        InstallerSupport.Shortcut(desktopLink, nestedExe, nestedRoot);
+        Assert(!InstallerSupport.OwnShortcut(desktopLink, root), "An executable in a nested installation is not this root's shortcut target");
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, false);
+        Assert(String.Equals(ShortcutTarget(desktopLink), nestedExe, StringComparison.OrdinalIgnoreCase), "Upgrade leaves a nested installation's same-named shortcut untouched");
+        InstallerSupport.RemoveOwnedShortcut(desktopLink, root);
+        Assert(File.Exists(desktopLink), "Uninstall cannot remove a nested installation's shortcut");
+        File.Delete(desktopLink); File.Delete(legacyLink);
+        string nestedLegacyExe = Path.Combine(nestedRoot, "Even-Pilot.exe"); File.WriteAllText(nestedLegacyExe, "fixture");
+        InstallerSupport.Shortcut(legacyLink, nestedLegacyExe, nestedRoot);
+        InstallerSupport.RegisterShortcuts(root, updatedPayload, desktop, false);
+        Assert(!File.Exists(desktopLink) && String.Equals(ShortcutTarget(legacyLink), nestedLegacyExe, StringComparison.OrdinalIgnoreCase), "A nested installation's legacy link cannot trigger migration or shortcut recreation");
+        Assert(InstallerSupport.OwnShortcutTarget(Path.Combine(root, "Even-Pilot.exe"), root), "The legacy portable root launcher remains owned");
+        Assert(InstallerSupport.OwnShortcutTarget(updatedExe, root) && InstallerSupport.OwnShortcutTarget(Path.Combine(originalPayload, "Even-Pilot.exe"), root), "Direct current and rollback version payloads retain shortcut ownership");
+        Assert(!InstallerSupport.OwnShortcutTarget(Path.Combine(updatedPayload, "nested", "Terminal-plus.exe"), root), "An executable nested inside a version payload cannot claim shortcut ownership");
+        Assert(!InstallerSupport.OwnShortcutTarget(Path.Combine(root, "versions", "other-installation", "Terminal-plus.exe"), root), "An arbitrary folder inside versions cannot claim shortcut ownership");
     }
     static void RecoveryRefusals(string root, string fixture) {
         string payload = Path.Combine(root, "versions", "1.0.0-123456abcdef"), node = Path.Combine(payload, "runtime", "node.exe");
@@ -163,6 +233,7 @@ class InstallerSupportTests {
             Assert(!InstallerSupport.OwnStartup("\""+target.Replace("Space in target.exe","unrelated-Terminal-plus.exe")+"\" --autostart",root),"Executable suffix alone cannot claim startup ownership");
             Assert(!InstallerSupport.OwnStartup("\""+root+"-another\\Even-Pilot.exe\" --autostart",root),"Do not change another installation startup");
             BrandingMigration(root, payload);
+            ShortcutPreferences(root, payload);
             bool refused=false; try { InstallerSupport.ValidateRoot(Path.GetPathRoot(root)); } catch { refused=true; }
             Assert(refused,"Reject a drive root as install directory");
             string launcher = Path.Combine(root,"Terminal-plus.exe");

@@ -272,7 +272,7 @@ static class InstallerSupport {
             && (command.EndsWith("\\" + DesktopPaths.ExecutableName + "\" --autostart", StringComparison.OrdinalIgnoreCase)
                 || command.EndsWith("\\" + DesktopPaths.LegacyExecutableName + "\" --autostart", StringComparison.OrdinalIgnoreCase));
     }
-    internal static void Register(string root, string payload, string version, bool shortcuts) {
+    internal static void Register(string root, string payload, string version, bool shortcuts, bool createMissingShortcuts) {
         string executable = DesktopPaths.ApplicationExecutable(payload);
         using (var key = Registry.CurrentUser.CreateSubKey(RegistryKey(root))) {
             key.SetValue("DisplayName", "Terminal+"); key.SetValue("DisplayVersion", version); key.SetValue("Publisher", "Terminal+");
@@ -283,8 +283,8 @@ static class InstallerSupport {
         }
         UpdateStartup(root, executable);
         if (shortcuts) {
-            RegisterShortcuts(root, payload, Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
-            RegisterShortcuts(root, payload, Environment.GetFolderPath(Environment.SpecialFolder.Programs));
+            RegisterShortcuts(root, payload, Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), createMissingShortcuts);
+            RegisterShortcuts(root, payload, Environment.GetFolderPath(Environment.SpecialFolder.Programs), createMissingShortcuts);
         }
     }
     internal static void UpdateStartup(string root, string executable, string registryPath = StartupRegistration.RunKey) {
@@ -298,19 +298,33 @@ static class InstallerSupport {
         var shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
         try {
             dynamic link = shell.GetType().InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
-            try { return OwnApplicationPath((string)link.TargetPath, root); }
+            try { return OwnShortcutTarget((string)link.TargetPath, root); }
             finally { Marshal.FinalReleaseComObject(link); }
         } finally { Marshal.FinalReleaseComObject(shell); }
+    }
+    internal static bool OwnShortcutTarget(string path, string root) {
+        if (!OwnApplicationPath(path, root)) return false;
+        string directory = Path.GetDirectoryName(Full(path));
+        if (String.Equals(directory, Full(root), StringComparison.OrdinalIgnoreCase)) return true;
+        // A nested installation can have the same executable name. Only this
+        // root's launcher or a direct version payload owns its shortcuts.
+        return String.Equals(Path.GetDirectoryName(directory), Path.Combine(Full(root), "versions"), StringComparison.OrdinalIgnoreCase)
+            && Regex.IsMatch(Path.GetFileName(directory), @"^\d+\.\d+\.\d+-[a-f0-9]{12}$");
     }
     internal static void RemoveOwnedShortcut(string path, string root) {
         if (OwnShortcut(path, root)) File.Delete(path);
     }
-    internal static void RegisterShortcuts(string root, string payload, string parent) {
+    internal static void RegisterShortcuts(string root, string payload, string parent, bool createMissing) {
         string path = Path.Combine(parent, "Terminal+.lnk");
+        string legacy = Path.Combine(parent, "Even-Pilot.lnk");
         // A same-named shortcut from another installation must remain owned by it.
         if (File.Exists(path) && !OwnShortcut(path, root)) return;
+        // Only a first install creates missing links. Upgrades, reinstalls and
+        // rollback refresh existing links without undoing the user's deletion.
+        // An owned legacy link is still an existing shortcut to migrate.
+        if (!File.Exists(path) && !createMissing && !OwnShortcut(legacy, root)) return;
         Shortcut(path, DesktopPaths.ApplicationExecutable(payload), payload);
-        RemoveOwnedShortcut(Path.Combine(parent, "Even-Pilot.lnk"), root);
+        RemoveOwnedShortcut(legacy, root);
     }
     internal static void Shortcut(string path, string executable, string cwd) {
         var shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
