@@ -1,3 +1,13 @@
+# Terminal+ 1.1.19
+
+- Answer supported questions and tool approvals from ordinary `claude` terminals on phone/G2, without a Terminal+-launched terminal or Channels access. Load the updated hooks before the request appears.
+- Watched Claude requests wait up to five minutes, allowing time to open the phone after a Glance **Needs input** notification. **Answer in original terminal** or expiry hands control back without answering; no automatic or late conversation prompt is sent.
+- Multi-select reuses the existing text/voice editor: enter option numbers, exact labels or a custom description. Short complete approvals also accept explicit spoken **allow once / deny** or **允许一次／拒绝**; larger/multiple forms use the phone.
+- Keeps request/session/process binding, once-only replies, native-terminal fallback and no automatic approvals. Ordinary Claude still needs a connector for new prompts/control; sandbox network prompts stay native.
+- Pi completions wait for confirmed idle; automatic continuation, active tools and pending messages no longer report an intermediate finish. On Linux, detached shell jobs with Pi's official session identity delay completion until they exit. Unknown or untagged jobs are not guessed; see [connector limits](docs/connectors.md).
+
+Update the Windows/Linux companion and install `terminal-plus-1.1.19.ehpk` separately in Even Hub. Existing Claude terminals must load the updated hooks while idle; questions already displayed cannot be taken over. See [release status](docs/release-status.md) for validation and publication status. Physical phone/G2 acceptance remains unverified.
+
 # Terminal+ 1.1.18
 
 - Windows updates, reinstalls and rollback now preserve deleted desktop and Start menu shortcuts. First installation creates shortcuts, existing links point to the selected version, and owned legacy links migrate normally.

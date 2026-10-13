@@ -13,7 +13,7 @@ test("Claude transcript questions show readable options without unrelated argume
   const history = claudeHistory(JSON.stringify(row), id + ".jsonl", 0)!;
   assert.equal(history.messages.length, 1); assert.equal(history.messages[0].role, "assistant");
   assert.match(history.messages[0].text, /Which format\?\n1\. Summary — Short reply\n2\. Full — All details/);
-  assert.match(history.messages[0].text, /original Terminal/);
+  assert.match(history.messages[0].text, /Choose an option/);
   assert.doesNotMatch(JSON.stringify(history), /private|script/);
   assert.equal(claudeHistory(JSON.stringify({ ...row, isSidechain: true }), id + ".jsonl", 0), undefined);
 });
@@ -33,13 +33,47 @@ test("Claude question answers preserve the official original questions and text-
   assert.throws(() => claudeQuestionAnswers(questions, {}));
 });
 
-test("unsupported, oversized and ambiguous questions stay native without guessed answers", () => {
+test("unsupported, oversized and ambiguous question schemas stay native without guessed answers", () => {
   const malformed = [ {}, { questions: [] }, { questions: [input.questions[0], input.questions[0]] },
     { questions: [{ ...input.questions[0], question: "x".repeat(2001) }] },
     { questions: [{ ...input.questions[0], options: [{ label: "Same" }, { label: "Same" }] }] } ];
   for (const data of malformed) assert.equal(claudeQuestions(data), undefined);
-  const multi = { questions: [{ ...input.questions[0], multiSelect: true }] };
-  assert.match(claudeQuestionText(multi)!, /one or more/);
-  assert.equal(claudeInteractionQuestions(claudeQuestions(multi)!), undefined);
-  assert.equal(claudeQuestionOutput(multi, { "Which format?": "Summary, Full" }), undefined);
+});
+
+const multiInput = { questions: [{ question: "Which features?", header: "Features", multiSelect: true,
+  options: [{ label: "Logging" }, { label: "Metrics" }, { label: "Alerts" }] }] };
+
+test("Claude multi-selection reuses choices and text with the official comma-joined answer contract", () => {
+  const questions = claudeQuestions(multiInput)!, form = claudeInteractionQuestions(questions)!;
+  assert.equal(form[0].multiSelect, true); assert.equal(form[0].allowText, true);
+  assert.deepEqual(form[0].options.map(option => option.id), ["choice:0", "choice:1", "choice:2"]);
+  assert.match(claudeQuestionText(multiInput)!, /1,3/);
+  for (const text of ["1,3", "1，3", "1、3", "1;3", "1；3", " 1, 3, 1 ", "Logging, Alerts", "Logging、Alerts"])
+    assert.deepEqual(claudeQuestionAnswers(questions, { q0: text }), { "Which features?": "Logging, Alerts" });
+  assert.deepEqual(claudeQuestionAnswers(questions, { q0: "choice:1" }), { "Which features?": "Metrics" });
+  const answers = claudeQuestionAnswers(questions, { q0: "3" });
+  assert.deepEqual(answers, { "Which features?": "Alerts" });
+  assert.deepEqual(claudeQuestionOutput(multiInput, answers)!.hookSpecificOutput.updatedInput,
+    { questions, answers });
+});
+
+test("Claude custom descriptions are free text and never inferred into option selections", () => {
+  const questions = claudeQuestions(multiInput)!;
+  for (const text of ["Use logging plus urgent alerts, no metrics", "first and third", "1, Alerts", "logging, alerts", "Logging, something else"])
+    assert.deepEqual(claudeQuestionAnswers(questions, { q0: text }), { "Which features?": text });
+  const labels = claudeQuestions({ questions: [{ ...multiInput.questions[0], options: [{ label: "A, B" }, { label: "A" }, { label: "B" }] }] })!;
+  assert.deepEqual(claudeQuestionAnswers(labels, { q0: "A, B" }), { "Which features?": "A, B" }, "an exact label is never split into guessed selections");
+});
+
+test("Claude numeric multi answers and question identity are validated before returning a tool decision", () => {
+  const questions = claudeQuestions(multiInput)!;
+  for (const answer of ["0", "1,4", "999999999999999999999", "choice:9", "choice:01", "", "x\0y"])
+    assert.throws(() => claudeQuestionAnswers(questions, { q0: answer }));
+  assert.throws(() => claudeQuestionAnswers(questions, { replacement: "1,3" }));
+  assert.throws(() => claudeQuestionAnswers(questions, Object.create({ q0: "1,3" })));
+  assert.equal(claudeQuestionOutput(multiInput, { "Which format?": "Logging" }), undefined);
+  const several = claudeQuestions({ questions: [multiInput.questions[0], input.questions[0]] })!;
+  assert.deepEqual(claudeQuestionAnswers(several, { q0: "1,3", q1: "choice:1" }),
+    { "Which features?": "Logging, Alerts", "Which format?": "Full" });
+  assert.throws(() => claudeQuestionAnswers(several, { q0: "1,3" }));
 });

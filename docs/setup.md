@@ -2,7 +2,7 @@
 
 This guide starts from a computer with a working Pi, Codex or Claude Code login. No previous Terminal+ configuration is assumed. For the shortest path, see the [quickstart](../README.md); [中文版](setup.zh-CN.md).
 
-These instructions cover **Terminal+ 1.1.18**. See [release status](release-status.md) for verification and available downloads. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
+These instructions cover **Terminal+ 1.1.19**. See [release status](release-status.md) for verification and available downloads. Existing users should follow the [one-time migration](updates.md#migration-from-even-pilot).
 
 ## What you install
 
@@ -19,7 +19,7 @@ The companion is a watcher and lightweight session manager. Its browser portal a
 
 ### Windows
 
-1. Download `Terminal-plus-1.1.18-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
+1. Download `Terminal-plus-1.1.19-Setup-x64.exe` from [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases).
 2. Run it as the user who normally runs the CLI; choose **Install**. Node and runtime dependencies are embedded, so installation itself can work offline without system Node/npm or administrator access.
 3. The browser manager opens. Use the desktop/start-menu shortcut or double-click the tray icon to reopen it. The default installation is `%LOCALAPPDATA%\Programs\Even-Pilot`; the installer may detect and upgrade an existing portable installation in its original directory.
 4. Right-click the tray for background status, **Open Terminal+**, **Start with Windows**, update controls and **Quit Terminal+**. Quit exits the tray; it does not stop the detached monitoring backend or native CLI windows.
@@ -83,7 +83,7 @@ Use the same OS user and configuration directories for the companion and the CLI
 | --- | --- | --- |
 | Pi | Existing terminal: wait until idle, then `/reload`. New Pi terminals load the installed monitor extension automatically. | Monitor, send prompt, supported native commands and cancellation |
 | Codex CLI / local Codex Desktop | No plugin or reopen. New sessions appear after their first saved prompt; local rollout files drive observation. | Ordinary sessions are read-only; prompt/control require a connector session |
-| Claude Code | Official monitor hooks are added at installation/preparation. Its next prompt establishes observation. Check `/hooks`; if not loaded, reopen only after the current task finishes. | Ordinary sessions are read-only; remote prompt/control require the experimental Channel connector |
+| Claude Code | Official monitor hooks are added at installation/preparation. Its next prompt establishes observation. Check `/hooks`; if not loaded, reopen only after the current task finishes. | Ordinary sessions support bound questions/tool approvals; new prompts/control require the experimental Channel connector |
 
 Claude transcripts larger than 32 MiB remain observable through bounded reads of the first 64 KiB and last 2 MiB, without scanning the whole history. The queue can discard definitely retired events whose first prompt cannot be recovered; uncertain/live events and missing history never imply completion. Full history remains in the native CLI.
 
@@ -94,7 +94,7 @@ terminal-plus new codex --cwd /your/project --name "My task"
 terminal-plus new claude --cwd /your/project
 ```
 
-Claude asks for **local development channel** confirmation in its native terminal. This does not bypass its approvals. Ordinary Claude monitoring does not require Channel access. Known custom Claude Stop hooks may continue work, so completion stays unconfirmed in that case. [Full capability table and limitations](connectors.md)
+Claude asks for **local development channel** confirmation in its native terminal. This does not bypass its approvals. Ordinary Claude monitoring and supported question/approval replies do not require Channel access. Known custom Claude Stop hooks may continue work, so completion stays unconfirmed in that case. [Full capability table and limitations](connectors.md)
 
 ### Optional official Pi subagents
 
@@ -127,7 +127,7 @@ Device labels use the local Tailscale name, such as `nuc`; if unavailable, the c
 
 ## Connect Even Hub and multiple computers
 
-1. Install **Terminal+ 1.1.18** (`terminal-plus-1.1.18.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.18** companions and Even App 2.2.10+, then connect G2 to the phone.
+1. Install **Terminal+ 1.1.19** (`terminal-plus-1.1.19.ehpk`) separately in Even Hub. Use **Terminal+ 1.1.19** companions and Even App 2.2.10+, then connect G2 to the phone.
 2. Get a computer's values: Windows **Connect phone** in its local manager opens **Connect your phone** with this computer's URL/key and QR; Linux `terminal-plus pair` prints them.
 3. In the phone Hub app open **Connection → Connect another computer** and enter:
 
@@ -150,7 +150,7 @@ Browser and phone connect each saved computer immediately at startup. Each compu
 1. On Windows, Linux or another device, open `http://SERVING_COMPUTER_IP:4317/?desktop=1` in a browser. Keep that computer's companion running.
 2. Open **Computers → Connect another computer**. Enter one known computer's **Bridge URL** and **Connection key** from **Connect phone** or Linux `terminal-plus pair`, then choose **Connect computer**. Its shared list loads automatically. The local desktop shortcut connects its own computer automatically.
 3. Add only computers that are not yet listed. **Sessions** shows Pi, Codex and Claude together, ordered by latest update, with watched/running counts. Choose **Status → All / Watched / Running**, use **Devices** to select one or several computers, and search to find a session. **All devices**, or clearing the last selected computer, shows every computer.
-4. Choose **History** to read messages without starting a CLI or changing Watch. **Select** reuses a live session; **Open terminal** explicitly opens a saved session on its source computer. Pi supports its existing input controls; ordinary Codex/Claude sessions stay read-only, and connector capabilities still govern prompt/control/tools.
+4. Choose **History** to read messages without starting a CLI or changing Watch. **Select** reuses a live session; **Open terminal** explicitly opens a saved session on its source computer. Pi retains its input controls. Ordinary Codex is read-only; ordinary Claude supports bound question/approval replies. New prompt/control capabilities still depend on a connector.
 
 The browser caches its connection list and synchronizes it with reachable paired companions. Changing browser or portal address requires pairing one known computer once, then its shared list restores. Companions store the shared URLs/keys; they do not proxy session history or task traffic. Every target must remain directly reachable from the browser over Tailscale or LAN. Refresh/reconnect retains Watch; **Remove** removes the shared connection rather than stopping a task.
 
@@ -169,7 +169,7 @@ The displayed QR contains the computer URL and connection key. Glance understand
 
 ## Watch and native terminal operations
 
-Browser and phone share compact **Status** and **Devices** dropdowns. Status selects **All**, **Watched** or **Running**; Devices can select several computers. Choose **All devices** or clear the last selection to show every computer. Watch only records membership; it does not open a window. **History** is a read-only preview and does not change Watch or start a CLI. **Select** reuses a live session; **Open terminal** explicitly opens a saved session on its source computer. Ordinary Codex/Claude sessions stay read-only; Pi and connector input capabilities remain unchanged.
+Browser and phone share compact **Status** and **Devices** dropdowns. Status selects **All**, **Watched** or **Running**; Devices can select several computers. Choose **All devices** or clear the last selection to show every computer. Watch only records membership; it does not open a window. **History** is a read-only preview and does not change Watch or start a CLI. **Select** reuses a live session; **Open terminal** explicitly opens a saved session on its source computer. Ordinary Codex is read-only; ordinary Claude can answer supported bound requests. Pi and connector input capabilities remain unchanged.
 
 - Opening from a computer's desktop shortcut or `terminal-plus open` applies Watch to that computer's sessions updated in the last 24 hours, without opening closed terminals.
 - Browser refresh, backend restart and network reconnection do not reapply that opening rule.
@@ -197,7 +197,7 @@ tmux attach -t ACTUAL_SESSION_NAME
 
 ## Phone and G2 controls
 
-Phone **Sessions** finds/manages sessions; **Conversation** shows messages, folded tool records and input; **G2** shows the display preview/diagnostics. Prompt and approval controls are available only for supported connectors. Unsupported slash commands and CLI menus stay in the native terminal. [Commands/choices](connectors.md#phone-commands-and-choices)
+Phone **Sessions** finds/manages sessions; **Conversation** shows messages, folded tool records and input; **G2** shows the display preview/diagnostics. New prompts/control need a supported input connector; ordinary Claude can also answer its bound question/approval requests. Unsupported slash commands and CLI menus stay in the native terminal. [Commands/choices](connectors.md#phone-commands-and-choices)
 
 | G2 page | Action |
 | --- | --- |
@@ -213,7 +213,9 @@ The list begins with **New prompt**, even when the session is read-only; in that
 
 Voice is optional: open phone **Voice**, select OpenAI or ElevenLabs, enter your own transcription key and save. New or model-less OpenAI settings default to **GPT Transcribe** with streamed text; existing explicit Whisper choices, provider and keys are retained. Settings persist on that device. The phone sends audio directly to the chosen transcription provider, then sends the finished prompt to the target companion. [Voice models, privacy and gestures](voice.md)
 
-For the selected session, a verified input request shows **Needs input**. A remotely answerable request has **Answer →**, which opens its question/approval panel; native-only requests say **Answer in original terminal**. G2 supports a short single question/options; oversized or multiple supported forms use the phone. Ordinary Claude questions can be read in history; answering requires an explicit connector session. Supported connector questions wait up to five minutes for the remote reply, and phone **Cancel** returns them to the native terminal immediately. Unsupported or multi-select forms stay native. [Question capabilities](connectors.md#phone-commands-and-choices)
+For the selected session, a verified input request shows **Needs input**. **Answer →** opens a supported question/approval panel; native-only requests say **Answer in original terminal**. Ordinary watched Claude sessions offer supported questions and tool approvals for up to five minutes, even before the phone is opened. During this wait the native menu is withheld; phone **Answer in original terminal** or expiry hands it back without answering. A phone disconnect leaves the wait intact. Hooks must load before the question appears: check `/hooks` while idle, or reopen normally after the task finishes.
+
+On G2, short single questions use the existing options and voice editor. For multi-select, choose **Multiple / enter answer** and say/type option numbers such as `1,3`, exact labels or a custom description. Numbers and exact labels map to selected options; descriptions stay custom text. A complete short approval can accept exact “allow once” / “deny” or “允许一次” / “拒绝”. Longer/multiple forms use the phone; sandbox network-access prompts remain native. After expiry, neither a new prompt nor a free-text option can deliver a late reply. [Question capabilities](connectors.md#phone-commands-and-choices)
 
 ## Optional Glance notifications
 
@@ -286,7 +288,7 @@ To return a source to independent delivery use `terminal-plus settings push dire
 
 Installed companions automatically check for stable releases and install verified updates by default; existing opt-outs remain off. Clear **Automatic updates** in that computer's desktop manager/tray or use Linux `terminal-plus update off`; `on` enables them again. To install immediately, use its own **Updates**, the Windows tray's **Check for updates → Update to …**, or Linux `terminal-plus update`, then `terminal-plus update status`. Manual **Check now** only checks. Monitoring briefly restarts during installation; native terminals remain running. Phone Hub has no companion update controls.
 
-Update companions for input-needed notifications and install **Hub 1.1.18** for its **Answer →** shortcut and updated G2 request UI. Existing Pi terminals need `/reload` only after their current task is idle. Reopen connector-backed Codex/Claude terminals while idle to load embedded connector changes; do not stop tasks for an update. Ordinary observer coverage is more limited than connector support. [Detection limits](connectors.md#input-needed-notifications)
+Update companions for input-needed notifications and install **Hub 1.1.19** for its **Answer →** shortcut and updated G2 request UI. Existing Pi terminals need `/reload` only after their current task is idle. Reopen connector-backed Codex/Claude terminals while idle to load embedded connector changes; do not stop tasks for an update. Ordinary observer coverage is more limited than connector support. [Detection limits](connectors.md#input-needed-notifications)
 
 Shared connections remain available: open the updated viewer that already has your computer list to publish verified records to reachable companions. Unverified offline records stay local until their identity can be checked; synchronized removals keep no key and prevent old caches from restoring removed computers. New browsers/phones pair one known computer to obtain the list. Older clients remain compatible but keep local-only lists.
 
@@ -307,7 +309,7 @@ For an npm installation, run `npm uninstall -g terminal-plus` after the native u
 | Tailscale reports DNS unavailable | Test the numeric Tailscale IP; MagicDNS is not needed for that connection |
 | G2 shows reconnecting but phone is online | Check Even App's G2/Bluetooth connection and the G2 page's display status; backend connection and display connection are separate |
 | New CLI missing | Same user/config directory; first saved prompt; Pi idle `/reload`; Claude `/hooks`; **Status → All**, **Devices → All devices**, then Watch |
-| Codex/Claude says use original terminal | It is read-only observation; use a connector session if remote input is required |
+| Codex/Claude says use original terminal | New prompts/control need a connector. For a native Claude question, load updated hooks before it appears and keep Watch enabled; expired/unsupported requests stay in the original terminal |
 | Linux command not found | Reopen a supported shell or use `~/.local/bin/terminal-plus`; check the installer PATH message |
 | Linux cannot open a CLI | Install/login to that CLI, ensure `tmux` for headless launch, then restart the companion from the shell that can find it |
 | No Glance completion push | Watch enabled, sender/center running, valid sender credentials, watcher saved/registered as PUSH on the correct sender, session not being displayed on G2 |

@@ -4,16 +4,17 @@ import { setTimeout as delay } from "node:timers/promises";
 import { validateEvenHubPageContainer } from "@evenrealities/even_hub_sdk";
 import { G2Display } from "../apps/evenhub/src/g2/display.js";
 import { CHOICE_CONTAINER_ID } from "../apps/evenhub/src/g2/native.js";
-import type { Interaction, InteractionAnswer } from "../packages/cockpit-state/interactions.js";
+import { nativePermissionAnswer, type Interaction, type InteractionAnswer } from "../packages/cockpit-state/interactions.js";
 import { initialState } from "../packages/cockpit-state/types.js";
+import { claudeQuestions, claudeInteractionQuestions, claudeQuestionAnswers } from "../packages/connectors/claude-questions.js";
 
 const choice = (id = "question"): Interaction => ({ id, kind: "question", title: "Question", expiresAt: Date.now() + 10_000,
   questions: [{ id: "format", text: "Which format?", allowText: true, options: [{ id: "short", label: "Summary" }, { id: "full", label: "Full" }] }] });
-function fixture(t: any) {
+function fixture(t: any, responseError?: Error) {
   const pages: any[] = [], updates: any[] = [], answers: InteractionAnswer[] = []; let opened = 0;
   let current = { ...initialState(), connected: true, session: { key: "s", cwd: "/fixture" }, capabilities: { prompt: false, interrupt: false }, interactions: [choice()] };
   const display = new G2Display(() => {}, () => {}, undefined, {
-    renderer: { pages: text => [text], render: () => [] }, respond: async (_key, answer) => { answers.push(answer); },
+    renderer: { pages: text => [text], render: () => [] }, respond: async (_key, answer) => { answers.push(answer); if (responseError) throw responseError; },
     input: { open: () => { opened++; display.setComposer({ text: "", hint: "Tap: record", phase: "review" }); }, toggleRecording() {} },
   });
   const bridge = { createStartUpPageContainer: async (page: any) => { pages.push(page); return 0; },
@@ -89,6 +90,56 @@ test("a sensitive field uses the same G2 question editor without mandatory phone
   assert.equal(f.opened(), 1); assert.equal(f.display.hasInteractionDraft(), true);
   assert.equal(await f.display.submitInteractionDraft("Synthetic answer", "s"), true);
   assert.deepEqual(f.answers, [{ requestId: "question", answers: { format: "Synthetic answer" } }]);
+});
+
+test("Claude multiple choices use numbered native rows and the existing question editor", async t => {
+  const f = fixture(t), request = choice();
+  const questions = claudeQuestions({ questions: [{ question: "Which features?", multiSelect: true,
+    options: [{ label: "Logging" }, { label: "Metrics" }, { label: "Alerts" }] }] })!;
+  request.questions = claudeInteractionQuestions(questions)!;
+  f.update(request); await f.display.init(f.bridge as any); await delay(140);
+  const page = f.pages.at(-1); assert.equal(validateEvenHubPageContainer(page).valid, true);
+  assert.deepEqual(page.listObject[0].itemContainer.itemName, ["1. Logging", "2. Metrics", "3. Alerts", "Multiple / enter answer"]);
+  f.display.handleEvent({ listEvent: { containerID: CHOICE_CONTAINER_ID, eventType: 0, currentSelectItemIndex: 3 } } as any);
+  assert.equal(f.opened(), 1); assert.equal(f.display.hasInteractionDraft(), true);
+  await assert.rejects(f.display.submitInteractionDraft("1,4", "s"), /displayed option numbers/);
+  assert.equal(f.display.hasInteractionDraft(), true, "a rejected number list stays editable");
+  assert.equal(f.answers.length, 0, "validation sends nothing to the native request");
+  assert.equal(await f.display.submitInteractionDraft("1,3", "s"), true);
+  assert.deepEqual(f.answers, [{ requestId: "question", answers: { q0: "1,3" } }]);
+  assert.deepEqual(claudeQuestionAnswers(questions, f.answers[0].answers), { "Which features?": "Logging, Alerts" });
+});
+
+test("an unconfirmed G2 question reply remains claimed and cannot be replayed", async t => {
+  const f = fixture(t, new Error("Unconfirmed transport")); await f.display.init(f.bridge as any); await delay(140);
+  f.display.handleEvent({ listEvent: { containerID: CHOICE_CONTAINER_ID, eventType: 0, currentSelectItemIndex: 2 } } as any);
+  await assert.rejects(f.display.submitInteractionDraft("Custom answer", "s"), /Unconfirmed transport/);
+  assert.equal(f.display.hasInteractionDraft(), false);
+  await assert.rejects(f.display.submitInteractionDraft("Retry", "s"), /changed or disconnected/);
+  assert.equal(f.answers.length, 1);
+});
+
+test("native permission uses the same G2 editor with explicit spoken allow or deny", async t => {
+  const f = fixture(t), request: Interaction = { ...choice(), kind: "approval", detail: '{"tool":"Read","file":"notes.md"}',
+    questions: [{ id: "decision", text: "Allow this operation once?", allowText: true, options: [
+      { id: "allow", label: "Allow once" }, { id: "deny", label: "Deny" }] }] };
+  f.update(request); await f.display.init(f.bridge as any); await delay(140);
+  assert.equal(validateEvenHubPageContainer(f.pages.at(-1)).valid, true);
+  f.display.scroll(2); f.display.toggle();
+  await assert.rejects(f.display.submitInteractionDraft("always allow", "s"), /allow once or deny/);
+  assert.equal(f.display.hasInteractionDraft(), true); assert.equal(f.answers.length, 0);
+  assert.equal(await f.display.submitInteractionDraft("允许一次。", "s"), true);
+  assert.deepEqual(f.answers, [{ requestId: "question", answers: { decision: "允许一次。" } }]);
+  assert.equal(nativePermissionAnswer(f.answers[0].answers.decision), "allow");
+});
+
+test("native permission never opens a G2 approval editor from an oversized operation preview", async t => {
+  const f = fixture(t), request: Interaction = { ...choice(), kind: "approval", detail: "Unabridged operation ".repeat(20),
+    questions: [{ id: "decision", text: "Allow this operation once?", allowText: true, options: [
+      { id: "allow", label: "Allow once" }, { id: "deny", label: "Deny" }] }] };
+  f.update(request); await f.display.init(f.bridge as any); await delay(140);
+  f.display.toggle(); assert.equal(f.opened(), 0); assert.equal(f.answers.length, 0);
+  assert.equal(f.display.hasInteractionDraft(), false);
 });
 
 test("verified native-only questions keep readable history and direct input back to Terminal", t => {

@@ -60,6 +60,51 @@ test("standalone hook writes private independent files and skips connector sessi
   assert.equal((await readdir(join(data, "claude-events"))).length, 5);
 });
 
+test("an answerable global question queues its passive lifecycle once and outputs only its explicit relay answer", async t => {
+  const data = await fixture(t), owner = { pid: 123, started: "12345678" };
+  const raw: any = input("PreToolUse", { tool_name: "AskUserQuestion", tool_use_id: "toolu_question",
+    tool_input: { questions: [{ question: "Fixture choice", options: [{ label: "A" }, { label: "B" }] }], api_key: "PRIVATE" } });
+  const answer = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow",
+    updatedInput: { questions: raw.tool_input.questions, answers: { "Fixture choice": "A" } } } };
+  let calls = 0, output: any;
+  assert.equal(await runClaudeMonitorHook(data, { input: raw, env: {}, discoverOwner: async () => owner,
+    waitForQuestion: async (_data: string, original: any, event: any, actualOwner: any) => {
+      calls++; assert.equal(original.tool_input.questions[0].question, "Fixture choice");
+      assert.equal(event.tool_name, "AskUserQuestion"); assert.deepEqual(actualOwner, owner);
+      return answer;
+    }, onOutput: (value: any) => { output = value; } }), true);
+  assert.deepEqual(output, answer); assert.equal(calls, 1);
+  const files = await readdir(join(data, "claude-events")); assert.equal(files.length, 1);
+  const body = await readFile(join(data, "claude-events", files[0]), "utf8");
+  assert.equal(body.includes("Fixture choice"), false, "Private question text stays out of the passive event queue");
+  assert.equal(body.includes("PRIVATE"), false);
+  assert.equal(await runClaudeMonitorHook(data, { input: raw, env: {}, discoverOwner: async () => owner,
+    waitForQuestion: async () => { throw new Error("Unavailable relay"); } }), true);
+  assert.deepEqual(readClaudeHookGap(data), {}, "Question transport failure does not invent a dropped lifecycle event");
+  assert.equal((await readdir(join(data, "claude-events"))).length, 2, "Each actual hook invocation queues its one lifecycle event");
+});
+
+test("native permission hook forwards only an explicit decision and keeps proposed actions out of passive events", async t => {
+  const data = await fixture(t), owner = { pid: 123, started: "12345678" };
+  const raw: any = input("PermissionRequest", { tool_name: "Bash",
+    tool_input: { command: "PRIVATE_ACTION", description: "PRIVATE_DESCRIPTION" },
+    permission_suggestions: [{ rule: "PRIVATE_POLICY" }] });
+  let original: any, output: any;
+  const answer = { hookSpecificOutput: { hookEventName: "PermissionRequest", decision: { behavior: "deny" } } };
+  assert.equal(await runClaudeMonitorHook(data, { input: raw, env: {}, discoverOwner: async () => owner,
+    waitForQuestion: async (_data: string, value: any, event: any) => {
+      original = value; assert.equal(event.hook_event_name, "PermissionRequest"); return answer;
+    }, onOutput: (value: any) => { output = value; } }), true);
+  assert.equal(original, raw); assert.deepEqual(output, answer);
+  const files = await readdir(join(data, "claude-events")); assert.equal(files.length, 1);
+  const body = await readFile(join(data, "claude-events", files[0]), "utf8");
+  assert.equal(body.includes("PRIVATE"), false); assert.equal(body.includes("tool_input"), false);
+  output = undefined;
+  assert.equal(await runClaudeMonitorHook(data, { input: raw, env: {}, discoverOwner: async () => owner,
+    waitForQuestion: async () => undefined, onOutput: (value: any) => { output = value; } }), true);
+  assert.equal(output, undefined, "Unanswered permissions return no hook decision");
+});
+
 test("subprocess hook always exits zero with no decision on invalid, oversized and unavailable storage", async t => {
   const data = await fixture(t);
   for (const [destination, body] of [[data, "invalid"], [data, "x".repeat(300_000)], [join(data, "missing"), JSON.stringify(input())]]) {

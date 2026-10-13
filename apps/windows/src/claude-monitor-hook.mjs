@@ -1,10 +1,12 @@
-// Terminal+ Claude monitor hook. Owns no CLI control and never returns a decision.
+// Terminal+ Claude hook. Lifecycle events are passive; only questions and
+// permission prompts receive explicit user answers through the private spool.
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopHookTrust } from './claude-hook-trust.mjs';
+import { waitForNativeClaudeQuestion } from './claude-native-question.mjs';
 
 export const monitorHookEvents = ['SessionStart', 'UserPromptSubmit', 'Stop', 'StopFailure', 'SubagentStart',
   'SubagentStop', 'SessionEnd', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionRequest'];
@@ -195,11 +197,20 @@ export async function runClaudeMonitorHook(data, options = {}) {
       event.stopTrusted = trust?.trusted === true;
       const reason = metadata(trust?.reason, 128); if (reason) event.stopTrustReason = reason;
     }
-    return writeClaudeHookEvent(resolve(data || ''), event, owner);
+    const queued = writeClaudeHookEvent(resolve(data || ''), event, owner);
+    if (queued && (event.hook_event_name === 'PreToolUse' && event.tool_name === 'AskUserQuestion'
+      || event.hook_event_name === 'PermissionRequest')) {
+      try {
+        const output = await (options.waitForQuestion || waitForNativeClaudeQuestion)(data, input, event, owner, options.questionOptions);
+        if (output) options.onOutput?.(output);
+      } catch { /* The lifecycle event is already queued; only question delivery failed. */ }
+    }
+    return queued;
   } catch { noteClaudeHookGap(data); return false; }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { await runClaudeMonitorHook(process.argv[2]); } catch {}
-  process.stdout.write('{}\n'); process.exitCode = 0;
+  let output;
+  try { await runClaudeMonitorHook(process.argv[2], { onOutput: value => { output = value; } }); } catch {}
+  process.stdout.write(JSON.stringify(output || {}) + '\n'); process.exitCode = 0;
 }

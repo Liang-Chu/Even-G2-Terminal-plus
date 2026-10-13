@@ -11,6 +11,7 @@ import { sessionLabel, promptLabel } from "../cockpit-state/selectors.js";
 import type { InteractionAnswer } from "../cockpit-state/interactions.js";
 import { CodexObserver, type CodexObservation } from "../connectors/codex-observer.js";
 import { ClaudeObserver, type ClaudeObservation } from "../connectors/claude-observer.js";
+import { PiBackgroundScanner } from "./pi-background.js";
 
 interface Options {
   cwd: string; directory: string; preferencesPath: string; sessions?: SessionRepositoryOptions;
@@ -18,23 +19,31 @@ interface Options {
   launch: (path: string, cwd: string, tunnel?: Tunnel, fresh?: boolean, name?: string) => Promise<void>;
   unregistered?: (knownPids: number[], tunnel?: Tunnel) => Promise<boolean>;
   alive?: (pid: number) => boolean;
+  piBackground?: (identity: { pid: number; sessionId: string; sessionFile: string; excludePids: number[] }, forceRefresh?: boolean) => { active: number; uncertain?: true };
   codexObservation?: { root?: string; attentionPath?: string };
-  claudeObservation?: { directory: string; root?: string };
+  claudeObservation?: { directory: string; root?: string; canAnswer?: (key: string) => boolean;
+    questionIdentity?: (pid: number) => Promise<string | undefined>; alive?: (owner: { pid: number; started: string }) => Promise<boolean> };
 }
 interface Watch { key: string; monitored: boolean; name?: string; cwd?: string; model?: string; tunnel?: Tunnel }
 class ObservedRuntime {
   readonly store = new CockpitStore("");
   updatedAt = 0;
+  constructor(private answer?: (answer: InteractionAnswer) => Promise<void>) {}
   private get name() { return this.store.state.session.tunnel === "claude" ? "Claude" : "Codex"; }
   async prompt(_text: string): Promise<void> { throw new SessionError(`Send this prompt in the original ${this.name} window.`, 409); }
   async interrupt(): Promise<void> { throw new SessionError(`Stop this run in the original ${this.name} window.`, 409); }
-  async respond(_answer: InteractionAnswer): Promise<void> { throw new SessionError(`Answer in the original ${this.name} window.`, 409); }
+  async respond(answer: InteractionAnswer): Promise<void> {
+    if (this.answer) return this.answer(answer);
+    throw new SessionError(`Answer in the original ${this.name} window.`, 409);
+  }
 }
 class NativeRuntime {
   readonly store: CockpitStore;
   snapshot: NativeSnapshot;
   seenCompletion: number;
   seenRun: number;
+  backgroundBusy = false;
+  checkedCompletion = 0;
   private sending = false;
   constructor(snapshot: NativeSnapshot, private host: NativeHost) {
     this.snapshot = snapshot; this.store = new CockpitStore(snapshot.state.session.cwd);
@@ -43,7 +52,9 @@ class NativeRuntime {
   }
   async prompt(text: string) {
     if (!text.trim() || text.length > 32_000) throw new SessionError("Enter a prompt between 1 and 32,000 characters");
-    if (["running", "waiting"].includes(this.store.state.main.status)) throw new SessionError("Agent is working", 409);
+    // Detached work keeps the monitoring view busy, but the actual Pi TUI can
+    // accept the user's next prompt when its own agent is idle.
+    if (["running", "waiting"].includes(this.snapshot.state.main.status)) throw new SessionError("Agent is working", 409);
     await this.send("prompt", text);
   }
   async interrupt() { await this.send("interrupt"); }
@@ -85,6 +96,7 @@ export class NativeHost {
   private connectorOwned = new Map<string, number>();
   private codexObserver?: CodexObserver;
   private claudeObserver?: ClaudeObserver;
+  private piBackground = new PiBackgroundScanner();
   private watches = new Map<string, Watch>();
   private selected?: string;
   private timer?: NodeJS.Timeout;
@@ -118,7 +130,8 @@ export class NativeHost {
       await this.codexObserver.start();
     }
     if (this.options.claudeObservation) {
-      this.claudeObserver = new ClaudeObserver(event => this.observeClaude(event), this.options.claudeObservation);
+      this.claudeObserver = new ClaudeObserver(event => this.observeClaude(event), { ...this.options.claudeObservation,
+        monitored: key => this.watches.get(key)?.monitored === true && !this.connectorOwned.has(key) });
       await this.claudeObserver.start();
     }
   }
@@ -142,7 +155,13 @@ export class NativeHost {
       this.sessions.delete(key); this.connectorOwned.delete(key);
     }
     let runtime = this.observed.get(key);
-    if (!runtime) { runtime = new ObservedRuntime(); this.observed.set(key, runtime); }
+    if (!runtime) {
+      runtime = new ObservedRuntime(event.state.session.tunnel === "claude" ? answer => {
+        if (!this.claudeObserver) throw new SessionError("Answer in the original Claude window.", 409);
+        return this.claudeObserver.respond(key, answer);
+      } : undefined);
+      this.observed.set(key, runtime);
+    }
     const watch = this.watches.get(key);
     event.state.session.name ||= watch?.name;
     runtime.updatedAt = event.updatedAt;
@@ -231,12 +250,13 @@ export class NativeHost {
       const current = snapshots.get(key);
       if (!current || prefer(snapshot, current)) snapshots.set(key, snapshot);
     }
+    const piOwners = [...snapshots.values()].filter(snapshot => (snapshot.state.session.tunnel || "pi") === "pi").map(snapshot => snapshot.pid);
     for (const [key, snapshot] of snapshots) {
       const alive = (this.options.alive || processAlive)(snapshot.pid);
       let runtime = this.sessions.get(key);
       const fresh = !runtime || runtime.snapshot.instance !== snapshot.instance;
       if (!runtime) { runtime = new NativeRuntime(snapshot, this); this.sessions.set(key, runtime); }
-      else if (fresh) { runtime.seenCompletion = Math.max(0, ...snapshot.completions.map(item => item.id)); runtime.seenRun = snapshot.runId; }
+      else if (fresh) { runtime.seenCompletion = Math.max(0, ...snapshot.completions.map(item => item.id)); runtime.seenRun = snapshot.runId; runtime.checkedCompletion = runtime.seenCompletion; }
       runtime = runtime!;
       this.connectorOwned.set(key, snapshot.at); this.observed.delete(key);
       const online = alive && snapshot.state.connected && Date.now() - snapshot.at < 6000;
@@ -256,13 +276,32 @@ export class NativeHost {
           model: snapshot.state.session.model, tunnel: snapshot.state.session.tunnel || "pi" }); this.save(true);
       }
       runtime.seenRun = Math.max(runtime.seenRun, snapshot.runId);
-      if (fresh || runtime.snapshot.state.revision !== snapshot.state.revision || runtime.store.state.connected !== online) {
-        runtime.store.publish({ ...snapshot.state, connected: online }, { type: "monitoring.updated" }); changed = true;
+      const newCompletion = snapshot.completions.some(completion => Number.isFinite(completion.id)
+        && completion.id === snapshot.runId && completion.id > runtime.seenCompletion && completion.id > runtime.checkedCompletion);
+      const background = (snapshot.state.session.tunnel || "pi") === "pi" && snapshot.sessionFile && snapshot.state.session.id
+        ? (this.options.piBackground || ((identity, force) => this.piBackground.scan(identity, force)))({ pid: snapshot.pid,
+          sessionId: snapshot.state.session.id, sessionFile: snapshot.sessionFile, excludePids: piOwners }, newCompletion) : { active: 0 };
+      if (newCompletion) runtime.checkedCompletion = snapshot.runId;
+      const backgroundBusy = background.active > 0 || background.uncertain === true;
+      if (fresh || runtime.snapshot.state.revision !== snapshot.state.revision || runtime.store.state.connected !== online || runtime.backgroundBusy !== backgroundBusy) {
+        const state = backgroundBusy && snapshot.state.main.status === "idle" ? { ...snapshot.state,
+          main: { ...snapshot.state.main, status: "running" as const, statusSince: snapshot.state.main.startedAt, outcome: undefined, settledAt: undefined },
+          commandStatus: snapshot.state.commandStatus || "Pi background shell work is still running." } : snapshot.state;
+        runtime.store.publish({ ...state, connected: online }, { type: "monitoring.updated" }); changed = true;
       }
+      runtime.backgroundBusy = backgroundBusy;
       runtime.snapshot = snapshot;
       if (online) { this.launching.delete(key); if (!this.selected) this.selected = key; }
       for (const completion of snapshot.completions) {
         if (!Number.isFinite(completion.id) || completion.id <= runtime.seenCompletion) continue;
+        // A continuation can start before the host reads the prior settled
+        // record. That history must not announce an actively working session
+        // as complete, or replay after its newer run eventually settles.
+        if (completion.id < snapshot.runId) { runtime.seenCompletion = completion.id; continue; }
+        // Keep a current-run record pending while its snapshot still reports
+        // work. Only a later settled snapshot can confirm this completion.
+        if (["running", "waiting"].includes(snapshot.state.main.status) ||
+          Object.keys(snapshot.state.tools.active).length || snapshot.state.subagents?.active || snapshot.state.subagents?.uncertain || backgroundBusy) continue;
         runtime.seenCompletion = completion.id;
         if (this.watches.get(key)?.monitored && ["completed", "interrupted", "failed"].includes(completion.outcome)) {
           this.publish();
@@ -275,7 +314,7 @@ export class NativeHost {
     for (const runtime of this.sessions.values()) if (runtime.store.state.connected && Date.now() - runtime.snapshot.at > 6000) {
       runtime.store.publish({ ...runtime.store.state, connected: false }, { type: "monitoring.updated" }); changed = true;
     }
-    for (const [key, runtime] of this.sessions) if (key !== this.selected && !runtime.store.state.connected && !(this.options.alive || processAlive)(runtime.snapshot.pid)) {
+    for (const [key, runtime] of this.sessions) if (key !== this.selected && !runtime.backgroundBusy && !runtime.store.state.connected && !(this.options.alive || processAlive)(runtime.snapshot.pid)) {
       this.sessions.delete(key); changed = true;
     }
     for (const [id, deadline] of this.newWindows) if (Date.now() > deadline) this.newWindows.delete(id);
@@ -285,6 +324,7 @@ export class NativeHost {
     for (const snapshot of retired) {
       try {
         if ((this.options.alive || processAlive)(snapshot.pid)) continue;
+        if (this.sessions.get(snapshot.state.session.key!)?.backgroundBusy) continue;
         const path = join(this.directory, `${snapshot.pid}.json`), current = readLocalJson(path);
         if (current.instance !== snapshot.instance || current.pid !== snapshot.pid || current.at !== snapshot.at) continue;
         unlinkSync(path);
@@ -319,7 +359,7 @@ export class NativeHost {
     const broker = (state.interactions || []).filter(item => item.kind !== "menu" && item.expiresAt > Date.now());
     const requests: InputAttention[] = this.watches.get(key)?.monitored ? [
       ...broker.map(item => ({ id: item.id, kind: item.kind as "approval" | "question", createdAt: item.createdAt, expiresAt: item.expiresAt })),
-      ...(state.attention || []),
+      ...(state.attention || []).filter(item => !broker.some(request => request.id === item.id)),
     ].filter(item => typeof item.id === "string" && item.id.length > 0 && item.id.length <= 300 &&
       ["approval", "question", "terminal-input"].includes(item.kind) &&
       (item.createdAt === undefined || (Number.isFinite(item.createdAt) && item.createdAt <= Date.now() + 60_000)) &&
@@ -425,6 +465,7 @@ export class NativeHost {
     const previous = this.watches.get(key);
     this.watches.set(key, { key, monitored, name: summary?.name || previous?.name, cwd: summary?.cwd || previous?.cwd,
       model: summary?.model || previous?.model, tunnel: summary?.tunnel || previous?.tunnel || "pi" }); this.save(); this.publish();
+    await this.claudeObserver?.poll();
   }
   async stop() { clearInterval(this.timer); await this.codexObserver?.stop(); await this.claudeObserver?.stop(); await this.repository.close?.(); /* Native terminals belong to the user, never the monitor. */ }
 }

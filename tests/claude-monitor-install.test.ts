@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { installClaudeMonitor, removeClaudeMonitor, claudeMonitorEvents } from "../apps/windows/src/install-claude-monitor.js";
 import { claudeProcessIdentity } from "../apps/windows/src/connectors/claude-interrupt.js";
 import { installationRoot } from "../apps/windows/src/config.js";
+import { claudeQuestionProcessIdentity } from "../apps/windows/src/claude-native-question.mjs";
 
 const run = promisify(execFile);
 async function fixture(t: any) {
@@ -32,8 +33,13 @@ test("owned Claude hooks preserve settings and unrelated handlers through instal
   for (const name of claudeMonitorEvents) {
     const handler = firstConfig.hooks[name].at(-1).hooks[0];
     assert.deepEqual(Object.keys(handler).sort(), ["command", "timeout", "type"]);
-    assert.equal(handler.type, "command"); assert.equal(handler.timeout, 3);
+    assert.equal(handler.type, "command"); assert.equal(handler.timeout, ["PreToolUse", "PermissionRequest"].includes(name) ? 310 : 3);
   }
+  const preTools = firstConfig.hooks.PreToolUse;
+  assert.equal(preTools.length, 2); assert.equal(preTools[0].hooks[0].timeout, 3);
+  assert.equal(new RegExp(preTools[0].matcher).test("AskUserQuestion"), false);
+  assert.equal(new RegExp(preTools[0].matcher).test("Bash"), true);
+  assert.equal(preTools[1].matcher, "AskUserQuestion");
   installClaudeMonitor({ ...f, platform: "linux", node: join(f.root, "node one") });
   assert.deepEqual(await parse(f.path), firstConfig, "Repeated prepare does not duplicate handlers");
   const second = installClaudeMonitor({ ...f, platform: "linux", node: join(f.root, "node two") });
@@ -44,6 +50,8 @@ test("owned Claude hooks preserve settings and unrelated handlers through instal
   assert.equal(removeClaudeMonitor({ data: f.data, installationRoot: f.installationRoot }), true);
   assert.deepEqual(await parse(f.path), original);
   await assert.rejects(readFile(first.hookPath), /ENOENT/); await assert.rejects(readFile(f.registration), /ENOENT/);
+  for (const file of ["claude-native-question.mjs", "claude-questions.mjs"]) await assert.rejects(readFile(join(f.data, file)), /ENOENT/);
+  await assert.rejects(readFile(join(f.data, "claude-question-ownership.json")), /ENOENT/);
   assert.equal(removeClaudeMonitor({ data: f.data, installationRoot: f.installationRoot }), false);
 });
 
@@ -73,6 +81,80 @@ test("unrelated or edited hook files are preserved and block unsafe removal", as
   const before = await readFile(f.path, "utf8");
   assert.throws(() => removeClaudeMonitor({ data: f.data, installationRoot: f.installationRoot }), /modified/);
   assert.equal(await readFile(f.path, "utf8"), before); assert.equal(await readFile(hook, "utf8"), "user edit");
+});
+
+test("native question dependency copies are standalone and preserve edited or unrelated helper files", async t => {
+  const f = await fixture(t); installClaudeMonitor({ ...f, platform: "linux" });
+  const record = await parse(f.registration);
+  assert.equal(record.questionPath, join(f.data, "claude-native-question.mjs"));
+  assert.equal(record.adapterPath, join(f.data, "claude-questions.mjs"));
+  const body = await readFile(record.questionPath, "utf8");
+  assert.equal(body.includes("../../../packages/"), false); assert.ok(body.includes("from './claude-questions.mjs'"));
+  const installed = await run(process.execPath, [record.hookPath, f.data], { windowsHide: true, encoding: "utf8" });
+  assert.equal(installed.stdout.trim(), "{}"); assert.equal(installed.stderr, "");
+  const before = await readFile(f.path, "utf8");
+  await writeFile(record.adapterPath, "user-edit");
+  assert.throws(() => installClaudeMonitor({ ...f, platform: "linux" }), /modified/);
+  assert.throws(() => removeClaudeMonitor({ data: f.data, installationRoot: f.installationRoot }), /modified/);
+  assert.equal(await readFile(f.path, "utf8"), before); assert.equal(await readFile(record.adapterPath, "utf8"), "user-edit");
+  const separate = await fixture(t); await mkdir(separate.data, { mode: 0o700 });
+  await writeFile(join(separate.data, "claude-native-question.mjs"), "unrelated");
+  assert.throws(() => installClaudeMonitor({ ...separate, platform: "linux" }), /unrelated/);
+  assert.equal(await readFile(join(separate.data, "claude-native-question.mjs"), "utf8"), "unrelated");
+});
+
+test("old passive hook ownership upgrades to question handlers without touching unrelated settings", async t => {
+  const f = await fixture(t); installClaudeMonitor({ ...f, platform: "linux" });
+  const record = await parse(f.registration), config = await parse(f.path), owned = record.commands[0];
+  delete record.questionPath; delete record.questionHashes; delete record.adapterPath; delete record.adapterHashes;
+  await writeFile(f.registration, JSON.stringify(record));
+  await rm(join(f.data, "claude-question-ownership.json"));
+  await rm(join(f.data, "claude-native-question.mjs")); await rm(join(f.data, "claude-questions.mjs"));
+  config.hooks.PreToolUse = [{ hooks: [{ type: "command", command: owned, timeout: 3 }] },
+    { matcher: "AskUserQuestion", hooks: [{ type: "command", command: "unrelated-question-hook", timeout: 42 }] }];
+  await writeFile(f.path, JSON.stringify(config));
+  installClaudeMonitor({ ...f, platform: "linux" });
+  const updated = await parse(f.path); assert.equal(updated.hooks.PreToolUse.length, 3);
+  assert.equal(updated.hooks.PreToolUse[0].hooks[0].command, "unrelated-question-hook");
+  assert.equal(updated.hooks.PreToolUse[0].hooks[0].timeout, 42);
+  assert.equal(updated.hooks.PreToolUse.filter((group: any) => group.hooks.some((hook: any) => hook.command === owned)).length, 2);
+  removeClaudeMonitor({ data: f.data, installationRoot: f.installationRoot });
+  assert.deepEqual((await parse(f.path)).hooks.PreToolUse, [{ matcher: "AskUserQuestion", hooks: [{ type: "command", command: "unrelated-question-hook", timeout: 42 }] }]);
+});
+
+test("old installer rollback cannot orphan dependency ownership or recreate modified helper copies", async t => {
+  const f = await fixture(t); installClaudeMonitor({ ...f, platform: "linux", node: join(f.root, "node-new") });
+  const dependencies = await parse(join(f.data, "claude-question-ownership.json")), record = await parse(f.registration);
+  const saved = await parse(f.path), passive = "legacy-passive-hook";
+  // Exact behavior of older rollback installers: restore a passive source,
+  // rewrite only known lifecycle fields and keep unknown stable helper files.
+  await writeFile(record.hookPath, passive);
+  record.hashes = [(await import("node:crypto")).createHash("sha256").update(passive).digest("hex")];
+  delete record.questionPath; delete record.questionHashes; delete record.adapterPath; delete record.adapterHashes;
+  await writeFile(f.registration, JSON.stringify(record));
+  saved.hooks.PreToolUse = [{ hooks: [{ type: "command", command: record.commands[0], timeout: 3 }] }];
+  await writeFile(f.path, JSON.stringify(saved));
+  installClaudeMonitor({ ...f, platform: "linux", node: join(f.root, "node-current") });
+  assert.deepEqual(await parse(join(f.data, "claude-question-ownership.json")), dependencies);
+  assert.equal((await parse(f.path)).hooks.PreToolUse.at(-1).hooks[0].timeout, 310);
+  removeClaudeMonitor({ data: f.data, installationRoot: f.installationRoot });
+  await assert.rejects(readFile(dependencies.questionPath), /ENOENT/); await assert.rejects(readFile(dependencies.adapterPath), /ENOENT/);
+  await assert.rejects(readFile(join(f.data, "claude-question-ownership.json")), /ENOENT/);
+  assert.deepEqual(await parse(f.path), {});
+});
+
+test("question dependency ownership refuses malformed paths and another installation before changing settings", async t => {
+  const f = await fixture(t); installClaudeMonitor({ ...f, platform: "linux" });
+  const ownershipPath = join(f.data, "claude-question-ownership.json"), original = await parse(ownershipPath);
+  const before = await readFile(f.path, "utf8");
+  for (const bad of ["invalid", JSON.stringify({ ...original, questionPath: join(f.root, "outside.mjs") }),
+    JSON.stringify({ ...original, installationRoot: join(f.root, "different-install") })]) {
+    await writeFile(ownershipPath, bad);
+    assert.throws(() => installClaudeMonitor({ ...f, platform: "linux" }), /ownership|another installation/);
+    assert.throws(() => removeClaudeMonitor({ data: f.data, installationRoot: f.installationRoot }), /ownership|another installation/);
+    assert.equal(await readFile(f.path, "utf8"), before);
+    assert.equal(await readFile(ownershipPath, "utf8"), bad);
+  }
 });
 
 test("recorded profile location remains removable after environment changes; another root cannot remove it", async t => {
@@ -158,6 +240,9 @@ test("Windows hook identifies a hidden synthetic npm-Claude ancestor with the ex
   const directAt = Date.now(), direct = await run(join(helper, "Terminal-plus.TerminalInterrupt.exe"), ["claude-owner", String(parent.pid)], { windowsHide: true });
   assert.equal(JSON.parse(direct.stdout).pid, parent.pid, "Native ancestry helper must recognize npm Claude without PowerShell fallback");
   assert.equal(JSON.parse(direct.stdout).argv.at(-1), "Unicode 中文 fixture");
+  const generic = await claudeQuestionProcessIdentity(parent.pid!, { nativeHelper: join(helper, "Terminal-plus.TerminalInterrupt.exe") });
+  assert.equal(generic, event.owner.started, "Generic identity accepts the same user and exact immutable native birth identity");
+  assert.equal(await claudeQuestionProcessIdentity(-1, { nativeHelper: join(helper, "Terminal-plus.TerminalInterrupt.exe") }), undefined);
   t.diagnostic(`Native owner lookup completed in ${Date.now() - directAt} ms`);
   assert.deepEqual(Object.keys(event.owner).sort(), ["pid", "started"], "Private helper argv is never persisted");
   if (existsSync(resolve("apps/windows/desktop/Terminal-plus.TerminalInterrupt.exe")))

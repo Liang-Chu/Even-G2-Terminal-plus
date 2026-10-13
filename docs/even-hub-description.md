@@ -1,4 +1,4 @@
-# Even Hub description — Terminal+ 1.1.17
+# Even Hub description — Terminal+ 1.1.19
 
 View coding sessions running on Windows/Linux through your phone and G2 while you keep working in your terminal.
 
@@ -16,9 +16,9 @@ For internet access, connect the phone and computers through Tailscale. Sources 
 
 Voice recognition requires your own OpenAI API key or ElevenLabs key; a ChatGPT subscription alone is insufficient. OpenAI defaults to GPT Transcribe with streamed text; explicitly saved model choices remain.
 
-Supported requests have an Answer shortcut on the phone; G2 handles short single questions/options. Native-only dialogs require the original terminal. Ordinary Codex/Claude sessions stay read-only; Claude is experimental.
+Supported requests have an Answer shortcut on the phone; G2 handles short single questions/options, including supported ordinary Claude questions and explicit tool approvals. Larger forms and unsupported native dialogs use the phone/original terminal. Ordinary Codex remains read-only; ordinary Claude needs a connector for new prompts/control. Claude is experimental.
 
-New alerts/request UI require 1.1.17 companions and Hub.
+Native Claude remote replies require 1.1.19 companions and Hub, with the updated hooks loaded before the question appears.
 
 Required Windows/Linux companion and setup:
 [Terminal+](https://github.com/Liang-Chu/Even-G2-Terminal-plus)

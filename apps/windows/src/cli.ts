@@ -77,7 +77,8 @@ try {
   runtime = new NativeHost({ cwd, sessions, directory: resolve(dataDirectory(), "native"),
     catalog: new ConnectorCatalog({ data: dataDirectory(), pi: sessions }),
     codexObservation: { attentionPath: resolve(dataDirectory(), "codex-attention.json") },
-    claudeObservation: { directory: resolve(dataDirectory(), "claude-events") },
+    claudeObservation: { directory: resolve(dataDirectory(), "claude-events"),
+      canAnswer: () => true },
     preferencesPath: resolve(dataDirectory(), "monitoring.json"), launch: openNativeTerminal, unregistered: hasUnregisteredTerminal });
   const localConfig = ensureLocalConfig();
   const token =

@@ -14,7 +14,7 @@ import { piCommand, type PiCommandContext } from "../../../packages/connectors/p
 // Structural types keep this small local extension independent of Pi's npm layout.
 interface PiContext extends PiCommandContext {
   mode: string; cwd: string; model?: { provider: string; id: string };
-  isIdle(): boolean; abort(): void;
+  isIdle(): boolean; hasPendingMessages?(): boolean; abort(): void;
   sessionManager: { getSessionFile(): string | undefined; getSessionId(): string; getSessionName(): string | undefined; getBranch(): any[] };
 }
 interface PiApi {
@@ -30,6 +30,7 @@ export default function monitor(pi: PiApi) {
   const subagents = new PiSubagentTracker();
   let inferredName: string | undefined;
   let polling = false;
+  let pendingSettlement: { runId: number; at: number; interrupted: boolean } | undefined;
   let dialogSequence = 0;
   const dialogs: { id: string; kind: string; createdAt: number; quiet?: true }[] = [];
   const interactions = new InteractionBroker(requests => {
@@ -38,6 +39,22 @@ export default function monitor(pi: PiApi) {
   const commandStatus = (text: string) => { store.publish({ ...store.state, commandStatus: text }, { type: "monitoring.updated" }); dirty = true; };
   const directory = join(dataDirectory(), "native");
   const snapshotPath = join(directory, `${process.pid}.json`);
+  function confirmSettlement() {
+    if (!snapshot || !ctx || !pendingSettlement) return;
+    if (pendingSettlement.runId !== snapshot.runId) { pendingSettlement = undefined; return; }
+    // Settled hooks may queue a continuation after our handler has returned.
+    // Confirm on a later poll, without briefly publishing idle or clearing work.
+    if (Date.now() - pendingSettlement.at < 500 || !ctx.isIdle() || ctx.hasPendingMessages?.()
+      || Object.keys(store.state.tools.active).length || store.state.subagents?.active || store.state.subagents?.uncertain) return;
+    const settled = pendingSettlement; pendingSettlement = undefined;
+    if (settled.interrupted) store.publish({ ...store.state, main: { ...store.state.main, outcome: "interrupted" } }, { type: "monitoring.updated" });
+    subagents.reset();
+    store.publish({ ...store.state, subagents: undefined }, { type: "monitoring.updated" });
+    store.dispatch({ type: "agent.settled" });
+    snapshot.completions = [...snapshot.completions,
+      { id: settled.runId, at: Date.now(), outcome: store.state.main.outcome || "completed" }].slice(-50);
+    snapshot.updatedAt = Date.now(); dirty = true;
+  }
   function publish() {
     if (!snapshot) return;
     const state = store.state;
@@ -85,6 +102,7 @@ export default function monitor(pi: PiApi) {
         } catch (reason) { error = reason instanceof Error ? reason.message : "Could not deliver command"; }
         writeLocalJson(join(directory, `${replyInstance}.reply.json`), { id: command.id, error });
       }
+      confirmSettlement();
       if (dirty || Date.now() - lastWrite > 2000) publish();
     } catch { /* A stopped/restarting monitor must never disrupt the user's terminal. */ }
     finally { polling = false; }
@@ -92,7 +110,7 @@ export default function monitor(pi: PiApi) {
   pi.on("session_start", (_event, context) => {
     interactions.clear();
     dialogs.length = 0;
-    clearInterval(timer); ctx = undefined; snapshot = undefined; subagents.reset(); inferredName = undefined;
+    clearInterval(timer); ctx = undefined; snapshot = undefined; pendingSettlement = undefined; subagents.reset(); inferredName = undefined;
     if (context.mode !== "tui") return;
     ctx = context; store = new CockpitStore(ctx.cwd);
     const file = ctx.sessionManager.getSessionFile();
@@ -111,10 +129,15 @@ export default function monitor(pi: PiApi) {
       runId: ctx.isIdle() ? 0 : Date.now(), completions: [], state: store.state };
     dirty = true; tick(); timer = setInterval(tick, 250); timer.unref();
   });
-  for (const name of ["agent_start", "agent_settled", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_update", "tool_execution_end"]) {
+  for (const name of ["agent_start", "agent_settled", "auto_retry_start", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_update", "tool_execution_end"]) {
     pi.on(name, (raw, context) => {
       if (!snapshot) return;
       ctx = context;
+      if (raw.type === "agent_settled") {
+        if (snapshot.runId > 0 && !snapshot.completions.some(item => item.id === snapshot!.runId))
+          pendingSettlement ||= { runId: snapshot.runId, at: Date.now(), interrupted: raw.aborted === true };
+        return;
+      }
       const counts = subagents.update(raw);
       if (JSON.stringify(counts) !== JSON.stringify(store.state.subagents)) {
         store.publish({ ...store.state, subagents: counts }, { type: "monitoring.updated" }); dirty = true;
@@ -125,9 +148,8 @@ export default function monitor(pi: PiApi) {
           inferredName = promptLabel(event.text) || undefined;
           store.dispatch({ type: "session.updated", session: { name: context.sessionManager.getSessionName() || inferredName } });
         }
-        if (event.type === "agent.started") { interactions.clear(); snapshot.runId = Math.max(snapshot.runId + 1, Date.now()); }
-        if (event.type === "agent.settled") snapshot.completions = [...snapshot.completions,
-          { id: snapshot.runId, at: Date.now(), outcome: store.state.main.outcome || "completed" }].slice(-50);
+        if (event.type === "agent.started") { pendingSettlement = undefined; interactions.clear(); snapshot.runId = Math.max(snapshot.runId + 1, Date.now()); }
+        if (event.type === "agent.retrying") pendingSettlement = undefined;
       }
     });
   }
@@ -166,6 +188,7 @@ export default function monitor(pi: PiApi) {
   pi.on("session_shutdown", () => {
     interactions.clear();
     clearInterval(timer);
+    pendingSettlement = undefined;
     if (!snapshot) return;
     store.dispatch({ type: "runtime.exited", expected: true });
     try { publish(); } catch {}

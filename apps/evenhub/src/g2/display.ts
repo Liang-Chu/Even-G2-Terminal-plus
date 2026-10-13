@@ -15,7 +15,7 @@ import { BACK_MENU_ID, SEND_MENU_ID, SESSIONS_MENU_ID, STOP_MENU_ID, PREVIOUS_PA
 import { MessageBrowser, activityDetails, nativeTextPrefix } from "./messages.js";
 import { TapGestures } from "./tap-gestures.js";
 import { bridgeBatch, serialBridge } from "../bridge/serial.js";
-import { glassesInteraction, type Interaction, type InteractionAnswer } from "../../../../packages/cockpit-state/interactions.js";
+import { glassesInteraction, invalidInteractionAnswer, type Interaction, type InteractionAnswer } from "../../../../packages/cockpit-state/interactions.js";
 import { selectedInputNeeded } from "../interactions/attention.js";
 
 interface SessionControls {
@@ -631,8 +631,11 @@ export class G2Display {
   }
   private choiceBody(request: Interaction, index: number) {
     const q = request.questions[0], option = q.options[index];
-    return [q.text, request.detail, option ? `▶ ${index + 1}/${this.choiceCount(request)} ${option.label}` : q.allowText ? "▶ Other / enter answer" : "",
+    return [q.text, request.detail, option ? `▶ ${index + 1}/${this.choiceCount(request)} ${option.label}` : q.allowText ? `▶ ${this.choiceInputLabel(request)}` : "",
       option?.description].filter(Boolean).join("\n");
+  }
+  private choiceInputLabel(request: Interaction) {
+    return request.questions[0].multiSelect ? "Multiple / enter answer" : "Other / enter answer";
   }
   private canAnswerChoice(request: Interaction) {
     return glassesInteraction(request) && Array.from({ length: this.choiceCount(request) }, (_, i) => i)
@@ -651,6 +654,9 @@ export class G2Display {
     if (draft.key !== key || !this.hasInteractionDraft() || !this.options.respond)
       throw new Error("Question changed or disconnected. Answer was not sent.");
     if (!text.trim() || text.length > 8000) throw new Error("Enter an answer of at most 8000 characters.");
+    const request = this.state!.interactions![0], question = request.questions.find(question => question.id === draft.questionId)!;
+    const invalid = invalidInteractionAnswer(request, question, text);
+    if (invalid) throw new Error(invalid);
     // Claim before sending. An uncertain acknowledgement must not become a retry or prompt.
     draft.sent = true;
     await this.options.respond(key, { requestId: draft.requestId, answers: { [draft.questionId]: text.trim() } });
@@ -784,9 +790,9 @@ export class G2Display {
     const choice = this.choice();
     if (choice && choice.kind !== "approval" && this.canAnswerChoice(choice)) {
       const q = choice.questions[0];
-      const entries: NativeListEntry[] = q.options.map(option => ({ key: option.id,
-        label: nativeLabel(option.label + (option.description ? " — " + option.description : "")) }));
-      if (q.allowText) entries.push({ key: "other-input", label: "Other / enter answer" });
+      const entries: NativeListEntry[] = q.options.map((option, index) => ({ key: option.id,
+        label: nativeLabel((q.multiSelect ? `${index + 1}. ` : "") + option.label + (option.description ? " — " + option.description : "")) }));
+      if (q.allowText) entries.push({ key: "other-input", label: this.choiceInputLabel(choice) });
       return { body: "", entries, picker: true, choice: true, sessionKey: key,
         heading: nativeHeading(q.text), layoutKey: "choice:" + JSON.stringify([key, choice.id, entries]) };
     }

@@ -88,10 +88,25 @@ test("only the opted-in AskUserQuestion hook gets a long timeout; unsupported qu
   assert.equal(settings.hooks.Stop[0].hooks[0].timeout, 2);
   const f = await fixture(t);
   for (const bad of [ { tool_name: "Bash" }, { session_id: randomUUID() }, { agent_id: "child" },
-    { question_input: { questions: [{ ...questionInput.questions[0], multiSelect: true }] } }, { question_input: { questions: [] } } ]) {
+    { question_input: { questions: [] } } ]) {
     assert.equal(f.relay.handle({ ...f.event, ...bad }, { destroyed: false } as any), false);
   }
   assert.equal(f.monitor.store.state.interactions?.length || 0, 0);
+});
+
+test("Claude connector multiple choices accept exact lists or explicit free-text descriptions", async t => {
+  const f = await fixture(t);
+  f.event.question_input = { questions: [{ ...questionInput.questions[0], multiSelect: true }] };
+  const pending = fetch(f.url); await until(() => !!f.monitor.store.state.interactions?.length);
+  const request = f.monitor.store.state.interactions![0]; assert.equal(request.questions[0].multiSelect, true);
+  await f.monitor.interactions.respond({ requestId: request.id, answers: { q0: "1,2" } });
+  assert.deepEqual(await (await pending).json(), { answers: { "Which format?": "Summary, Full" } });
+  f.event.tool_use_id = "toolu_description";
+  const described = fetch(f.url); await until(() => !!f.monitor.store.state.interactions?.length);
+  await f.monitor.interactions.respond({ requestId: f.monitor.store.state.interactions![0].id,
+    answers: { q0: "Use a summary with only the essential details" } });
+  assert.deepEqual(await (await described).json(), { answers: { "Which format?": "Use a summary with only the essential details" } });
+  assert.equal(f.monitor.snapshot.completions.length, 0);
 });
 
 test("real connector hook round trip returns official updatedInput without a model run", async t => {

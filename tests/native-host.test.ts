@@ -25,7 +25,8 @@ function nativeSnapshot(host: NativeHost, key: string) {
   return runtime.snapshot;
 }
 
-async function fixture(t: any, alive: (pid: number) => boolean = () => true) {
+async function fixture(t: any, alive: (pid: number) => boolean = () => true,
+  piBackground?: (identity: { pid: number; sessionId: string; sessionFile: string; excludePids: number[] }) => { active: number; uncertain?: true }) {
   const root = await mkdtemp(join(tmpdir(), "pilot-native-")), sessions = join(root, "sessions"), directory = join(root, "native");
   await mkdir(sessions); await mkdir(directory);
   const paths = [join(sessions, "first.jsonl"), join(sessions, "second.jsonl")];
@@ -36,7 +37,7 @@ async function fixture(t: any, alive: (pid: number) => boolean = () => true) {
   }
   const launched: string[] = [];
   const host = new NativeHost({ cwd: root, directory, preferencesPath: join(root, "monitoring.json"), sessions: { root: sessions },
-    launch: async path => { launched.push(path); }, alive });
+    launch: async path => { launched.push(path); }, alive, piBackground });
   const journal = new NotificationJournal(host.store);
   const make = (i: number, running = false) => {
     const store = new CockpitStore(root);
@@ -301,6 +302,84 @@ test("each native terminal completion notifies once; stale heartbeat never becom
   assert.equal(f.journal.list().length, 2);
 });
 
+test("a Pi continuation supersedes an unseen completion and only its final run notifies", async t => {
+  const f = await fixture(t), window = f.make(0, true), key = sessionKey(f.paths[0]);
+  const original = await readFile(f.paths[0], "utf8");
+  // Autonomous continuation reaches the publisher before the bridge's next
+  // scan, so both the old completion and the new active run arrive together.
+  window.store.dispatch({ type: "agent.settled" });
+  window.snapshot.completions.push({ id: 1, at: Date.now(), outcome: "completed" });
+  window.store.dispatch({ type: "agent.started" }); window.snapshot.runId = 2;
+  window.publish(); window.publish();
+  assert.equal(f.host.getRuntime(key).store.state.main.status, "running");
+  assert.equal(f.host.store.state.monitoring?.running, 1);
+  assert.equal(f.journal.list().length, 0, "Prior settled history cannot report the continued work as finished");
+  window.store.dispatch({ type: "agent.settled" });
+  window.snapshot.completions.push({ id: 2, at: Date.now(), outcome: "completed" });
+  window.publish(); window.publish();
+  assert.equal(f.journal.list().length, 1, "Only the final settled run notifies, without replaying the superseded run");
+  assert.equal(f.journal.list()[0].sessionKey, key);
+  assert.equal(f.host.store.state.monitoring?.running, 0);
+  assert.equal(f.host.store.state.monitoring?.watched, 1);
+  assert.equal(f.launched.length, 0);
+  assert.equal(await readFile(f.paths[0], "utf8"), original, "Monitoring never changes the native session");
+});
+
+test("a native completion remains pending while the same run reports active work", async t => {
+  const f = await fixture(t), window = f.make(0, true), key = sessionKey(f.paths[0]);
+  window.snapshot.completions.push({ id: 1, at: Date.now(), outcome: "completed" });
+  window.publish();
+  assert.equal(f.journal.list().length, 0, "A completion cannot contradict a running main agent");
+  window.store.publish({ ...window.store.state, main: { ...window.store.state.main, status: "waiting" } }, { type: "monitoring.updated" });
+  window.publish(); assert.equal(f.journal.list().length, 0, "Waiting for work is not completion");
+  window.store.dispatch({ type: "agent.settled" });
+  window.store.dispatch({ type: "tool.started", id: "shell", name: "bash" });
+  window.publish(); assert.equal(f.journal.list().length, 0, "An unfinished shell tool still blocks completion");
+  window.store.dispatch({ type: "tool.finished", id: "shell", failed: false });
+  window.store.publish({ ...window.store.state, subagents: { active: 1, mainDelegated: true } }, { type: "monitoring.updated" });
+  window.publish(); assert.equal(f.journal.list().length, 0, "The last delegated agent must finish first");
+  window.store.publish({ ...window.store.state, subagents: { active: 0, uncertain: true } }, { type: "monitoring.updated" });
+  window.publish(); assert.equal(f.journal.list().length, 0, "Uncertain agent activity cannot confirm completion");
+  window.store.publish({ ...window.store.state, subagents: { active: 0 } }, { type: "monitoring.updated" });
+  window.publish(); window.publish();
+  assert.equal(f.journal.list().length, 1, "A later fully settled snapshot confirms the same run exactly once");
+  assert.equal(f.journal.list()[0].sessionKey, key);
+  assert.equal(f.host.store.state.monitoring?.watched, 1);
+});
+
+test("Pi detached shell work defers its session completion without blocking a new native prompt", async t => {
+  let background: { active: number; uncertain?: true } = { active: 0 };
+  const f = await fixture(t, () => true, identity => identity.sessionId === "source-0" ? background : { active: 0 });
+  const first = f.make(0, true), second = f.make(1, true), key = sessionKey(f.paths[0]);
+  await f.host.resumeSession(key);
+  background = { active: 2 };
+  first.store.dispatch({ type: "agent.settled" });
+  first.snapshot.completions.push({ id: 1, at: Date.now(), outcome: "completed" }); first.publish();
+  assert.equal(f.host.getRuntime(key).store.state.main.status, "running");
+  assert.equal(f.host.store.state.monitoring?.running, 2);
+  assert.equal(f.journal.list().length, 0, "The detached shell has not finished just because Pi has replied");
+  second.store.dispatch({ type: "agent.settled" });
+  second.snapshot.completions.push({ id: 1, at: Date.now(), outcome: "completed" }); second.publish();
+  assert.equal(f.journal.list().length, 1, "Another session completes independently");
+  assert.equal(f.journal.list()[0].sessionKey, sessionKey(f.paths[1]));
+  const sending = f.host.getRuntime(key).prompt("Next instruction");
+  const command = readLocalJson(join(f.directory, `${first.snapshot.instance}.command.json`));
+  assert.equal(command.type, "prompt"); assert.equal(command.text, "Next instruction");
+  writeLocalJson(join(f.directory, `${first.snapshot.instance}.reply.json`), { id: command.id }); await sending;
+  background = { active: 0, uncertain: true }; first.publish();
+  assert.equal(f.journal.list().length, 1, "Temporarily unreadable owned work does not imply completion");
+  background = { active: 0 }; first.publish(); first.publish();
+  assert.equal(f.journal.list().length, 2, "The last owned process ending releases this session's completion once");
+  assert.equal(f.journal.list()[1].sessionKey, key);
+  assert.equal(f.host.store.state.monitoring?.running, 0);
+  assert.equal(f.host.store.state.commandStatus, undefined);
+  assert.equal(f.launched.length, 0);
+  background = { active: 1 }; first.publish(); await f.host.setMonitored(key, false);
+  background = { active: 0 }; first.publish();
+  assert.equal(f.journal.list().length, 2, "Unwatch retains the terminal and never invents another completion");
+  assert.equal(f.host.getRuntime(key).store.state.connected, true);
+});
+
 test("dead heartbeat cleanup is bounded, consumes final completion, and retains living owners and session history", async t => {
   const living = new Set([1000, 1001]), f = await fixture(t, pid => living.has(pid));
   const first = f.make(0, true), second = f.make(1);
@@ -521,8 +600,9 @@ test("real extension callbacks update snapshots, redact hidden/tool data, and re
   assert.equal(snapshot.state.session.model, "deepseek/new-model");
   assert.doesNotMatch(JSON.stringify(snapshot), /private reasoning/);
   handlers.get("message_start")!({ type: "message_start", message: { role: "user", content: "new terminal message" } }, ctx);
+  handlers.get("tool_execution_end")!({ type: "tool_execution_end", toolCallId: "parallel", isError: false }, ctx);
   handlers.get("agent_settled")!({ type: "agent_settled" }, ctx);
-  await delay(300); snapshot = readLocalJson(snapshotPath);
+  await delay(800); snapshot = readLocalJson(snapshotPath);
   assert.equal(snapshot.state.transcript.at(-1)?.text, "new terminal message"); assert.equal(snapshot.completions.length, 1);
   const previousRun = snapshot.runId;
   idle = false; handlers.get("agent_start")!({ type: "agent_start" }, ctx);

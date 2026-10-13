@@ -2,7 +2,7 @@
 
 从一台已经能使用 Pi、Codex 或 Claude Code 的电脑开始，不需要以前的 Terminal+ 配置。先跑通见[快速开始](../README.zh-CN.md)；[English](setup.md)。
 
-本文对应 **Terminal+ 1.1.18**；验证和可下载版本见[发布状态](release-status.md)。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
+本文对应 **Terminal+ 1.1.19**；验证和可下载版本见[发布状态](release-status.md)。已有安装先按[一次性迁移](updates.md#migration-from-even-pilot)升级。
 
 ## 先分清四个部分
 
@@ -19,7 +19,7 @@ Terminal+ 是监控和简单会话管理端。浏览器管理页和手机 Hub �
 
 ### Windows
 
-1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.18-Setup-x64.exe`。
+1. 在 [Releases](https://github.com/Liang-Chu/Even-G2-Terminal-plus/releases) 下载 `Terminal-plus-1.1.19-Setup-x64.exe`。
 2. 使用平时运行 CLI 的系统用户打开安装器，点击 **Install**。已包含 Node 和后端依赖，安装本身可离线完成，不需要系统 Node/npm 或管理员权限。
 3. 会话管理页自动打开。以后使用桌面／开始菜单快捷方式，或双击托盘图标。
 4. 托盘右键显示运行状态，并提供 **Open Terminal+**、**Start with Windows**、更新和 **Quit Terminal+**。Quit 只退出托盘，保留独立后台和原生终端。
@@ -83,7 +83,7 @@ Lingering 是系统用户服务策略，安装器不会擅自开启。没有用�
 | --- | --- | --- |
 | Pi | 已有终端等空闲后 `/reload`；新终端自动加载监控扩展 | 状态、prompt、支持的原生命令和取消 |
 | Codex CLI／Codex Desktop 本地会话 | 无需插件或重开；新会话保存第一条 prompt 后被发现 | 普通会话只读；prompt／控制需要连接器 |
-| Claude Code | 安装时添加官方监控 Hooks；下一次 prompt 开始监控，用 `/hooks` 检查；未加载时等任务结束后重开 | 普通会话只读；远程输入需要实验 Channel 连接器 |
+| Claude Code | 安装时添加官方监控 Hooks；下一次 prompt 开始监控，用 `/hooks` 检查；未加载时等任务结束后重开 | 普通会话可回答绑定的提问／工具审批；新 prompt／控制需要实验 Channel 连接器 |
 
 超过 32 MiB 的 Claude transcript 仍可通过读取开头 64 KiB 和末尾 2 MiB 进行监控，无需扫描整个历史。已确定退出且无法恢复首条 prompt 的旧事件可移出队列；不确定／仍活动的事件和缺失历史不会被当成任务完成。完整历史保留在原生 CLI。
 
@@ -94,7 +94,7 @@ terminal-plus new codex --cwd /your/project --name "My task"
 terminal-plus new claude --cwd /your/project
 ```
 
-替换示例项目路径。Claude 需在原终端确认 **local development channel**，并仍使用原来的工具审批。普通 Claude 只读监控不依赖 Channel；存在可能继续执行的自定义 Stop Hooks 时，完成状态会保持未确认。[完整能力表](connectors.md)
+替换示例项目路径。Claude 需在原终端确认 **local development channel**，并仍使用原来的工具审批。普通 Claude 的监控及受支持提问／审批回答不依赖 Channel；存在可能继续执行的自定义 Stop Hooks 时，完成状态会保持未确认。[完整能力表](connectors.md)
 
 ### Pi 多 agent（可选）
 
@@ -118,7 +118,7 @@ terminal-plus new claude --cwd /your/project
 
 ## 连接 Hub 与多台电脑
 
-1. 在 Even Hub 单独安装 **Terminal+ 1.1.18**（`terminal-plus-1.1.18.ehpk`）。使用 **Terminal+ 1.1.18** 电脑端和 Even App 2.2.10+，再连好 G2。
+1. 在 Even Hub 单独安装 **Terminal+ 1.1.19**（`terminal-plus-1.1.19.ehpk`）。使用 **Terminal+ 1.1.19** 电脑端和 Even App 2.2.10+，再连好 G2。
 2. 在需要连接的电脑获取两项：Windows 本机管理页 **Connect phone** 打开 **Connect your phone**，直接显示这台的 URL/key 和二维码；Linux `terminal-plus pair` 打印。
 3. 手机 Hub **Connection → Connect another computer** 填写：
 
@@ -141,7 +141,7 @@ terminal-plus new claude --cwd /your/project
 1. 在 Windows、Linux 或其他设备的浏览器打开 `http://提供页面的电脑IP:4317/?desktop=1`，保持该电脑监控端运行。
 2. 打开 **Computers → Connect another computer**，填入一台已知电脑的 **Connect phone** 或 Linux `terminal-plus pair` 显示的 **Bridge URL** 和 **Connection key**，点击 **Connect computer**，自动获取共享列表。本机桌面快捷方式会自动连接本机。
 3. 只需添加尚未列出的电脑。**Sessions** 汇总 Pi、Codex、Claude，按最近更新排列并显示已 Watch／运行数量。用 **Status → All / Watched / Running** 筛选状态，用 **Devices** 勾选一台或多台电脑，也可搜索。选择 **All devices**，或取消最后一台的勾选，会显示全部电脑。
-4. **History** 只读消息，不启动 CLI、不改变 Watch。**Select** 复用活动会话，**Open terminal** 才明确打开来源电脑上的保存会话。Pi 保留已有输入能力；普通 Codex／Claude 仍只读，prompt／控制／工具支持仍由各自连接器决定。
+4. **History** 只读消息，不启动 CLI、不改变 Watch。**Select** 复用活动会话，**Open terminal** 才明确打开来源电脑上的保存会话。Pi 保留输入能力；普通 Codex 只读，普通 Claude 可回答绑定的提问／审批。新 prompt／控制能力仍由连接器决定。
 
 浏览器缓存连接列表，并与可达的已配对电脑同步。换浏览器或管理页地址时，连接一台已知电脑即可恢复共享列表。电脑端保存共享 URL/key，不代理会话历史或任务数据；每台目标仍需能从浏览器通过 Tailscale 或 LAN 直接访问。刷新／重连保留 Watch；**Remove** 移除共享连接，不停止任务。
 
@@ -160,7 +160,7 @@ terminal-plus new claude --cwd /your/project
 
 ## Watch 与原生终端
 
-浏览器和手机共用紧凑的 **Status**、**Devices** 下拉菜单。Status 单选 **All / Watched / Running**；Devices 可勾选多台电脑。选择 **All devices**，或取消最后一台的勾选，会显示全部电脑。Watch 只记录监控，不打开窗口。**History** 是只读预览，不改变 Watch、不启动 CLI；**Select** 复用活动会话，**Open terminal** 才明确打开来源电脑上的保存会话。普通 Codex／Claude 仍只读，Pi 和连接器的输入能力不变。
+浏览器和手机共用紧凑的 **Status**、**Devices** 下拉菜单。Status 单选 **All / Watched / Running**；Devices 可勾选多台电脑。选择 **All devices**，或取消最后一台的勾选，会显示全部电脑。Watch 只记录监控，不打开窗口。**History** 是只读预览，不改变 Watch、不启动 CLI；**Select** 复用活动会话，**Open terminal** 才明确打开来源电脑上的保存会话。普通 Codex 只读，普通 Claude 可回答受支持的绑定请求；Pi 和连接器的输入能力不变。
 
 - 从本机桌面快捷方式或 `terminal-plus open` 打开时，默认 Watch 该电脑最近 24 小时更新的会话，不弹出关闭的终端。
 - 刷新、后台重启和网络重连不重新应用这个规则。
@@ -204,7 +204,9 @@ tmux attach -t 实际会话名
 
 语音是可选项：手机 **Voice** 选择 OpenAI／ElevenLabs，填自己的转写 key 并保存。新建或未指定模型的 OpenAI 配置默认使用 **GPT Transcribe**，流式显示文字；已有明确的 Whisper 选择、provider 和 key 保留。设置在当前设备保存；手机直接向所选服务上传音频，再把完整 prompt 发到目标电脑。[语音和数据流](voice.md)
 
-当前会话确认需要输入时显示 **Needs input**。可远程回答的请求有 **Answer →**，直接打开问题／审批面板；仅能在原终端处理的请求显示 **Answer in original terminal**。G2 支持简短单题和选项，较长或多个受支持问题交给手机。普通 Claude 会话能显示问题和选项，回答需要专门的连接器会话。支持的连接器提问最多等待五分钟接收远程回答，手机点 **Cancel** 会立即交回原终端。未支持的格式或多选题保留在原终端。[提问支持范围](connectors.md#phone-commands-and-choices)
+当前会话确认需要输入时显示 **Needs input**。**Answer →** 打开受支持的问题／审批面板；仅能在原终端处理的请求显示 **Answer in original terminal**。普通已 Watch 的 Claude 提问和工具审批最多等待五分钟，手机之前未打开也可以收到通知后再回答。等待期间原终端暂不显示选择菜单；手机点 **Answer in original terminal** 或超时后交回原终端，不自动回答。手机断连不会取消这段等待。新的 Hooks 必须在提问前加载：空闲时检查 `/hooks`，或任务结束后正常重开 Claude。
+
+G2 简短单题复用已有选项列表和语音编辑。多选打开 **Multiple / enter answer**，说／输入 `1,3`、准确选项名称或自定义描述；数字和准确名称映射为选项，描述保持自定义文字。工具详情简短完整时，可明确回答“允许一次”／“拒绝”或“allow once”／“deny”。较长／多题表单用手机，sandbox 网络访问确认仍在原终端。超时后无法通过新 prompt 或自由输入选项补答。[提问支持范围](connectors.md#phone-commands-and-choices)
 
 ## 可选 Glance 通知
 
@@ -277,7 +279,7 @@ terminal-plus settings
 
 已安装的电脑端默认自动检查稳定版本并安装验证通过的更新，已有关闭设置保留。在本机桌面管理页／托盘取消勾选 **Automatic updates**，或执行 Linux `terminal-plus update off` 关闭自动更新，`on` 恢复。想立即安装，可用本机 **Updates**、Windows 托盘 **Check for updates → Update to …** 或 Linux `terminal-plus update`，再用 `terminal-plus update status` 查看。手动 **Check now** 只检查；安装会短暂重启监控，原生终端继续运行。手机 Hub 不提供电脑端更新操作。
 
-更新电脑端获取需要输入通知；单独安装 **Hub 1.1.18** 获取 **Answer →** 快捷入口和 G2 请求界面更新。已有 Pi 等当前任务空闲后 `/reload`；Codex／Claude 连接器终端等空闲再重开，加载内嵌的新代码，不必为更新中断任务。普通观察会话支持范围比连接器更有限。[检测限制](connectors.md#input-needed-notifications)
+更新电脑端获取需要输入通知；单独安装 **Hub 1.1.19** 获取 **Answer →** 快捷入口和 G2 请求界面更新。已有 Pi 等当前任务空闲后 `/reload`；Codex／Claude 连接器终端等空闲再重开，加载内嵌的新代码，不必为更新中断任务。普通观察会话支持范围比连接器更有限。[检测限制](connectors.md#input-needed-notifications)
 
 共享连接继续可用：打开原来已保存电脑列表的更新后查看端，验证通过的记录会同步到可达的电脑；未验证的离线记录先留在本地，确认设备身份后再同步。同步的移除记录不保留 key，旧缓存不会重新添加已移除的电脑。新浏览器／手机只需连接一台已知电脑获取列表。旧客户端仍兼容，但设备列表仅保存在本地。
 
@@ -298,7 +300,7 @@ npm 安装的版本完成上述卸载后，再执行 `npm uninstall -g terminal-
 | Tailscale DNS unavailable | 先用数字 IP 验证，它不需要 MagicDNS |
 | 手机在线但 G2 reconnecting | Even App 的 G2／蓝牙连接及 G2 页状态，显示连接与后端连接不同 |
 | 新 CLI 不在列表 | 同用户／配置目录、首次保存 prompt、Pi `/reload`、Claude `/hooks`、**Status → All**、**Devices → All devices**，再 Watch |
-| Codex／Claude 提示回原终端 | 当前是只读观察；需要远程输入才创建连接器 |
+| Codex／Claude 提示回原终端 | 新 prompt／控制需要连接器。原生 Claude 提问需提前加载更新的 Hooks 并保留 Watch；超时／未支持的请求仍在原终端 |
 | Linux 找不到命令 | 重开支持的 shell，或用 `~/.local/bin/terminal-plus`，检查 PATH 提示 |
 | Linux 打不开终端 | CLI 已安装登录、无头已装 tmux，从能找到 CLI 的 shell 重启后台 |
 | Glance 没有完成推送 | Watch、正确发送端/中心、Firebase 权限、PUSH 保存注册、会话没有正显示在 G2；需要输入提醒不受这项抑制 |

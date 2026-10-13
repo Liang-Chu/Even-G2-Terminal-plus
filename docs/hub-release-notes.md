@@ -1,3 +1,12 @@
+# Terminal+ 1.1.19 — Hub update
+
+- Answers supported native Claude questions and tool approvals through the existing phone/G2 controls; requires companion 1.1.19 and updated Claude hooks, without Channels access.
+- Multi-select uses **Multiple / enter answer** and the existing sentence-by-sentence editor. Numbers/exact labels select options; descriptions remain custom text.
+- Short complete approvals accept explicit spoken **allow once / deny** or **允许一次／拒绝**. Larger/multiple forms use the phone; unsupported native dialogs stay in the terminal.
+- Phone **Answer in original terminal** hands back a pending native request. Expired requests and uncertain deliveries are never retried or converted into conversation prompts.
+
+Install `terminal-plus-1.1.19.ehpk` separately in Even Hub and update the companion. Any watched native Claude request waits up to five minutes so you can open the phone after a Glance notification. Publication and physical acceptance are tracked in [release status](release-status.md).
+
 # Terminal+ 1.1.18 — Hub update
 
 - Removes automatic phone-only fallback for fields marked sensitive. Short supported questions use the existing G2 option list or sentence-by-sentence editor; users choose whether to answer on G2 or the phone.

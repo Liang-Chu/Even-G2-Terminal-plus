@@ -136,7 +136,14 @@ class TerminalInterrupt {
             if (args[0] == "claude-owner" && args.Length == 2) return ClaudeOwner(pid);
             using (var target = Process.GetProcessById(pid)) {
                 long started = target.StartTime.ToUniversalTime().Ticks;
-                if (args[0] == "identity" && args.Length == 2) { Console.Write(started); return 0; }
+                if (args[0] == "identity" && args.Length == 2) {
+                    var handle = OpenProcess(0x1400, false, pid); // Query only, matching native owner discovery.
+                    if (handle == IntPtr.Zero) return 8;
+                    try {
+                        if (!SameUser(handle) || target.HasExited || target.StartTime.ToUniversalTime().Ticks != started) return 8;
+                        Console.Write(started); return 0;
+                    } finally { CloseHandle(handle); }
+                }
                 long expectedStart, expires, run;
                 if (args[0] != "interrupt" || args.Length != 8 || !Int64.TryParse(args[2], out expectedStart)
                     || !Int64.TryParse(args[3], out expires) || !Int64.TryParse(args[7], out run)

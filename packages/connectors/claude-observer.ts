@@ -9,9 +9,11 @@ import { promptLabel } from "../cockpit-state/selectors.js";
 import { connectorKey } from "./identity.js";
 import { claudeHistory } from "./catalog.js";
 import { readClaudeTranscript } from "./claude-transcript.js";
-import { canonicalPath } from "../pi-runtime/sessions.js";
+import { canonicalPath, SessionError } from "../pi-runtime/sessions.js";
 import { writeLocalJson, uuidPattern } from "../pi-runtime/native-protocol.js";
 import { claudeProcessIdentity } from "../../apps/windows/src/connectors/claude-interrupt.js";
+import type { InteractionAnswer } from "../cockpit-state/interactions.js";
+import { NativeClaudeQuestions } from "./claude-native-questions.js";
 
 type Outcome = "completed" | "failed";
 export interface ClaudeOwner { pid: number; started: string }
@@ -38,7 +40,7 @@ class InvalidQueuedEvent extends Error {}
 interface UnreadableEvent { at: number; sessionId?: string; owner?: ClaudeOwner }
 
 /** Ordinary Claude terminals emit official hooks into a private queue. This
- * adapter never controls the CLI and never guesses completion from silence,
+ * adapter replies only to verified pending question hooks, and never guesses completion from silence,
  * transcript text, process loss or SessionEnd. */
 export class ClaudeObserver {
   private historyStats = new Map<string, { modified: number; size: number }>();
@@ -59,9 +61,13 @@ export class ClaudeObserver {
   private missingEvents: number[] = [];
   private missingThrough = 0;
   private gapUnconfirmed = false;
+  private questions?: NativeClaudeQuestions;
   constructor(private receive: (observation: ClaudeObservation) => void, private options: {
     directory: string; root?: string; now?: () => number;
     alive?: (owner: ClaudeOwner) => Promise<boolean>;
+    monitored?: (key: string) => boolean;
+    canAnswer?: (key: string) => boolean;
+    questionIdentity?: (pid: number) => Promise<string | undefined>;
   }) {
     this.directory = resolve(options.directory);
     this.root = resolve(options.root || join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects"));
@@ -105,6 +111,24 @@ export class ClaudeObserver {
           store, online: false, historyLoaded: false });
       }
     } catch { /* An unreadable baseline never fabricates completed work. */ }
+    if (options.monitored && options.canAnswer) this.questions = new NativeClaudeQuestions(resolve(this.directory, ".."), () => [...this.sessions.values()].map(row => ({
+      id: row.id, key: connectorKey("claude", row.id), owner: row.owner, path: row.path, cwd: row.cwd,
+      online: row.online && !row.ended, monitored: this.options.monitored?.(connectorKey("claude", row.id)) === true,
+      canAnswer: this.options.canAnswer?.(connectorKey("claude", row.id)) === true,
+      turnAt: row.turnAt, attention: row.attention || [],
+    })), (id, answeredId) => {
+      const session = this.sessions.get(id);
+      if (!session) return;
+      if (answeredId) {
+        session.attention = (session.attention || []).filter(request => request.id !== answeredId);
+        session.waiting = !!session.attention.length;
+        this.dirty = true;
+        // Answers are ephemeral. The persisted state contains only attention
+        // identities and never the question text or submitted answer.
+        try { this.save(); } catch {}
+      }
+      this.announce(session); this.flush();
+    }, { identify: this.options.questionIdentity, now: this.options.now });
   }
   private now() { return (this.options.now || Date.now)(); }
   async start() {
@@ -222,6 +246,7 @@ export class ClaudeObserver {
           return event?.startAt === undefined || event.stopTrusted !== undefined;
         }) || undefined },
       capabilities: { prompt: false, interrupt: false },
+      interactions: this.questions?.interactions(session.id) || [],
       commandStatus: session.warning,
       attention: session.attention?.map(({ toolId: _, ...request }) => request),
     }, { type: "monitoring.updated" });
@@ -538,6 +563,18 @@ export class ClaudeObserver {
       try { this.receive(observation); } catch { /* Live receivers retain their own notification journal; a crash between state commit and delivery can lose this event. */ }
     }
     for (const path of remove) await unlink(path).catch(() => {});
+    // Receivers establish Watch membership before remote-question admission.
+    await this.questions?.poll();
   }
-  async stop() { this.stopped = true; clearInterval(this.timer); await this.task?.catch(() => {}); }
+  private flush() {
+    const observations = this.pending; this.pending = [];
+    for (const observation of observations) {
+      try { this.receive(observation); } catch { /* Receiver keeps its own notification journal. */ }
+    }
+  }
+  respond(key: string, answer: InteractionAnswer) {
+    if (!this.questions) throw new SessionError("Answer in the original Claude terminal.", 409);
+    return this.questions.respond(key, answer);
+  }
+  async stop() { this.stopped = true; clearInterval(this.timer); await this.task?.catch(() => {}); await this.questions?.stop(); }
 }

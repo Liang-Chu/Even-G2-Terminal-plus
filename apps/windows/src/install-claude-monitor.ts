@@ -17,10 +17,17 @@ export interface ClaudeMonitorOptions {
 interface Registration {
   version: 1; settingsPath: string; hookPath: string; installationRoot: string;
   commands: string[]; hashes: string[]; trustPath: string; trustHashes: string[];
+  questionPath?: string; questionHashes?: string[]; adapterPath?: string; adapterHashes?: string[];
+}
+interface QuestionOwnership {
+  version: 1; installationRoot: string; questionPath: string; questionHashes: string[]; adapterPath: string; adapterHashes: string[];
 }
 const filename = "claude-monitor-registration.json";
+const questionOwnershipFilename = "claude-question-ownership.json";
 const hookSource = fileURLToPath(new URL("./claude-monitor-hook.mjs", import.meta.url));
 const trustSource = fileURLToPath(new URL("./claude-hook-trust.mjs", import.meta.url));
+const questionSource = fileURLToPath(new URL("./claude-native-question.mjs", import.meta.url));
+const adapterSource = fileURLToPath(new URL("../../../packages/connectors/claude-questions.mjs", import.meta.url));
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const literal = (value: string) => "'" + value.replace(/'/g, "''") + "'";
 const shellQuote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
@@ -64,9 +71,28 @@ function registration(path: string, data: string): Registration | undefined {
     || !Array.isArray(parsed.hashes) || !parsed.hashes.length || parsed.hashes.length > 8
     || parsed.hashes.some((hash: any) => typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash))
     || !Array.isArray(parsed.trustHashes) || !parsed.trustHashes.length || parsed.trustHashes.length > 8
-    || parsed.trustHashes.some((hash: any) => typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)))
+    || parsed.trustHashes.some((hash: any) => typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash))
+    || [["questionPath", "questionHashes", "claude-native-question.mjs"], ["adapterPath", "adapterHashes", "claude-questions.mjs"]]
+      .some(([pathKey, hashesKey, file]) => (parsed[pathKey] !== undefined || parsed[hashesKey] !== undefined)
+        && (parsed[pathKey] !== join(data, file) || !Array.isArray(parsed[hashesKey]) || !parsed[hashesKey].length
+          || parsed[hashesKey].length > 8 || parsed[hashesKey].some((hash: any) => typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)))))
     throw new Error("Claude monitor ownership registration is invalid; no settings changed.");
   return parsed as unknown as Registration;
+}
+/** Older rollback installers rewrite the lifecycle record, but cannot erase
+ * ownership of new helper copies they do not know about. */
+function questionOwnership(path: string, data: string): QuestionOwnership | undefined {
+  if (!regular(path, 32_768)) return;
+  let parsed: any;
+  try { parsed = JSON.parse(readFileSync(path, "utf8")); }
+  catch { throw new Error("Claude question helper ownership is unreadable; no settings changed."); }
+  if (!object(parsed) || parsed.version !== 1 || !isAbsolute(parsed.installationRoot || "")
+    || [["questionPath", "questionHashes", "claude-native-question.mjs"], ["adapterPath", "adapterHashes", "claude-questions.mjs"]]
+      .some(([pathKey, hashesKey, file]) => parsed[pathKey] !== join(data, file) || !Array.isArray(parsed[hashesKey])
+        || !parsed[hashesKey].length || parsed[hashesKey].length > 8
+        || parsed[hashesKey].some((hash: any) => typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash))))
+    throw new Error("Claude question helper ownership is invalid; no settings changed.");
+  return parsed as QuestionOwnership;
 }
 function atomic(path: string, body: string, mode = 0o600) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -101,13 +127,17 @@ export function installClaudeMonitor(options: ClaudeMonitorOptions = {}) {
   mkdirSync(data, { recursive: true, mode: 0o700 });
   if (!lstatSync(data).isDirectory() || lstatSync(data).isSymbolicLink()) throw new Error("Claude monitor data directory must be a real directory.");
   const previous = registration(recordPath, data), hookPath = join(data, "claude-monitor-hook.mjs");
+  const questionOwnershipPath = join(data, questionOwnershipFilename), previousQuestions = questionOwnership(questionOwnershipPath, data);
   const trustPath = join(data, "claude-hook-trust.mjs");
+  const questionPath = join(data, "claude-native-question.mjs"), adapterPath = join(data, "claude-questions.mjs");
   const configDirectory = resolve(options.configDirectory || process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"));
   const path = join(configDirectory, "settings.json"), root = resolve(options.installationRoot || currentInstallationRoot());
   if (previous && previous.installationRoot !== root)
     throw new Error("Claude monitor belongs to another installation; no settings changed.");
   if (previous && previous.settingsPath !== path)
     throw new Error("Claude configuration location changed; remove the existing Terminal+ registration before preparing another profile.");
+  if (previousQuestions && previousQuestions.installationRoot !== root)
+    throw new Error("Claude question helpers belong to another installation; no settings changed.");
   const saved = settings(path), config = withoutOwned(saved.value, previous?.commands || []);
   if (regular(hookPath, 128_000)) {
     if (!previous) throw new Error("An unrelated Claude monitor hook file already exists; no settings changed.");
@@ -117,8 +147,22 @@ export function installClaudeMonitor(options: ClaudeMonitorOptions = {}) {
     if (!previous) throw new Error("An unrelated Claude monitor trust file already exists; no settings changed.");
     ownedHookIntact(trustPath, previous.trustHashes);
   }
+  const previousQuestionHashes = [...new Set([...(previousQuestions?.questionHashes || []), ...(previous?.questionHashes || [])])];
+  const previousAdapterHashes = [...new Set([...(previousQuestions?.adapterHashes || []), ...(previous?.adapterHashes || [])])];
+  for (const [path, hashes] of [[questionPath, previousQuestionHashes], [adapterPath, previousAdapterHashes]] as const) {
+    if (!regular(path, 128_000)) continue;
+    if (!hashes.length) throw new Error("An unrelated Claude question helper file already exists; no settings changed.");
+    ownedHookIntact(path, hashes);
+  }
   const source = readFileSync(hookSource, "utf8"), hash = digest(source), node = resolve(options.node || process.execPath);
   const trust = readFileSync(trustSource, "utf8"), trustHash = digest(trust);
+  // The stable copies are self-contained and need no TypeScript runtime or
+  // version-payload path after an update/rollback.
+  const questionImport = "from '../../../packages/connectors/claude-questions.mjs'";
+  const questionOriginal = readFileSync(questionSource, "utf8");
+  if (questionOriginal.split(questionImport).length !== 2) throw new Error("Claude question helper dependency cannot be prepared.");
+  const question = questionOriginal.replace(questionImport, "from './claude-questions.mjs'"), questionHash = digest(question);
+  const adapter = readFileSync(adapterSource, "utf8"), adapterHash = digest(adapter);
   const args = [node, hookPath, data];
   const script = "$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; try { $OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::new(); $hookInput=[Text.StringBuilder]::new(); $buffer=[char[]]::new(4096); while(($count=[Console]::In.Read($buffer,0,$buffer.Length)) -gt 0){ if($hookInput.Length+$count -gt 256000){ [Console]::Write('{}'); exit 0 }; [void]$hookInput.Append($buffer,0,$count) }; $hookInput.ToString() | & " + args.map(literal).join(" ") + " 2>$null; if($LASTEXITCODE -ne 0){ [Console]::Write('{}') } } catch { [Console]::Write('{}') }; exit 0";
   const command = platform === "linux" ? args.map(shellQuote).join(" ")
@@ -126,22 +170,35 @@ export function installClaudeMonitor(options: ClaudeMonitorOptions = {}) {
   config.hooks ||= {};
   for (const event of claudeMonitorEvents) {
     config.hooks[event] ||= [];
-    config.hooks[event].push({ hooks: [{ type: "command", command, timeout: 3 }] });
+    if (event === "PreToolUse") {
+      config.hooks[event].push({ matcher: "^(?!AskUserQuestion$).*", hooks: [{ type: "command", command, timeout: 3 }] },
+        { matcher: "AskUserQuestion", hooks: [{ type: "command", command, timeout: 310 }] });
+    } else config.hooks[event].push({ hooks: [{ type: "command", command, timeout: event === "PermissionRequest" ? 310 : 3 }] });
   }
   // Retain both commands/hashes until settings commit, so an interrupted update is removable.
   const pending: Registration = { version: 1, settingsPath: path, hookPath, installationRoot: root, trustPath,
     commands: [...new Set([...(previous?.commands || []), command])], hashes: [...new Set([...(previous?.hashes || []), hash])],
-    trustHashes: [...new Set([...(previous?.trustHashes || []), trustHash])] };
-  if (pending.commands.length > 8 || pending.hashes.length > 8 || pending.trustHashes.length > 8)
+    trustHashes: [...new Set([...(previous?.trustHashes || []), trustHash])], questionPath, adapterPath,
+    questionHashes: [...new Set([...previousQuestionHashes, questionHash])],
+    adapterHashes: [...new Set([...previousAdapterHashes, adapterHash])] };
+  if (pending.commands.length > 8 || pending.hashes.length > 8 || pending.trustHashes.length > 8
+    || pending.questionHashes!.length > 8 || pending.adapterHashes!.length > 8)
     throw new Error("Claude monitor registration needs repair after repeated interrupted updates.");
+  const questionPending: QuestionOwnership = { version: 1, installationRoot: root, questionPath, adapterPath,
+    questionHashes: pending.questionHashes!, adapterHashes: pending.adapterHashes! };
+  atomic(questionOwnershipPath, JSON.stringify(questionPending, null, 2) + "\n");
   atomic(recordPath, JSON.stringify(pending, null, 2) + "\n");
   atomic(trustPath, trust);
+  atomic(adapterPath, adapter);
+  atomic(questionPath, question);
   atomic(hookPath, source);
   const mode = existsSync(path) ? lstatSync(path).mode & 0o777 : 0o600;
   unchanged(path, saved.source);
   atomic(path, JSON.stringify(config, null, 2) + "\n", mode);
-  if (platform === "linux") { chmodSync(hookPath, 0o600); chmodSync(trustPath, 0o600); }
-  atomic(recordPath, JSON.stringify({ ...pending, commands: [command], hashes: [hash], trustHashes: [trustHash] }, null, 2) + "\n");
+  if (platform === "linux") for (const path of [hookPath, trustPath, questionPath, adapterPath]) chmodSync(path, 0o600);
+  atomic(recordPath, JSON.stringify({ ...pending, commands: [command], hashes: [hash], trustHashes: [trustHash],
+    questionHashes: [questionHash], adapterHashes: [adapterHash] }, null, 2) + "\n");
+  atomic(questionOwnershipPath, JSON.stringify({ ...questionPending, questionHashes: [questionHash], adapterHashes: [adapterHash] }, null, 2) + "\n");
   return { settingsPath: path, hookPath, registrationPath: recordPath };
 }
 
@@ -152,8 +209,15 @@ export function removeClaudeMonitor(options: Pick<ClaudeMonitorOptions, "data" |
   if (owned.installationRoot !== resolve(options.installationRoot || currentInstallationRoot()))
     throw new Error("Claude monitor belongs to another installation; no settings changed.");
   const saved = settings(owned.settingsPath), config = withoutOwned(saved.value, owned.commands);
+  const questionOwnershipPath = join(data, questionOwnershipFilename), helpers = questionOwnership(questionOwnershipPath, data);
+  if (helpers && helpers.installationRoot !== owned.installationRoot)
+    throw new Error("Claude question helpers belong to another installation; no settings changed.");
   ownedHookIntact(owned.hookPath, owned.hashes);
   ownedHookIntact(owned.trustPath, owned.trustHashes);
+  const questionPath = helpers?.questionPath || owned.questionPath, questionHashes = helpers?.questionHashes || owned.questionHashes;
+  const adapterPath = helpers?.adapterPath || owned.adapterPath, adapterHashes = helpers?.adapterHashes || owned.adapterHashes;
+  if (questionPath && questionHashes) ownedHookIntact(questionPath, questionHashes);
+  if (adapterPath && adapterHashes) ownedHookIntact(adapterPath, adapterHashes);
   if (existsSync(owned.settingsPath)) {
     const mode = lstatSync(owned.settingsPath).mode & 0o777;
     unchanged(owned.settingsPath, saved.source);
@@ -161,6 +225,9 @@ export function removeClaudeMonitor(options: Pick<ClaudeMonitorOptions, "data" |
   }
   if (existsSync(owned.hookPath)) unlinkSync(owned.hookPath);
   if (existsSync(owned.trustPath)) unlinkSync(owned.trustPath);
+  if (questionPath && existsSync(questionPath)) unlinkSync(questionPath);
+  if (adapterPath && existsSync(adapterPath)) unlinkSync(adapterPath);
+  if (helpers) unlinkSync(questionOwnershipPath);
   unlinkSync(recordPath);
   return true;
 }

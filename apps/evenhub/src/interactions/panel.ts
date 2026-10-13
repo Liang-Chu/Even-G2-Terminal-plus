@@ -1,5 +1,5 @@
 import type { RuntimeState } from "../../../../packages/cockpit-state/types.js";
-import type { InteractionAnswer } from "../../../../packages/cockpit-state/interactions.js";
+import { invalidInteractionAnswer, type InteractionAnswer } from "../../../../packages/cockpit-state/interactions.js";
 
 /** Plain text only: CLI output never becomes HTML, script, or an executable button. */
 export class InteractionPanel {
@@ -13,7 +13,7 @@ export class InteractionPanel {
   }
   update(state: RuntimeState, online: boolean) {
     const request = state.interactions?.[0], key = state.session.key;
-    this.ready = online && state.connected;
+    this.ready = online && state.connected && (!request || request.expiresAt > Date.now());
     const identity = key + ":" + (request?.id || "");
     if (identity === this.identity) {
       this.element.querySelectorAll<HTMLButtonElement>("button").forEach(b => b.disabled = !this.ready || this.busy); return;
@@ -26,16 +26,16 @@ export class InteractionPanel {
     for (const q of request.questions) {
       const group = document.createElement("fieldset"), legend = document.createElement("legend"); legend.textContent = q.text; group.append(legend);
       let selected: string | undefined, text: HTMLInputElement | undefined;
-      for (const option of q.options) {
+      for (const [index, option] of q.options.entries()) {
         const label = document.createElement("label"), radio = document.createElement("input");
         radio.type = "radio"; radio.name = request.id + ":" + q.id;
-        const span = document.createElement("span"); span.textContent = option.label + (option.description ? " — " + option.description : "");
+        const span = document.createElement("span"); span.textContent = (q.multiSelect ? `${index + 1}. ` : "") + option.label + (option.description ? " — " + option.description : "");
         radio.onchange = () => { selected = option.id; if (text) text.value = ""; };
         label.append(radio, span); group.append(label);
       }
       if (q.allowText) {
         text = document.createElement("input"); text.type = q.secret ? "password" : "text";
-        text.maxLength = 8000; text.placeholder = q.options.length ? "Or enter your answer" : "Enter your answer";
+        text.maxLength = 8000; text.placeholder = q.multiSelect ? "Numbers or labels, e.g. 1,3" : q.options.length ? "Or enter your answer" : "Enter your answer";
         text.setAttribute("aria-label", q.text); text.autocomplete = "off";
         text.oninput = () => { selected = undefined; group.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach(r => r.checked = false); };
         group.append(text);
@@ -47,8 +47,16 @@ export class InteractionPanel {
     send.disabled = !this.ready; form.append(send);
     const deliver = async (cancel = false) => {
       if (this.busy || !this.ready || this.identity !== identity) return;
-      const answers = Object.fromEntries([...values].map(([id, read]) => [id, read()]));
+      if (request.expiresAt <= Date.now()) {
+        message.textContent = "Request expired. Check the original terminal.";
+        this.ready = false; form.querySelectorAll<HTMLButtonElement>("button").forEach(button => button.disabled = true); return;
+      }
+      const answers = cancel ? {} : Object.fromEntries([...values].map(([id, read]) => [id, read()]));
       if (!cancel && Object.values(answers).some(value => !value)) { message.textContent = "Answer every question first."; return; }
+      if (!cancel) {
+        const invalid = request.questions.map(question => invalidInteractionAnswer(request, question, answers[question.id])).find(Boolean);
+        if (invalid) { message.textContent = invalid; return; }
+      }
       this.busy = true; form.querySelectorAll<HTMLButtonElement>("button").forEach(b => b.disabled = true);
       try { await this.submit(key, { requestId: request.id, answers, ...(cancel ? { cancel: true } : {}) });
         if (this.identity === identity) message.textContent = "Response submitted.";
@@ -56,7 +64,7 @@ export class InteractionPanel {
       // A submitted or unconfirmed response is not replayed. The state stream supplies the next request.
     };
     form.onsubmit = event => { event.preventDefault(); void deliver(); };
-    if (request.cancelable) { const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "Cancel";
+    if (request.cancelable) { const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = request.cancelLabel || "Cancel";
       cancel.className = "subtle"; cancel.disabled = !this.ready; cancel.onclick = () => { void deliver(true); }; form.append(cancel); }
     form.append(message); this.element.append(form);
   }
